@@ -173,7 +173,6 @@ jobs:
             echo "❌ Vercel credentials not set"
             exit 1
           fi
-          cd frontend
           vercel deploy --prod --token=$VERCEL_TOKEN
 
   # ===========================================
