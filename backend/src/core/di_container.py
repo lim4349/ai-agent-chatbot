@@ -28,34 +28,23 @@ def _create_embedding_generator(config):
 
 
 def _create_vector_store(config, embedding_generator):
-    """Create document vector store."""
-    from src.documents.store import DocumentVectorStore
-    persist_dir = None
-    chroma_host = None
-    chroma_port = 8000
+    """Create document vector store (Pinecone)."""
+    from src.documents.pinecone_store import PineconeVectorStore
 
-    if config.rag.chroma_host:
-        chroma_host = config.rag.chroma_host
-        chroma_port = config.rag.chroma_port
-    elif config.memory.backend == "redis":
-        persist_dir = "/data/chroma_db/documents"
-
-    return DocumentVectorStore(
-        collection_name=config.rag.collection_name,
-        persist_directory=persist_dir,
+    return PineconeVectorStore(
+        api_key=config.rag.pinecone_api_key,
+        index_name=config.rag.pinecone_index_name,
+        namespace=config.rag.pinecone_namespace,
         embedding_generator=embedding_generator,
-        chroma_host=chroma_host,
-        chroma_port=chroma_port,
-        chroma_token=config.rag.chroma_token,
     )
 
 
 def _create_retriever(vector_store, config):
-    """Create document retriever."""
+    """Create document retriever (Pinecone)."""
     from src.documents.factory import DocumentProcessorFactory
-    from src.documents.retriever_impl import ChromaDBDocumentRetriever
+    from src.documents.retriever_impl import PineconeDocumentRetriever
 
-    return ChromaDBDocumentRetriever(
+    return PineconeDocumentRetriever(
         vector_store=vector_store,
         parser=DocumentProcessorFactory.create_parser(),
         chunker=DocumentProcessorFactory.create_chunker(config),

@@ -1,4 +1,4 @@
-"""ChromaDB implementation of the DocumentRetriever protocol."""
+"""Pinecone implementation of the DocumentRetriever protocol."""
 
 from __future__ import annotations
 
@@ -7,24 +7,24 @@ from src.core.protocols import DocumentRetriever
 from src.documents.chunker import StructureAwareChunker
 from src.documents.models import Document
 from src.documents.parser import DocumentParser
-from src.documents.store import DocumentVectorStore
+from src.documents.pinecone_store import PineconeVectorStore
 
 logger = get_logger(__name__)
 
 
-class ChromaDBDocumentRetriever(DocumentRetriever):
-    """Document retriever implementation using ChromaDB vector store."""
+class PineconeDocumentRetriever(DocumentRetriever):
+    """Document retriever implementation using Pinecone vector store."""
 
     def __init__(
         self,
-        vector_store: DocumentVectorStore,
+        vector_store: PineconeVectorStore,
         chunker: StructureAwareChunker,
         parser: DocumentParser,
     ):
         """Initialize the retriever.
 
         Args:
-            vector_store: DocumentVectorStore instance for storage and search
+            vector_store: PineconeVectorStore instance for storage and search
             chunker: Chunker for document chunking (provided by container)
             parser: DocumentParser for parsing documents (provided by container)
         """

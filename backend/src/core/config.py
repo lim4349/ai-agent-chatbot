@@ -50,7 +50,12 @@ class RAGConfig(BaseSettings):
     top_k: int = 3
     chunking_strategy: str = "auto"
 
-    # ChromaDB connection settings
+    # Pinecone settings (ChromaDB deprecated)
+    pinecone_api_key: str | None = None
+    pinecone_index_name: str = "documents"
+    pinecone_namespace: str = "default"
+
+    # Deprecated: ChromaDB connection settings (use Pinecone instead)
     chroma_host: str | None = None
     chroma_port: int = 8000
     chroma_token: str | None = None

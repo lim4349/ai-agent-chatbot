@@ -5,7 +5,9 @@
 # This blueprint creates:
 #   1. ai-agent-backend (FastAPI web service)
 #   2. ai-agent-redis (Redis session store)
-#   3. ai-agent-chroma (ChromaDB vector database)
+#
+# Note: Vector DB uses Pinecone (managed service)
+# Set PINECONE_API_KEY and PINECONE_INDEX_NAME in Render Dashboard
 #
 # After initial creation, GitHub Actions will handle deployments
 # via .github/workflows/ci-cd.yml
@@ -44,21 +46,20 @@ services:
           type: redis
           name: ai-agent-redis
           property: connectionString
-      # RAG configuration
+      # RAG configuration (Pinecone)
       - key: RAG_CHUNK_SIZE
         value: "1000"
       - key: RAG_CHUNK_OVERLAP
         value: "200"
       - key: RAG_COLLECTION_NAME
         value: documents
-      # ChromaDB configuration
-      - key: CHROMA_HOST
-        fromService:
-          type: web
-          name: ai-agent-chroma
-          property: host
-      - key: CHROMA_PORT
-        value: "8000"
+      # Pinecone configuration - Set in Render Dashboard
+      - key: RAG_PINECONE_API_KEY
+        sync: false
+      - key: RAG_PINECONE_INDEX_NAME
+        value: documents
+      - key: RAG_PINECONE_NAMESPACE
+        value: default
       # Code execution
       - key: CODE_EXECUTION_ENABLED
         value: "true"
@@ -73,15 +74,7 @@ services:
     ipAllowList: []  # Allow all (internal only)
     plan: free
 
-  # Note: ChromaDB must be created manually in Render Dashboard
-  # 1. New → Web Service
-  # 2. Name: ai-agent-chroma
-  # 3. Repo: https://github.com/chroma-core/chroma
-  # 4. Environment: Docker
-  # 5. Add env vars:
-  #    CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.token_authn.TokenAuthServerProvider
-  #    CHROMA_SERVER_AUTHN_CREDENTIALS=(auto-generated)
-  #    CHROMA_SERVER_HOST=0.0.0.0
-  #    CHROMA_SERVER_PORT=8000
-  #    PERSIST_DIRECTORY=/chroma/chroma
-  # 6. Add disk: /chroma (1GB)
+# Note: Pinecone is used for vector storage (managed service)
+# Create index at https://app.pinecone.io and set:
+#   RAG_PINECONE_API_KEY=<your_api_key>
+#   RAG_PINECONE_INDEX_NAME=<your_index_name>

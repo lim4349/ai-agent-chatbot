@@ -92,28 +92,14 @@ class Container:
 
     @cached_property
     def vector_store(self):
-        """Get document vector store instance."""
-        document_vector_store_cls = _get_document_vector_store()
-        # Configure ChromaDB client based on environment
-        persist_dir = None
-        chroma_host = None
-        chroma_port = 8000
+        """Get document vector store instance (Pinecone)."""
+        from src.documents.pinecone_store import PineconeVectorStore
 
-        # Production mode with external ChromaDB server
-        if self.config.rag.chroma_host:
-            chroma_host = self.config.rag.chroma_host
-            chroma_port = self.config.rag.chroma_port
-        # Redis backend with persistent storage
-        elif self.config.memory.backend == "redis":
-            persist_dir = "/data/chroma_db/documents"
-
-        return document_vector_store_cls(
-            collection_name=self.config.rag.collection_name,
-            persist_directory=persist_dir,
+        return PineconeVectorStore(
+            api_key=self.config.rag.pinecone_api_key,
+            index_name=self.config.rag.pinecone_index_name,
+            namespace=self.config.rag.pinecone_namespace,
             embedding_generator=self.embedding_generator,
-            chroma_host=chroma_host,
-            chroma_port=chroma_port,
-            chroma_token=self.config.rag.chroma_token,
         )
 
     @cached_property
@@ -122,10 +108,10 @@ class Container:
         if self._retriever_override:
             return self._retriever_override
 
-        # Create ChromaDB retriever with vector store and parser/chunker
-        from src.documents.retriever_impl import ChromaDBDocumentRetriever
+        # Create Pinecone retriever with vector store and parser/chunker
+        from src.documents.retriever_impl import PineconeDocumentRetriever
 
-        return ChromaDBDocumentRetriever(
+        return PineconeDocumentRetriever(
             vector_store=self.vector_store,
             parser=self.document_parser,
             chunker=self.document_chunker,

@@ -29,7 +29,7 @@ dependencies = [
 
     # Memory & Storage
     "redis>=5.0",
-    "chromadb>=0.5",
+    "pinecone>=6.0",  # Vector DB for RAG
 
     # Tools
     "tavily-python>=0.5",
