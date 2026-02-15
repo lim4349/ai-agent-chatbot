@@ -44,7 +44,8 @@ class RAGConfig(BaseSettings):
     """RAG pipeline configuration."""
 
     collection_name: str = "documents"
-    embedding_model: str = "text-embedding-3-small"
+    embedding_provider: str = "pinecone"  # 'openai' or 'pinecone'
+    embedding_model: str = "multilingual-e5-large"
     chunk_size: int = 500
     chunk_overlap: int = 50
     top_k: int = 3
