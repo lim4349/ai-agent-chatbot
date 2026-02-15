@@ -1,6 +1,5 @@
 """MCP HTTP/SSE client for communicating with MCP servers."""
 
-import asyncio
 from typing import Any
 
 from src.core.logging import get_logger
@@ -75,8 +74,8 @@ class MCPClient:
 
         try:
             # Simple HTTP client using urllib (avoid extra dependency)
-            import urllib.request
             import json
+            import urllib.request
 
             headers = {"Content-Type": "application/json"}
             if self.api_key:
@@ -131,8 +130,8 @@ class MCPClient:
         )
 
         try:
-            import urllib.request
             import json
+            import urllib.request
 
             headers = {"Content-Type": "application/json"}
             if self.api_key:

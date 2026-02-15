@@ -41,7 +41,7 @@ describe('XSS Protection - URL Validation', () => {
   test('should handle invalid URLs gracefully', () => {
     expect(isValidUrlProtocol('')).toBe(false);
     expect(isValidUrlProtocol('not-a-url')).toBe(false);
-    expect(isValidUrlProtocol(undefined as any)).toBe(false);
+    expect(isValidUrlProtocol(undefined as unknown as string)).toBe(false);
   });
 });
 

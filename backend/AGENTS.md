@@ -342,6 +342,52 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
   - Render/Vercel 대시보드에서 직접 설정
   - GitHub Secrets: `OPENAI_API_KEY`, `GLM_API_KEY`, `TAVILY_API_KEY`
 
+### Lint & Code Quality
+
+#### Pre-commit Hook (필수)
+- **룰**: 모든 커밋 전 pre-commit hook 실행
+- **이유**: CI 실패 방지, 코드 품질 유지
+- **설정**:
+  ```bash
+  # 설치
+  pip install pre-commit
+
+  # hook 활성화 (최초 1회)
+  pre-commit install
+
+  # 수동 실행
+  pre-commit run --all-files
+  ```
+
+#### Backend - Ruff
+- **룰**: Ruff linter/formatter 사용, 모든 에러 해결 후 커밋
+- **이유**: Python 코드 품질 및 스타일 일관성
+- **적용**:
+  ```bash
+  cd backend
+  ruff check src/ --fix    # 자동 수정
+  ruff format src/         # 포맷팅
+  ```
+- **주요 규칙**:
+  - `B008`: Depends는 함수 파라미터 기본값에서 직접 호출 금지 → `Annotated[Type, Depends(...)]` 사용
+  - `B904`: 예외 처리 시 `raise ... from e` 또는 `raise ... from None` 사용
+  - `F541`: placeholder 없는 f-string 금지
+  - `I001`: import 정렬 (자동 수정 가능)
+  - `W293`: 빈 줄에 공백 금지 (에디터에서 자동 제거 설정)
+
+#### Frontend - ESLint
+- **룰**: ESLint 규칙 준수, any 타입 사용 최소화
+- **이유**: TypeScript 타입 안정성 확보
+- **적용**:
+  ```bash
+  cd frontend
+  npm run lint      # 검사
+  npm run lint:fix  # 자동 수정
+  ```
+- **주의사항**:
+  - `any` 타입 대신 `unknown` 사용 후 타입 가드 적용
+  - useEffect 내에서 직접 setState 호출 금지 → requestAnimationFrame 사용
+
 ---
 
 *Backend AGENTS.md*

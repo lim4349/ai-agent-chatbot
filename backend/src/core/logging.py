@@ -5,7 +5,7 @@ import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal, Optional, Any, override
+from typing import Any, override
 
 import structlog
 
@@ -40,7 +40,7 @@ URL_WITH_CREDENTIALS_PATTERN = re.compile(
 _PII_MASKING_ENABLED = True
 _PII_FULL_MASK = False
 _PII_MASK_IN_DEBUG = False
-_PII_LOGGER: Optional[logging.Logger] = None
+_PII_LOGGER: logging.Logger | None = None
 
 
 def strip_ansi(text: str) -> str:
@@ -289,7 +289,7 @@ def setup_logging(
     )
 
 
-def get_logger(name: Optional[str] = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """Get a configured logger instance."""
     return structlog.get_logger(name)
 
@@ -297,13 +297,13 @@ def get_logger(name: Optional[str] = None) -> structlog.stdlib.BoundLogger:
 def log_request(
     method: str,
     path: str,
-    session_id: Optional[str] = None,
-    user_message: Optional[str] = None,
-    agent: Optional[str] = None,
-    response: Optional[str] = None,
-    duration_ms: Optional[float] = None,
+    session_id: str | None = None,
+    user_message: str | None = None,
+    agent: str | None = None,
+    response: str | None = None,
+    duration_ms: float | None = None,
     status: str = "success",
-    error: Optional[str] = None,
+    error: str | None = None,
     mask_pii: bool = True,
 ) -> None:
     """Log API request/response in a readable format.

@@ -1,7 +1,7 @@
 """Auto-summarization trigger for conversation management."""
 
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from src.core.logging import get_logger
 
@@ -53,7 +53,7 @@ class AutoSummarizeTrigger:
         # Rough estimate: 4 characters per token
         return total_chars // 4
 
-    def _get_last_summary_time(self, session_id: str) -> Optional[datetime]:
+    def _get_last_summary_time(self, session_id: str) -> datetime | None:
         """Get the last summary time for a session.
 
         Args:
@@ -219,7 +219,7 @@ class SummarizationManager:
 
     async def check_and_summarize(
         self, session_id: str, messages: list[dict[str, Any]]
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Check if summarization is needed and perform it.
 
         Args:
@@ -313,7 +313,7 @@ Summary:"""
         await self._store.add_message(session_id, summary_message)
         logger.info("summary_stored", session_id=session_id, messages_count=len(messages))
 
-    async def get_conversation_summary(self, session_id: str) -> Optional[str]:
+    async def get_conversation_summary(self, session_id: str) -> str | None:
         """Get the latest summary for a session.
 
         Args:

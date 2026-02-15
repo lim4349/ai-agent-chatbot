@@ -68,9 +68,6 @@ SAFE_BUILTINS = {
     "sum": sum,
     "tuple": tuple,
     "zip": zip,
-    # Math functions (safe)
-    "abs": abs,
-    "pow": pow,
     # Type checking
     "type": type,
 }
@@ -198,12 +195,12 @@ class RestrictedPythonExecutor:
                 # This is a RestrictedPython security violation
                 logger.warning(
                     "code_executor_blocked",
-                    reason=f"RestrictedPython blocked unsafe code",
+                    reason="RestrictedPython blocked unsafe code",
                 )
                 return {
                     "success": False,
                     "stdout": "",
-                    "stderr": f"Security: Code contains unsafe operations that are not allowed",
+                    "stderr": "Security: Code contains unsafe operations that are not allowed",
                 }
             # Regular syntax error
             logger.warning("code_executor_syntax_error", error=str(e))
@@ -212,7 +209,7 @@ class RestrictedPythonExecutor:
                 "stdout": "",
                 "stderr": f"Syntax error: {str(e)}",
             }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("code_executor_timeout", timeout=self.timeout)
             return {
                 "success": False,
@@ -246,14 +243,7 @@ class RestrictedPythonExecutor:
 
             tree = ast.parse(code)
 
-            # Check for dangerous operations
-            dangerous_nodes = (
-                ast.Import,
-                ast.ImportFrom,
-                ast.Exec,
-                ast.Eval,
-                ast.Call,
-            )
+            # Check for dangerous operations (Import, ImportFrom, Exec, Eval, Call)
 
             for node in ast.walk(tree):
                 # Block imports
@@ -327,7 +317,7 @@ class RestrictedPythonExecutor:
                 "stdout": "",
                 "stderr": f"Syntax error: {str(e)}",
             }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("code_executor_timeout", timeout=self.timeout)
             return {
                 "success": False,

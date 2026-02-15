@@ -111,7 +111,7 @@ function addSafeLinkAttributes(html: string): string {
  */
 function createSanitizePlugin() {
   return () => {
-    return (tree: any) => {
+    return (tree: unknown) => {
       // The tree is already sanitized by ReactMarkdown's built-in protections
       // and our custom components, but we add this as an extra layer
       return tree;

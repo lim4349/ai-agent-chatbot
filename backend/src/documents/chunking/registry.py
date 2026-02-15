@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from src.core.logging import get_logger
 from src.documents.chunking.code_chunker import CodeDocumentChunker
 from src.documents.chunking.tabular_chunker import TabularDocumentChunker
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
