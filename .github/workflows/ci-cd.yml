@@ -153,8 +153,8 @@ jobs:
           RENDER_SERVICE_ID: ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
         run: |
           if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_SERVICE_ID" ]; then
-            echo "⚠️ Render credentials not set"
-            exit 1
+            echo "⚠️ Render credentials not set - skipping backend deploy"
+            exit 0
           fi
           echo "🚀 Deploying Backend..."
           curl -s -X POST             "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys"             -H "Authorization: Bearer $RENDER_API_KEY"             -H "Content-Type: application/json"             -d '{"clearCache": true}'
@@ -178,8 +178,8 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "⚠️ Vercel credentials not set"
-            exit 1
+            echo "⚠️ Vercel credentials not set - skipping frontend deploy"
+            exit 0
           fi
           vercel pull --yes --environment=production --token=$VERCEL_TOKEN
           vercel build --prod --token=$VERCEL_TOKEN
