@@ -98,11 +98,7 @@ class MemoryWeightSystem:
             r"print\s*\(",  # Print statement
         ]
 
-        for pattern in code_patterns:
-            if re.search(pattern, content):
-                return True
-
-        return False
+        return any(re.search(pattern, content) for pattern in code_patterns)
 
     def _contains_question(self, content: str) -> bool:
         """Check if content contains questions."""
@@ -128,11 +124,7 @@ class MemoryWeightSystem:
         ]
 
         content_lower = content.lower()
-        for word in question_words:
-            if word in content_lower:
-                return True
-
-        return False
+        return any(word in content_lower for word in question_words)
 
     def _contains_emphasis(self, content: str) -> bool:
         """Check if content contains user emphasis markers."""
@@ -154,11 +146,7 @@ class MemoryWeightSystem:
         # Emphasis markers
         emphasis_markers = ["정말", "매우", "굉장히", "꼭", "반드시", "반드시", "중요"]
         content_lower = content.lower()
-        for marker in emphasis_markers:
-            if marker in content_lower:
-                return True
-
-        return False
+        return any(marker in content_lower for marker in emphasis_markers)
 
     async def update_message_weight(
         self, session_id: str, message_id: str, weight: float

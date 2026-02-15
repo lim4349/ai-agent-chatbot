@@ -88,4 +88,4 @@ class MCPTool:
                 server=self._server_name,
                 error=str(e),
             )
-            raise RuntimeError(f"MCP tool '{self._registered_name}' failed: {e}")
+            raise RuntimeError(f"MCP tool '{self._registered_name}' failed: {e}") from e

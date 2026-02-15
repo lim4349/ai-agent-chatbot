@@ -107,7 +107,7 @@ class MCPClient:
 
         except Exception as e:
             logger.error("mcp_list_tools_failed", server=self.name, error=str(e))
-            raise RuntimeError(f"Failed to discover tools from MCP server '{self.name}': {e}")
+            raise RuntimeError(f"Failed to discover tools from MCP server '{self.name}': {e}") from e
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Execute a tool on the MCP server.
@@ -187,7 +187,7 @@ class MCPClient:
 
         except Exception as e:
             logger.error("mcp_tool_call_failed", server=self.name, tool=tool_name, error=str(e))
-            raise RuntimeError(f"MCP tool '{tool_name}' on server '{self.name}' failed: {e}")
+            raise RuntimeError(f"MCP tool '{tool_name}' on server '{self.name}' failed: {e}") from e
 
     def invalidate_cache(self) -> None:
         """Clear cached tool list (force re-discovery on next call)."""

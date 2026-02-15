@@ -12,7 +12,7 @@ from typing import Literal
 from src.core.logging import get_logger
 
 
-class InjectionType(str, Enum):
+class InjectionType(str, Enum):  # noqa: UP042
     """Types of prompt injection attacks."""
 
     JAILBREAK = "jailbreak"

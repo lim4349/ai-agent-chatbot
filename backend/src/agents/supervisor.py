@@ -243,10 +243,10 @@ Consider the context of the conversation when making your decision."""
             messages.append(message_to_dict(msg))
 
         # Get structured routing decision with dynamic model
-        RouteDecision = create_route_decision_model(self.available_agents)
+        route_decision = create_route_decision_model(self.available_agents)
         decision = await self.llm.generate_structured(
             messages=messages,
-            output_schema=RouteDecision,
+            output_schema=route_decision,
         )
 
         # Store the routing exchange in memory if available

@@ -128,11 +128,7 @@ def should_mask_pii(log_level: str) -> bool:
     Returns:
         True if PII should be masked
     """
-    if not _PII_MASKING_ENABLED:
-        return False
-    if log_level.upper() == "DEBUG" and not _PII_MASK_IN_DEBUG:
-        return False
-    return True
+    return _PII_MASKING_ENABLED and not (log_level.upper() == "DEBUG" and not _PII_MASK_IN_DEBUG)
 
 
 class CleanFileHandler(logging.Handler):

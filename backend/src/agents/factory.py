@@ -18,7 +18,7 @@ class AgentFactory:
         """
         from src.agents.supervisor import SupervisorAgent
 
-        available_agents = set(["chat", "code"])
+        available_agents = {"chat", "code"}
         if container.retriever:
             available_agents.add("rag")
         if container.tool_registry.get("web_search"):

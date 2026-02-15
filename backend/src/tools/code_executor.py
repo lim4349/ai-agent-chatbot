@@ -275,19 +275,16 @@ class RestrictedPythonExecutor:
                             }
 
                 # Block attribute access on dangerous types
-                if isinstance(node, ast.Call):
-                    # Check for __import__, eval, exec calls
-                    if isinstance(node.func, ast.Name):
-                        if node.func.id in ("__import__", "eval", "exec", "compile"):
-                            logger.warning(
-                                "code_executor_blocked",
-                                reason=f"Dangerous function: {node.func.id}",
-                            )
-                            return {
-                                "success": False,
-                                "stdout": "",
-                                "stderr": f"Security: Function '{node.func.id}' is not allowed",
-                            }
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("__import__", "eval", "exec", "compile"):
+                    logger.warning(
+                        "code_executor_blocked",
+                        reason=f"Dangerous function: {node.func.id}",
+                    )
+                    return {
+                        "success": False,
+                        "stdout": "",
+                        "stderr": f"Security: Function '{node.func.id}' is not allowed",
+                    }
 
             # Execute with restrictions
             safe_globals = {"__builtins__": SAFE_BUILTINS, "__name__": "__main__"}

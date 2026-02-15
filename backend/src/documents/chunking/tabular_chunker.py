@@ -82,7 +82,7 @@ class TabularDocumentChunker(BaseChunker):
         chunks: list[Chunk] = []
         row_groups = self._group_rows(rows, rows_per_chunk)
 
-        for i, row_group in enumerate(row_groups):
+        for row_group in row_groups:
             chunk_content = header + "\n" + "\n".join(row_group)
             chunks.append(self._create_chunk(chunk_content, section, source))
 
