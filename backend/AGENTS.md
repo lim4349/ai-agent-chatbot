@@ -417,6 +417,24 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 
 ### 코드 변경 workflow (필수)
 
+#### 0. 작업 전 동기화 (가장 먼저)
+- **룰**: 작업 시작 전 항상 `git pull`로 최신화
+- **이유**: 충돌 방지, 최신 코드 기반 작업
+- **적용**:
+  ```bash
+  # main 또는 dev 브랜치에서 시작
+  git checkout main
+  git pull origin main
+
+  # 또는 dev 브랜치에서 작업 시
+  git checkout dev
+  git pull origin dev
+
+  # rebase 선호 시
+  git pull --rebase origin main
+  ```
+- **주의**: 항상 로컬을 원격보다 뒤쳐지게 하지 말 것
+
 #### 1. 변경 전 체크리스트
 - **룰**: 무언가를 추가/수정하면 관련 코드 전부 확인
 - **이유**: 의존성 파악, side-effect 방지
