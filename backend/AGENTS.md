@@ -415,6 +415,88 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
   pytest tests/integration -v
   ```
 
+### 코드 변경 workflow (필수)
+
+#### 1. 변경 전 체크리스트
+- **룰**: 무언가를 추가/수정하면 관련 코드 전부 확인
+- **이유**: 의존성 파악, side-effect 방지
+- **적용**:
+  ```bash
+  # 관련 파일 검색
+  grep -r "old_function_name" src/
+
+  # import 확인
+  grep -r "from src.module" src/
+  ```
+
+#### 2. 코드 품질 검사 (필수)
+- **룰**: ruff, pre-commit 반드시 실행
+- **이유**: CI 실패 방지, 코드 일관성 유지
+- **적용**:
+  ```bash
+  # Backend
+  cd backend
+  ruff check src/ --fix
+  ruff format src/
+  pre-commit run --all-files
+
+  # Frontend
+  cd frontend
+  npm run lint
+  npm run type-check
+  ```
+
+#### 3. 테스트 실행 (필수)
+- **룰**: 변경한 코드 관련 테스트 모두 실행
+- **이유**: 회귀 버그 방지
+- **적용**:
+  ```bash
+  # Python
+  pytest tests/ -v -k "test_related_function"
+
+  # TypeScript
+  npm test -- --testPathPattern=related
+  ```
+
+#### 4. 문서 최신화 (필수)
+- **룰**: 모든 변경 완료 후 env, md 파일들 최신화
+- **이유**: 문서-코드 싱크 유지, onboarding 용이
+- **적용**:
+  ```bash
+  # 환경변수 변경 시
+  # - backend/.env.example
+  # - render.yaml
+  # - AGENTS.md (설정 문서)
+
+  # 기능 변경 시
+  # - AGENTS.md (Project Rules)
+  # - README.md (사용법)
+  # - ARCHITECTURE.md (구조 변경 시)
+  ```
+
+#### 5. Git Flow (필수)
+- **룰**: 기능별 브랜치 → dev PR → CI 통과 → main 머지
+- **이유**: 안정적인 배포, 코드 리뷰
+- **적용**:
+  ```bash
+  # 1. 기능 브랜치 생성
+  git checkout -b feat/pinecone-migration
+
+  # 2. 작업 완료 후 dev에 PR
+  git push -u origin feat/pinecone-migration
+  gh pr create --base dev --title "feat: pinecone migration"
+
+  # 3. CI 통과 확인 (GitHub Actions)
+  gh pr checks  # 모든 체크 pass 확인
+
+  # 4. dev로 머지 (squash 권장)
+  gh pr merge --squash
+
+  # 5. dev → main 머지 (CD 트리거)
+  gh pr create --base main --head dev --title "release: v1.x.x"
+  gh pr merge --merge
+  ```
+
 ---
 
 *Backend AGENTS.md*
