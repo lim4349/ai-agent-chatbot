@@ -19,11 +19,19 @@ def _create_memory(config):
 
 
 def _create_embedding_generator(config):
-    """Create embedding generator."""
-    from src.documents.embeddings import EmbeddingGenerator
-    return EmbeddingGenerator(
-        model=config.rag.embedding_model,
-        api_key=config.llm.openai_api_key,
+    """Create embedding generator based on provider configuration."""
+    from src.documents.embeddings import create_embedding_generator
+
+    provider = config.rag.embedding_provider
+    model = config.rag.embedding_model
+
+    # Determine API key based on provider
+    api_key = config.rag.pinecone_api_key if provider == "pinecone" else config.llm.openai_api_key
+
+    return create_embedding_generator(
+        provider=provider,
+        model=model,
+        api_key=api_key,
     )
 
 
@@ -154,7 +162,6 @@ def _create_graph_factory():
     This is called after container is fully initialized.
     """
     # Import container here to avoid circular import during module load
-    import sys
     from src.core import di_container
     return _create_graph(di_container.container)
 

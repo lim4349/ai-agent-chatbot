@@ -54,6 +54,10 @@ services:
         value: "200"
       - key: RAG_COLLECTION_NAME
         value: documents
+      - key: RAG_EMBEDDING_PROVIDER
+        value: pinecone
+      - key: RAG_EMBEDDING_MODEL
+        value: multilingual-e5-large
       # Pinecone configuration - Set in Render Dashboard
       - key: RAG_PINECONE_API_KEY
         sync: false

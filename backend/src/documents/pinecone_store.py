@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import contextlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -345,10 +345,8 @@ class PineconeVectorStore:
 
             upload_time = None
             if upload_time_str:
-                try:
+                with contextlib.suppress(ValueError):
                     upload_time = datetime.fromisoformat(upload_time_str)
-                except ValueError:
-                    pass
 
             return DocumentStats(
                 document_id=doc_id,

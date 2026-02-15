@@ -1,9 +1,15 @@
-"""Embedding generator for document vectorization."""
+"""Embedding generator for document vectorization.
+
+Supports multiple providers:
+- OpenAI (default, requires OPENAI_API_KEY)
+- Pinecone Inference (free, requires PINECONE_API_KEY)
+"""
 
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI, OpenAI
@@ -28,7 +34,33 @@ MAX_RETRIES = 3
 RETRY_DELAY = 1.0
 
 
-class EmbeddingGenerator:
+class EmbeddingProvider(Protocol):
+    """Protocol for embedding providers."""
+
+    async def generate(self, texts: list[str]) -> list[list[float]]:
+        """Generate embeddings for a list of texts."""
+        ...
+
+    async def embed_query(self, query: str) -> list[float]:
+        """Embed a single query string."""
+        ...
+
+
+class BaseEmbeddingGenerator(ABC):
+    """Base class for embedding generators."""
+
+    @abstractmethod
+    async def generate(self, texts: list[str]) -> list[list[float]]:
+        """Generate embeddings for a list of texts."""
+        ...
+
+    async def embed_query(self, query: str) -> list[float]:
+        """Embed a single query string."""
+        embeddings = await self.generate([query])
+        return embeddings[0] if embeddings else []
+
+
+class EmbeddingGenerator(BaseEmbeddingGenerator):
     """Generate embeddings using OpenAI's embedding models."""
 
     def __init__(self, model: str = "text-embedding-3-small", api_key: str | None = None):
@@ -195,3 +227,165 @@ class EmbeddingGenerator:
         """
         embeddings = await self.generate([query])
         return embeddings[0] if embeddings else []
+
+
+class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
+    """Generate embeddings using Pinecone Inference API (free).
+
+    Uses Pinecone's hosted embedding models without requiring OpenAI API key.
+    Supported models: multilingual-e5-large, llama-text-embed-v2
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "multilingual-e5-large",
+    ):
+        """Initialize Pinecone Inference embedding generator.
+
+        Args:
+            api_key: Pinecone API key
+            model: Embedding model to use (default: multilingual-e5-large)
+        """
+        self._api_key = api_key
+        self.model = model
+        self._pinecone_client = None
+
+    def _get_client(self):
+        """Get or create Pinecone client."""
+        if self._pinecone_client is None:
+            from pinecone import Pinecone
+            self._pinecone_client = Pinecone(api_key=self._api_key)
+        return self._pinecone_client
+
+    async def generate(self, texts: list[str]) -> list[list[float]]:
+        """Generate embeddings for a list of texts using Pinecone Inference.
+
+        Args:
+            texts: List of text strings to embed
+
+        Returns:
+            List of embedding vectors
+        """
+        if not texts:
+            return []
+
+        # Filter out empty strings
+        valid_texts = [t if t.strip() else " " for t in texts]
+
+        client = self._get_client()
+        all_embeddings: list[list[float]] = []
+
+        # Process in batches (Pinecone recommends max 96 items per request)
+        batch_size = 96
+        for i in range(0, len(valid_texts), batch_size):
+            batch = valid_texts[i : i + batch_size]
+
+            for attempt in range(MAX_RETRIES):
+                try:
+                    # Use Pinecone Inference API
+                    response = client.inference.embed(
+                        model=self.model,
+                        inputs=batch,
+                        parameters={"input_type": "passage", "truncate": "END"}
+                    )
+
+                    # Extract embeddings from response
+                    batch_embeddings = [item.values for item in response.data]
+                    all_embeddings.extend(batch_embeddings)
+                    break
+
+                except Exception as e:
+                    error_str = str(e).lower()
+
+                    if "rate limit" in error_str or "429" in error_str or "timeout" in error_str:
+                        wait_time = RETRY_DELAY * (2 ** attempt)
+                        _get_logger().warning(
+                            "pinecone_embedding_retry",
+                            attempt=attempt + 1,
+                            max_retries=MAX_RETRIES,
+                            wait_time=wait_time,
+                            error=str(e),
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        _get_logger().error("pinecone_embedding_failed", error=str(e))
+                        raise
+            else:
+                raise RuntimeError(f"Max retries exceeded for Pinecone embedding, batch starting at {i}")
+
+        _get_logger().info(
+            "pinecone_embeddings_generated",
+            model=self.model,
+            count=len(all_embeddings),
+        )
+
+        return all_embeddings
+
+    async def embed_query(self, query: str) -> list[float]:
+        """Embed a single query string for search.
+
+        Uses 'query' input_type for better search performance.
+
+        Args:
+            query: Query text to embed
+
+        Returns:
+            Single embedding vector
+        """
+        if not query.strip():
+            return []
+
+        client = self._get_client()
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = client.inference.embed(
+                    model=self.model,
+                    inputs=[query],
+                    parameters={"input_type": "query", "truncate": "END"}
+                )
+                return response.data[0].values if response.data else []
+
+            except Exception as e:
+                error_str = str(e).lower()
+
+                if "rate limit" in error_str or "429" in error_str or "timeout" in error_str:
+                    wait_time = RETRY_DELAY * (2 ** attempt)
+                    _get_logger().warning(
+                        "pinecone_query_embedding_retry",
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    _get_logger().error("pinecone_query_embedding_failed", error=str(e))
+                    raise
+        raise RuntimeError("Max retries exceeded for Pinecone query embedding")
+
+
+def create_embedding_generator(
+    provider: str = "openai",
+    model: str = "text-embedding-3-small",
+    api_key: str | None = None,
+) -> BaseEmbeddingGenerator:
+    """Factory function to create embedding generator based on provider.
+
+    Args:
+        provider: Embedding provider ('openai' or 'pinecone')
+        model: Model name to use
+        api_key: API key for the provider
+
+    Returns:
+        Embedding generator instance
+    """
+    if provider == "pinecone":
+        if not api_key:
+            raise ValueError("Pinecone API key is required for Pinecone embedding provider")
+        # Default to multilingual-e5-large for Pinecone
+        if model == "text-embedding-3-small":
+            model = "multilingual-e5-large"
+        return PineconeInferenceEmbedding(api_key=api_key, model=model)
+    else:
+        # Default to OpenAI
+        return EmbeddingGenerator(model=model, api_key=api_key)
