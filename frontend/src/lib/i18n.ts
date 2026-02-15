@@ -31,6 +31,14 @@ const translations = {
 
     // Document
     'doc.upload': '문서 업로드',
+    'doc.uploadTitle': '문서 업로드',
+    'doc.uploadDescription': 'RAG 지식 베이스에 문서를 추가하세요. AI가 이 정보를 바탕으로 질문에 답변합니다.',
+    'doc.uploadFile': '파일 업로드',
+    'doc.pasteText': '텍스트 입력',
+    'doc.cancel': '취소',
+    'doc.uploadButton': '업로드',
+    'doc.uploading': '업로드 중...',
+    'doc.placeholder': '문서 내용을 여기에 붙여넣으세요...',
 
     // Health
     'health.connected': '연결됨',
@@ -75,6 +83,14 @@ const translations = {
     'chat.copyMessage': 'Copy message',
 
     'doc.upload': 'Upload Document',
+    'doc.uploadTitle': 'Upload Document',
+    'doc.uploadDescription': 'Add documents to the RAG knowledge base. The AI will use this information to answer questions.',
+    'doc.uploadFile': 'Upload File',
+    'doc.pasteText': 'Paste Text',
+    'doc.cancel': 'Cancel',
+    'doc.uploadButton': 'Upload',
+    'doc.uploading': 'Uploading...',
+    'doc.placeholder': 'Paste your document content here...',
 
     'health.connected': 'Connected',
     'health.disconnected': 'Disconnected',
