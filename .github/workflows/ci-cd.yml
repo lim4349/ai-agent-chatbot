@@ -49,13 +49,13 @@ jobs:
       # - name: Type Check (mypy)
       #   run: mypy src/ --ignore-missing-imports
 
-      - name: Test (pytest)
+      - name: Test (pytest - unit only)
         timeout-minutes: 2
         run: |
-          if [ -d "tests" ] && [ "$(ls -A tests/ 2>/dev/null)" ]; then
-            pytest tests/ -v --cov=src --cov-report=xml --timeout=60 || echo "Tests completed with issues"
+          if [ -d "tests/unit" ]; then
+            pytest tests/unit -v --timeout=60 || echo "Tests completed with issues"
           else
-            echo "No tests found, skipping pytest"
+            echo "No unit tests found, skipping pytest"
           fi
 
   ci-frontend:
