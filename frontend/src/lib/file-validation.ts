@@ -2,14 +2,14 @@
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
-export const ALLOWED_FILE_TYPES = [
+export const ALLOWED_FILE_TYPES: string[] = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
   'text/markdown',
   'text/csv',
   'application/json',
-] as const;
+];
 
 export const FILE_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'PDF',
@@ -179,7 +179,7 @@ export function validateFileTypeAllowed(file: File): ValidationError | null {
   // Use declared type or expected type from extension
   const fileType = file.type || expectedMime;
 
-  if (!fileType || !ALLOWED_FILE_TYPES.includes(fileType as string)) {
+  if (!fileType || !(ALLOWED_FILE_TYPES as string[]).includes(fileType)) {
     return {
       code: 'INVALID_TYPE',
       message: `Invalid file type. Allowed: ${Array.from(new Set([...ALLOWED_FILE_TYPES, ...Object.keys(EXTENSION_TO_MIME)]))
