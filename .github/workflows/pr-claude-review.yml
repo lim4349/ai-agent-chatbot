@@ -93,5 +93,5 @@ jobs:
           cat review_output.md >> comment.md
           echo "" >> comment.md
           echo "---" >> comment.md
-          echo "*This review was generated automatically by GLM-5*
+          echo "*This review was generated automatically by GLM-5*" >> comment.md
           gh pr comment ${{ github.event.pull_request.number }} --body-file comment.md || echo "Failed to post comment"
