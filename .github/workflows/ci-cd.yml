@@ -164,7 +164,6 @@ jobs:
         run: npm install --global vercel@latest
       
       - name: Deploy to Production
-        working-directory: ./frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -174,6 +173,7 @@ jobs:
             echo "❌ Vercel credentials not set"
             exit 1
           fi
+          cd frontend
           vercel pull --yes --environment=production --token=$VERCEL_TOKEN
           vercel build --prod --token=$VERCEL_TOKEN
           vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
