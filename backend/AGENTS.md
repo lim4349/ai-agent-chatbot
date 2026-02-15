@@ -388,6 +388,33 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
   - `any` 타입 대신 `unknown` 사용 후 타입 가드 적용
   - useEffect 내에서 직접 setState 호출 금지 → requestAnimationFrame 사용
 
+### Testing
+
+#### CI에서 Integration 테스트 제외
+- **룰**: CI에서는 unit 테스트만 실행, integration 테스트는 로컬에서만
+- **이유**: integration 테스트는 실제 API 호출/초기화로 인해 오래 걸림 (데드락 위험)
+- **적용**:
+  ```yaml
+  # ci-cd.yml
+  - name: Test (pytest - unit only)
+    timeout-minutes: 2
+    run: |
+      if [ -d "tests/unit" ]; then
+        pytest tests/unit -v --timeout=60
+      else
+        echo "No unit tests found, skipping"
+      fi
+  ```
+- **로컬 테스트**:
+  ```bash
+  # Unit 테스트만
+  pytest tests/unit -v
+
+  # Integration 테스트 (API 키 필요)
+  export OPENAI_API_KEY=xxx
+  pytest tests/integration -v
+  ```
+
 ---
 
 *Backend AGENTS.md*
