@@ -24,12 +24,48 @@ def build_graph(container):
     """
     from src.agents.factory import AgentFactory
 
-    # Create agent instances using factory
-    supervisor = AgentFactory.create_supervisor(container)
-    chat = AgentFactory.create_chat(container)
-    code = AgentFactory.create_code(container)
-    rag = AgentFactory.create_rag(container)
-    web_search = AgentFactory.create_web_search(container)
+    # Resolve providers to actual instances
+    llm = container.llm()
+    memory = container.memory()
+    retriever = container.retriever()
+    tool_registry = container.tool_registry()
+    long_term_memory = container.long_term_memory()
+    user_profiler = container.user_profiler()
+    topic_memory = container.topic_memory()
+    summarizer = container.summarizer()
+    memory_tool = container.memory_tool()
+
+    # Create agent instances using factory with resolved dependencies
+    supervisor = AgentFactory.create_supervisor(
+        llm=llm,
+        memory=memory,
+        retriever=retriever,
+        tool_registry=tool_registry,
+        memory_tool=memory_tool,
+    )
+    chat = AgentFactory.create_chat(
+        llm=llm,
+        memory=memory,
+        long_term_memory=long_term_memory,
+        user_profiler=user_profiler,
+        topic_memory=topic_memory,
+        summarizer=summarizer,
+    )
+    code = AgentFactory.create_code(
+        llm=llm,
+        memory=memory,
+        tool_registry=tool_registry,
+    )
+    rag = AgentFactory.create_rag(
+        llm=llm,
+        memory=memory,
+        retriever=retriever,
+    )
+    web_search = AgentFactory.create_web_search(
+        llm=llm,
+        memory=memory,
+        tool_registry=tool_registry,
+    )
 
     # Build graph
     graph = StateGraph(AgentState)
