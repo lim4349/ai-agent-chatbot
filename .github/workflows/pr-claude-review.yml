@@ -23,72 +23,75 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Debug Secret
+        run: |
+          if [ -z "${{ secrets.GLM_API_KEY }}" ]; then
+            echo "❌ GLM_API_KEY is NOT set"
+            exit 1
+          else
+            echo "✅ GLM_API_KEY is set (length: ${#GLM_KEY})"
+          fi
+        env:
+          GLM_KEY: ${{ secrets.GLM_API_KEY }}
+
       - name: Get changed files
         id: files
         run: |
-          git diff --name-status origin/${{ github.base_ref }}...HEAD | head -50 > changed_files.txt
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          cat changed_files.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          git fetch origin ${{ github.base_ref }} --depth=1
+          files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | head -20 | tr '\n' ', ')
+          echo "changed_files=$files" >> $GITHUB_OUTPUT
+          echo "Files: $files"
 
       - name: Run GLM-5 Code Review
         id: review
         env:
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          FILES: ${{ steps.files.outputs.changed_files }}
         run: |
-          cat > prompt.txt << 'PROMPTEOF'
-          당신은 AI Agent Chatbot 프로젝트의 시니어 코드 리뷰어입니다.
+          echo "Calling GLM-5 API..."
 
-          다음 PR을 리뷰해주세요:
+          # Create JSON payload
+          payload=$(cat <<JSONEOF
+          {
+            "model": "glm-5",
+            "max_tokens": 2000,
+            "messages": [
+              {
+                "role": "user",
+                "content": "Review this PR:\n\nTitle: $PR_TITLE\n\nFiles changed: $FILES\n\nProvide a brief code review focusing on:\n1. Summary of changes\n2. Potential issues\n3. Project rules that should be added to AGENTS.md"
+              }
+            ]
+          }
+          JSONEOF
+          )
 
-          PR 제목: ${{ github.event.pull_request.title }}
-          PR 설명: ${{ github.event.pull_request.body }}
-
-          변경된 파일:
-          ${{ steps.files.outputs.files }}
-
-          리뷰 형식:
-          ## 변경사항 요약
-          (3줄 이내로 요약)
-
-          ## 잠재적 문제점
-          - 파일:라인 위치와 함께 문제점 설명
-
-          ## 프로젝트 룰 업데이트 제안 (AGENTS.md)
-          이 PR에서 배운 새로운 규칙/패턴이 있다면 아래 형식으로 작성:
-          - 카테고리: (CI/CD, Backend, Frontend, Security, Performance 등)
-          - 규칙: 간단한 규칙 설명
-          - 이유: 왜 이 규칙이 필요한지
-
-          ## 권장 수정사항
-          - 구체적인 개선 제안
-
-          ## 승인 여부
-          - [ ] Approve
-          - [ ] Approve with comments
-          - [ ] Request changes
-          PROMPTEOF
-
+          # Call API
           response=$(curl -s -X POST "https://api.z.ai/api/anthropic/v1/messages" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $GLM_API_KEY" \
-            -H "x-api-key: $GLM_API_KEY" \
-            -d '{
-              "model": "glm-5",
-              "max_tokens": 4000,
-              "messages": [
-                {"role": "user", "content": '$(jq -Rs . < prompt.txt)'}
-              ]
-            }' 2>/dev/null || echo '{"error": "API call failed"}')
+            -d "$payload" 2>&1)
 
-          review_content=$(echo "$response" | jq -r '.content[0].text // .error // "API Error"')
+          echo "API Response:"
+          echo "$response"
+
+          # Extract content
+          review_content=$(echo "$response" | jq -r '.content[0].text // "Error: No content received"')
+
+          # Save to file
           echo "$review_content" > review_output.md
-          echo "review<<REVIEWEOF" >> $GITHUB_OUTPUT
-          echo "$review_content" >> $GITHUB_OUTPUT
-          echo "REVIEWEOF" >> $GITHUB_OUTPUT
+          echo "review=$review_content" >> $GITHUB_OUTPUT
 
       - name: Post review comment
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body-file review_output.md || true
+          echo "## 🤖 GLM-5 Code Review" > comment.md
+          echo "" >> comment.md
+          cat review_output.md >> comment.md
+          echo "" >> comment.md
+          echo "---" >> comment.md
+          echo "*This review was generated automatically by GLM-5*
+          gh pr comment ${{ github.event.pull_request.number }} --body-file comment.md || echo "Failed to post comment"
