@@ -1,8 +1,6 @@
 """Factory for creating agent instances."""
 
-from typing import Optional
-
-from src.core.protocols import LLMProvider, MemoryStore, DocumentRetriever
+from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 
 
 class AgentFactory:
@@ -12,7 +10,7 @@ class AgentFactory:
     def create_supervisor(
         llm: LLMProvider,
         memory: MemoryStore,
-        retriever: Optional[DocumentRetriever],
+        retriever: DocumentRetriever | None,
         tool_registry,
         memory_tool,
     ):
@@ -105,7 +103,7 @@ class AgentFactory:
     def create_rag(
         llm: LLMProvider,
         memory: MemoryStore,
-        retriever: Optional[DocumentRetriever],
+        retriever: DocumentRetriever | None,
     ):
         """Create RAG agent instance.
 
