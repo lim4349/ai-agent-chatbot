@@ -14,12 +14,14 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Upload, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useTranslation } from '@/lib/i18n';
 
 export function DocumentUpload() {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { t } = useTranslation();
 
   const handleUpload = async () => {
     if (!content.trim()) return;
@@ -50,21 +52,18 @@ export function DocumentUpload() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Upload className="w-4 h-4" />
-          Upload Document
+          {t('doc.upload')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Upload Document</DialogTitle>
-          <DialogDescription>
-            Add a document to the RAG knowledge base. The AI will use this information
-            to answer questions.
-          </DialogDescription>
+          <DialogTitle>{t('doc.uploadTitle')}</DialogTitle>
+          <DialogDescription>{t('doc.uploadDescription')}</DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
           <Textarea
-            placeholder="Paste your document content here..."
+            placeholder={t('doc.placeholder')}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="min-h-[200px]"
@@ -83,16 +82,16 @@ export function DocumentUpload() {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
+            {t('doc.cancel')}
           </Button>
           <Button onClick={handleUpload} disabled={loading || !content.trim()}>
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Uploading...
+                {t('doc.uploading')}
               </>
             ) : (
-              'Upload'
+              t('doc.uploadButton')
             )}
           </Button>
         </DialogFooter>
