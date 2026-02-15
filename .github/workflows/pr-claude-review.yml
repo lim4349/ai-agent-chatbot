@@ -1,0 +1,47 @@
+name: PR - Claude Code Review
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    # Skip if PR is from dependabot or has skip-review label
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-review')
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Please review this pull request for the AI Agent Chatbot project.
+
+            PR Title: ${{ github.event.pull_request.title }}
+            PR Description: ${{ github.event.pull_request.body }}
+
+            Focus on:
+            1. Code quality and best practices
+            2. Potential bugs or issues
+            3. Security concerns
+            4. Performance implications
+            5. Type safety and error handling
+
+            Provide constructive feedback as PR comments.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
