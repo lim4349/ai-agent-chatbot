@@ -18,8 +18,9 @@ services:
     runtime: docker
     repo: https://github.com/${GITHUB_REPOSITORY}
     branch: main
-    dockerContext: ./backend
-    dockerfilePath: ./backend/Dockerfile
+    rootDir: backend
+    dockerContext: .
+    dockerfilePath: Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
