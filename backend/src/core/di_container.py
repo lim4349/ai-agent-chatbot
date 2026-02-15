@@ -148,6 +148,17 @@ def _create_graph(container):
     return build_graph(container)
 
 
+def _create_graph_factory():
+    """Factory to create graph with container.
+
+    This is called after container is fully initialized.
+    """
+    # Import container here to avoid circular import during module load
+    import sys
+    from src.core import di_container
+    return _create_graph(di_container.container)
+
+
 class DIContainer(containers.DeclarativeContainer):
     """Main dependency injection container."""
 
@@ -238,10 +249,7 @@ class DIContainer(containers.DeclarativeContainer):
     )
 
     # Graph - built lazily with container reference
-    graph = providers.Singleton(
-        lambda self: _create_graph(self),
-        providers.Self(),
-    )
+    graph = providers.Singleton(_create_graph_factory)
 
 
 # Global container instance
