@@ -120,6 +120,7 @@ ai-agent-chatbot/
 - [배포 가이드](./DEPLOYMENT.md) — Render.com + Vercel 배포 방법
 - [백엔드 가이드](./backend/AGENTS.md) — 백엔드 개발 가이드
 - [프론트엔드 가이드](./frontend/AGENTS.md) — 프론트엔드 개발 가이드
+- [학습 사항](./LESSONS.md) — PR 리뷰에서 발견된 문제와 해결책 (자동 업데이트)
 
 ## 라이선스
 
