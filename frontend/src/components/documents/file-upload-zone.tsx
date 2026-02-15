@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone, type Accept } from 'react-dropzone';
 import { Upload, FileText, AlertCircle, FileWarning, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n';
 import {
   validateFile,
   formatFileSize,
@@ -37,6 +38,7 @@ export function FileUploadZone({
 }: FileUploadZoneProps) {
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const { t } = useTranslation();
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -117,7 +119,7 @@ export function FileUploadZone({
                   </p>
                   {!filePreview.validation.isValid && (
                     <span className="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full bg-destructive/10 text-destructive">
-                      Invalid
+                      {t('doc.invalid')}
                     </span>
                   )}
                 </div>
@@ -137,12 +139,12 @@ export function FileUploadZone({
                   {/* Size Status Badge */}
                   {filePreview.sizeStatus === 'error' && (
                     <span className="px-2 py-0.5 rounded-md bg-destructive/10 text-destructive font-medium">
-                      Too large
+                      {t('doc.tooLarge')}
                     </span>
                   )}
                   {filePreview.sizeStatus === 'warning' && (
                     <span className="px-2 py-0.5 rounded-md bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 font-medium">
-                      Large file
+                      {t('doc.largeFile')}
                     </span>
                   )}
                 </div>
@@ -154,7 +156,7 @@ export function FileUploadZone({
               <button
                 onClick={handleClearPreview}
                 className="flex-shrink-0 p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                title="Remove file"
+                title={t('doc.removeFile')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -175,7 +177,7 @@ export function FileUploadZone({
               />
             </div>
             <p className="text-xs text-muted-foreground text-right">
-              {filePreview.sizePercentage.toFixed(0)}% of limit
+              {t('doc.percentOfLimit')} {filePreview.sizePercentage.toFixed(0)}%
             </p>
           </div>
 
@@ -187,8 +189,8 @@ export function FileUploadZone({
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium text-destructive">
                     {filePreview.validation.errors.length === 1
-                      ? 'Error'
-                      : `${filePreview.validation.errors.length} Errors`}
+                      ? t('doc.error')
+                      : `${filePreview.validation.errors.length}${t('doc.errors')}`}
                   </p>
                   <ul className="space-y-1">
                     {filePreview.validation.errors.map((error, index) => (
@@ -210,8 +212,8 @@ export function FileUploadZone({
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium text-yellow-600 dark:text-yellow-500">
                     {filePreview.validation.warnings.length === 1
-                      ? 'Warning'
-                      : `${filePreview.validation.warnings.length} Warnings`}
+                      ? t('doc.warning')
+                      : `${filePreview.validation.warnings.length}${t('doc.warnings')}`}
                   </p>
                   <ul className="space-y-1">
                     {filePreview.validation.warnings.map((warning, index) => (
@@ -225,7 +227,7 @@ export function FileUploadZone({
                       onClick={() => onUpload(filePreview.file)}
                       className="text-xs font-medium text-yellow-600 dark:text-yellow-500 underline hover:no-underline"
                     >
-                      Upload anyway
+                      {t('doc.uploadAnyway')}
                     </button>
                   )}
                 </div>
@@ -237,7 +239,7 @@ export function FileUploadZone({
           {(isUploading || isValidating) && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span>{isValidating ? 'Validating...' : 'Uploading...'}</span>
+              <span>{isValidating ? t('doc.validating') : t('doc.uploading')}</span>
             </div>
           )}
         </div>
@@ -264,7 +266,7 @@ export function FileUploadZone({
         {isDragReject ? (
           <>
             <AlertCircle className="w-12 h-12 text-destructive" />
-            <p className="text-destructive font-medium">File type not supported</p>
+            <p className="text-destructive font-medium">{t('doc.fileTypeNotSupported')}</p>
           </>
         ) : (
           <>
@@ -284,24 +286,24 @@ export function FileUploadZone({
             <div className="space-y-2">
               <p className="text-lg font-medium">
                 {isDragActive
-                  ? 'Drop your file here'
+                  ? t('doc.dropHere')
                   : isUploading || isValidating
-                  ? 'Processing...'
-                  : 'Drag & drop a file here'}
+                  ? t('doc.processing')
+                  : t('doc.dragDrop')}
               </p>
               <p className="text-sm text-muted-foreground">
                 {isUploading || isValidating
-                  ? 'Please wait while we process your file'
-                  : 'or click to select a file'}
+                  ? t('doc.processWait')
+                  : t('doc.clickSelect')}
               </p>
             </div>
 
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">
-                Supported: {acceptedTypeLabels}
+                {t('doc.supported')}: {acceptedTypeLabels}
               </p>
               <p className="text-xs text-muted-foreground">
-                Maximum file size: {formatFileSize(MAX_FILE_SIZE)}
+                {t('doc.maxSize')}: {formatFileSize(MAX_FILE_SIZE)}
               </p>
             </div>
           </>
