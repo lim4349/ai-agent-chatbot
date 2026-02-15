@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.dependencies import get_cached_config, get_container_dependency
 from src.api.middleware import ExceptionHandlerMiddleware, RequestLoggingMiddleware
 from src.api.routes import router as api_router
-from src.core.logging import setup_logging
 from src.core.di_container import container as di_container
+from src.core.logging import setup_logging
 
 logger = structlog.get_logger()
 

@@ -9,10 +9,10 @@ if TYPE_CHECKING:
 
     from src.documents.parser import DocumentSection
 
+from src.core.logging import get_logger
+from src.core.protocols import DocumentChunker
 from src.documents.chunking.base import Chunk
 from src.documents.chunking.registry import ChunkingStrategyRegistry
-from src.core.protocols import DocumentChunker
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 

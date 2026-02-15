@@ -84,8 +84,8 @@ class Container:
     @cached_property
     def embedding_generator(self):
         """Get embedding generator instance."""
-        EmbeddingGenerator = _get_embedding_generator()
-        return EmbeddingGenerator(
+        embedding_generator_cls = _get_embedding_generator()
+        return embedding_generator_cls(
             model=self.config.rag.embedding_model,
             api_key=self.config.llm.openai_api_key,
         )
@@ -93,7 +93,7 @@ class Container:
     @cached_property
     def vector_store(self):
         """Get document vector store instance."""
-        DocumentVectorStore = _get_document_vector_store()
+        document_vector_store_cls = _get_document_vector_store()
         # Configure ChromaDB client based on environment
         persist_dir = None
         chroma_host = None
@@ -107,7 +107,7 @@ class Container:
         elif self.config.memory.backend == "redis":
             persist_dir = "/data/chroma_db/documents"
 
-        return DocumentVectorStore(
+        return document_vector_store_cls(
             collection_name=self.config.rag.collection_name,
             persist_directory=persist_dir,
             embedding_generator=self.embedding_generator,

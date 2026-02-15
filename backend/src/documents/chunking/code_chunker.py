@@ -125,7 +125,6 @@ class CodeDocumentChunker(BaseChunker):
 
         # Group content by boundaries
         chunks: list[Chunk] = []
-        current_start = 0
         current_lines: list[str] = []
 
         for idx, boundary in enumerate(boundaries):
@@ -214,7 +213,7 @@ class CodeDocumentChunker(BaseChunker):
                 overlap_count = min(5, len(current_lines))
                 current_lines = current_lines[-overlap_count:]
                 current_tokens = sum(
-                    self._estimate_tokens(l + "\n") for l in current_lines
+                    self._estimate_tokens(line + "\n") for line in current_lines
                 )
 
             current_lines.append(line)

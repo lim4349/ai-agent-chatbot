@@ -283,5 +283,139 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 
 ---
 
+## 프로젝트 룰 (Project Rules)
+
+> PR 리뷰에서 발견된 반복적인 패턴과 규칙을 기록합니다.
+> 새로운 규칙은 이 섹션에 추가하세요.
+
+### CI/CD
+
+#### Git Flow 브랜칭
+- **룰**: 모든 기능 개발은 `feat/*` 브랜치에서 시작하여 `dev`로 PR
+- **이유**: `main`은 프로덕션 배포용으로만 사용, 직접 push 금지
+- **적용**: `feat/xxx` → `dev` (CI) → `main` (CI+CD)
+
+#### YAML 문법
+- **룰**: 같은 키는 한 번만 정의, 브랜치 목록은 배열로 관리
+- **이유**: 중복된 `push` 키는 YAML 파싱 오류 발생
+- **예시**:
+  ```yaml
+  # ❌ 잘못됨
+  push:
+    branches: [dev]
+  push:
+    branches: [main]
+
+  # ✅ 올바름
+  push:
+    branches: [dev, main]
+  ```
+
+### Python
+
+#### DI 컨테이너 순서
+- **룰**: Factory 함수는 클래스 정의 **전**에 배치
+- **이유**: 클래스 본문에서 함수 참조 시 NameError 방지
+- **예시**:
+  ```python
+  # ✅ 올바른 순서
+  def _create_llm(config): ...
+
+  class DIContainer:
+      llm = providers.Singleton(_create_llm)
+  ```
+
+### 환경 변수
+
+#### NEXT_PUBLIC_* 변수
+- **룰**: `NEXT_PUBLIC_` 접두사 변수는 Secret이 아닌 Plaintext로 설정
+- **이유**: 빌드 타임에 값이 필요함, Secret은 런타임에만 사용 가능
+- **적용**: Vercel Dashboard → Environment Variables → Plaintext 선택
+
+### Security
+
+#### API Key 관리
+- **룰**: 모든 API key는 GitHub Secrets에 저장, 코드에 노출 금지
+- **이유**: 보안 침해 방지, 키 노출 시 revoke 필요
+- **적용**:
+  - `.env.example`에는 dummy 값만 포함
+  - Render/Vercel 대시보드에서 직접 설정
+  - GitHub Secrets: `OPENAI_API_KEY`, `GLM_API_KEY`, `TAVILY_API_KEY`
+
+### Lint & Code Quality
+
+#### Pre-commit Hook (필수)
+- **룰**: 모든 커밋 전 pre-commit hook 실행
+- **이유**: CI 실패 방지, 코드 품질 유지
+- **설정**:
+  ```bash
+  # 설치
+  pip install pre-commit
+
+  # hook 활성화 (최초 1회)
+  pre-commit install
+
+  # 수동 실행
+  pre-commit run --all-files
+  ```
+
+#### Backend - Ruff
+- **룰**: Ruff linter/formatter 사용, 모든 에러 해결 후 커밋
+- **이유**: Python 코드 품질 및 스타일 일관성
+- **적용**:
+  ```bash
+  cd backend
+  ruff check src/ --fix    # 자동 수정
+  ruff format src/         # 포맷팅
+  ```
+- **주요 규칙**:
+  - `B008`: Depends는 함수 파라미터 기본값에서 직접 호출 금지 → `Annotated[Type, Depends(...)]` 사용
+  - `B904`: 예외 처리 시 `raise ... from e` 또는 `raise ... from None` 사용
+  - `F541`: placeholder 없는 f-string 금지
+  - `I001`: import 정렬 (자동 수정 가능)
+  - `W293`: 빈 줄에 공백 금지 (에디터에서 자동 제거 설정)
+
+#### Frontend - ESLint
+- **룰**: ESLint 규칙 준수, any 타입 사용 최소화
+- **이유**: TypeScript 타입 안정성 확보
+- **적용**:
+  ```bash
+  cd frontend
+  npm run lint      # 검사
+  npm run lint:fix  # 자동 수정
+  ```
+- **주의사항**:
+  - `any` 타입 대신 `unknown` 사용 후 타입 가드 적용
+  - useEffect 내에서 직접 setState 호출 금지 → requestAnimationFrame 사용
+
+### Testing
+
+#### CI에서 Integration 테스트 제외
+- **룰**: CI에서는 unit 테스트만 실행, integration 테스트는 로컬에서만
+- **이유**: integration 테스트는 실제 API 호출/초기화로 인해 오래 걸림 (데드락 위험)
+- **적용**:
+  ```yaml
+  # ci-cd.yml
+  - name: Test (pytest - unit only)
+    timeout-minutes: 2
+    run: |
+      if [ -d "tests/unit" ]; then
+        pytest tests/unit -v --timeout=60
+      else
+        echo "No unit tests found, skipping"
+      fi
+  ```
+- **로컬 테스트**:
+  ```bash
+  # Unit 테스트만
+  pytest tests/unit -v
+
+  # Integration 테스트 (API 키 필요)
+  export OPENAI_API_KEY=xxx
+  pytest tests/integration -v
+  ```
+
+---
+
 *Backend AGENTS.md*
 *마지막 업데이트: 2026-02-15*

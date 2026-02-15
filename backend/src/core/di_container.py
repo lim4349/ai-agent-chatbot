@@ -2,8 +2,7 @@
 
 from dependency_injector import containers, providers
 
-from src.core.config import AppConfig, get_config
-
+from src.core.config import get_config
 
 # --- Factory Functions (defined before class to avoid NameError) ---
 
@@ -53,8 +52,8 @@ def _create_vector_store(config, embedding_generator):
 
 def _create_retriever(vector_store, config):
     """Create document retriever."""
-    from src.documents.retriever_impl import ChromaDBDocumentRetriever
     from src.documents.factory import DocumentProcessorFactory
+    from src.documents.retriever_impl import ChromaDBDocumentRetriever
 
     return ChromaDBDocumentRetriever(
         vector_store=vector_store,
@@ -82,10 +81,10 @@ def _create_long_term_memory(config):
 
 def _create_tool_registry(config, retriever):
     """Create tool registry."""
-    from src.tools.registry import ToolRegistry
-    from src.tools.web_search import WebSearchTool
-    from src.tools.retriever import RetrieverTool
     from src.tools.code_executor import CodeExecutorTool
+    from src.tools.registry import ToolRegistry
+    from src.tools.retriever import RetrieverTool
+    from src.tools.web_search import WebSearchTool
 
     registry = ToolRegistry()
 

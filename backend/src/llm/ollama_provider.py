@@ -78,4 +78,4 @@ Respond ONLY with the JSON object, no additional text."""
                 return output_schema(**parsed).model_dump()
             except json.JSONDecodeError as parse_error:
                 logger.error("ollama_json_parse_failed", error=str(parse_error))
-                raise ValueError(f"Failed to parse structured output: {parse_error}")
+                raise ValueError(f"Failed to parse structured output: {parse_error}") from parse_error

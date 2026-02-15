@@ -1,12 +1,11 @@
 """Base chunker with shared utilities."""
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
-
 import re
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.documents.parser import DocumentSection

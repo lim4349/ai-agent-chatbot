@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime
 
-from dependency_injector.wiring import inject, Provide
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from langchain_core.messages import BaseMessage
 from sse_starlette.sse import EventSourceResponse
@@ -23,15 +23,15 @@ from src.api.schemas import (
     HealthResponse,
 )
 from src.core.config import AppConfig
-from src.core.di_container import DIContainer, container as di_container
+from src.core.di_container import DIContainer
 from src.core.logging import log_request
-from src.core.prompt_security import detect_injection, sanitize_for_llm, filter_llm_output
+from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
 from src.core.protocols import DocumentChunker, DocumentParser, DocumentRetriever, MemoryStore
 from src.core.validators import (
-    validate_file_upload,
-    sanitize_metadata,
-    validate_json_size,
     ValidationError,
+    sanitize_metadata,
+    validate_file_upload,
+    validate_json_size,
 )
 from src.documents.models import Document
 from src.documents.store import DocumentVectorStore
@@ -54,7 +54,7 @@ def get_message_content(msg) -> str:
 @inject
 async def chat(
     request: ChatRequest,
-    graph=Depends(Provide[DIContainer.graph]),
+    graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
@@ -77,7 +77,7 @@ async def chat(
         )
         raise HTTPException(
             status_code=400,
-            detail=f"Your request contains potentially malicious content and cannot be processed."
+            detail="Your request contains potentially malicious content and cannot be processed."
         )
 
     # Security: Sanitize input for LLM
@@ -134,14 +134,14 @@ async def chat(
             status="error",
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/chat/stream")
 @inject
 async def chat_stream(
     request: ChatRequest,
-    graph=Depends(Provide[DIContainer.graph]),
+    graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
@@ -201,9 +201,9 @@ async def chat_stream(
 @router.get("/health", response_model=HealthResponse)
 @inject
 async def health(
-    config: AppConfig = Depends(Provide[DIContainer.config]),
-    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),
-    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
+    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
+    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
     # Determine available agents based on configuration
@@ -225,8 +225,8 @@ async def health(
 @router.get("/agents", response_model=AgentListResponse)
 @inject
 async def list_agents(
-    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),
-    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),
+    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
+    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> AgentListResponse:
     """List all available agents and their descriptions."""
     agents = [
@@ -272,7 +272,7 @@ async def list_agents(
 @inject
 async def upload_document(
     request: DocumentUploadRequest,
-    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),
+    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> DocumentUploadResponse:
     """Upload a document for RAG.
 
@@ -293,21 +293,21 @@ async def upload_document(
             message="Document successfully added to knowledge base",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/sessions/{session_id}")
 @inject
 async def clear_session(
     session_id: str,
-    memory: MemoryStore = Depends(Provide[DIContainer.memory]),
+    memory: MemoryStore = Depends(Provide[DIContainer.memory]),  # noqa: B008
 ):
     """Clear conversation history for a session."""
     try:
         await memory.clear(session_id)
         return {"status": "cleared", "session_id": session_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # === Logs Endpoints ===
@@ -395,11 +395,11 @@ async def clear_logs(
 @router.post("/documents/upload", response_model=FileUploadResponse)
 @inject
 async def upload_file(
-    file: UploadFile = File(...),
-    metadata: str = Form(default="{}"),  # JSON string
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),
-    parser: DocumentParser = Depends(Provide[DIContainer.document_parser]),
-    chunker: DocumentChunker = Depends(Provide[DIContainer.document_chunker]),
+    file: UploadFile = File(...),  # noqa: B008
+    metadata: str = Form(default="{}"),  # JSON string  # noqa: B008
+    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    parser: DocumentParser = Depends(Provide[DIContainer.document_parser]),  # noqa: B008
+    chunker: DocumentChunker = Depends(Provide[DIContainer.document_chunker]),  # noqa: B008
 ) -> FileUploadResponse:
     """Upload a file for RAG processing.
 
@@ -423,7 +423,7 @@ async def upload_file(
         meta_dict = json.loads(metadata)
         meta_dict = sanitize_metadata(meta_dict)
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid metadata JSON: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid metadata JSON: {e}") from e
 
     # Validate filename
     filename = file.filename or "unknown"
@@ -454,7 +454,7 @@ async def upload_file(
             raise HTTPException(status_code=400, detail=error)
 
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         log_request(
             method="POST",
@@ -465,7 +465,7 @@ async def upload_file(
             status="error",
             error=str(e),
         )
-        raise HTTPException(status_code=400, detail=f"Failed to process file: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to process file: {e}") from e
 
     # Get validated file type
     file_type = file_metadata["extension"]
@@ -481,8 +481,8 @@ async def upload_file(
         chunks = chunker.chunk(sections, source=filename)
 
         # Create document model
-        from datetime import datetime
         import uuid
+        from datetime import datetime
 
         doc = Document(
             id=str(uuid.uuid4()),
@@ -508,9 +508,9 @@ async def upload_file(
         )
 
     except ImportError as e:
-        raise HTTPException(status_code=400, detail=f"Missing dependency: {e}")
+        raise HTTPException(status_code=400, detail=f"Missing dependency: {e}") from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {e}") from e
 
 
 def _get_file_extension(filename: str) -> str:
@@ -523,7 +523,7 @@ def _get_file_extension(filename: str) -> str:
 @router.get("/documents", response_model=DocumentListResponse)
 @inject
 async def list_documents(
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),
+    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentListResponse:
     """List all uploaded documents."""
     if not doc_store:
@@ -549,14 +549,14 @@ async def list_documents(
 
         return DocumentListResponse(documents=documents)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list documents: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list documents: {e}") from e
 
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
 @inject
 async def delete_document(
     document_id: str,
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),
+    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentDeleteResponse:
     """Delete a document and all its chunks."""
     if not doc_store:
@@ -577,4 +577,4 @@ async def delete_document(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}") from e

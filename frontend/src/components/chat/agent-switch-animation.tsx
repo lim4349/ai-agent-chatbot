@@ -51,13 +51,18 @@ export function AgentSwitchAnimation({
   // Animation trigger requires setState - this is intentional for timed animation
   useEffect(() => {
     if (isVisible && fromAgent && fromAgent !== toAgent) {
-      setShowAnimation(true);
+      // Use requestAnimationFrame to avoid synchronous setState warning
+      const rafId = requestAnimationFrame(() => {
+        setShowAnimation(true);
+      });
       const timer = setTimeout(() => {
         setShowAnimation(false);
       }, 1500);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(rafId);
+        clearTimeout(timer);
+      };
     }
-    // eslint-disable-line react-hooks/set-state-in-effect -- Animation requires immediate state update
   }, [isVisible, fromAgent, toAgent]);
 
   if (!showAnimation || !fromAgent) return null;
