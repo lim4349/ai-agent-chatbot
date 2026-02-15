@@ -81,7 +81,6 @@ jobs:
 
           # Save to file
           echo "$review_content" > review_output.md
-          echo "review=$review_content" >> $GITHUB_OUTPUT
 
       - name: Post review comment
         if: success()
