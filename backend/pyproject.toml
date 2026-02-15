@@ -1,0 +1,86 @@
+[project]
+name = "ai-agent-chatbot"
+version = "0.1.0"
+description = "LangGraph-based Multi-Agent Chatbot with extensible architecture"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Developer" }]
+keywords = ["langgraph", "langchain", "ai", "agent", "chatbot", "llm"]
+
+dependencies = [
+    # LangGraph / LangChain
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "langchain-anthropic>=0.3",
+    "langchain-ollama>=0.2",
+    "langchain-community>=0.3",
+
+    # API Server
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sse-starlette>=2.1",
+
+    # Configuration & Validation
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+
+    # Memory & Storage
+    "redis>=5.0",
+    "chromadb>=0.5",
+
+    # Tools
+    "tavily-python>=0.5",
+    "RestrictedPython>=7.0",
+
+    # Document Processing
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "python-multipart>=0.0.17",
+    "aiofiles>=24.0",
+    "tiktoken>=0.8",
+
+    # Observability
+    "structlog>=24.0",
+    "httpx>=0.27",
+    "dependency-injector>=4.41",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+ui = [
+    "chainlit>=1.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]

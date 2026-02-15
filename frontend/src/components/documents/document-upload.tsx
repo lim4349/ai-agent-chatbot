@@ -1,0 +1,102 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Upload, Loader2 } from 'lucide-react';
+import { api } from '@/lib/api';
+
+export function DocumentUpload() {
+  const [open, setOpen] = useState(false);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleUpload = async () => {
+    if (!content.trim()) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const response = await api.uploadDocument({ content: content.trim() });
+      setMessage({ type: 'success', text: response.message });
+      setContent('');
+      setTimeout(() => {
+        setOpen(false);
+        setMessage(null);
+      }, 1500);
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Upload failed',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Upload className="w-4 h-4" />
+          Upload Document
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Upload Document</DialogTitle>
+          <DialogDescription>
+            Add a document to the RAG knowledge base. The AI will use this information
+            to answer questions.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="py-4">
+          <Textarea
+            placeholder="Paste your document content here..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="min-h-[200px]"
+          />
+        </div>
+
+        {message && (
+          <p
+            className={`text-sm ${
+              message.type === 'success' ? 'text-green-500' : 'text-destructive'
+            }`}
+          >
+            {message.text}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpload} disabled={loading || !content.trim()}>
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              'Upload'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

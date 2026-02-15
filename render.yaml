@@ -1,0 +1,97 @@
+# Render.com Infrastructure as Code
+# Free Tier Configuration
+# Usage: render blueprint apply render.yaml
+#
+# This blueprint creates:
+#   1. ai-agent-backend (FastAPI web service)
+#   2. ai-agent-redis (Redis session store)
+#   3. ai-agent-chroma (ChromaDB vector database)
+#
+# After initial creation, GitHub Actions will handle deployments
+# via .github/workflows/ci-cd.yml
+
+services:
+  - type: web
+    name: ai-agent-backend
+    runtime: docker
+    repo: https://github.com/${GITHUB_REPOSITORY}
+    branch: main
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-4o-mini
+      # Secrets - Set these in Render Dashboard
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      # Memory configuration
+      - key: MEMORY_BACKEND
+        value: redis
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ai-agent-redis
+          property: connectionString
+      # RAG configuration
+      - key: RAG_CHUNK_SIZE
+        value: "1000"
+      - key: RAG_CHUNK_OVERLAP
+        value: "200"
+      - key: RAG_COLLECTION_NAME
+        value: documents
+      # ChromaDB configuration
+      - key: CHROMA_HOST
+        fromService:
+          type: web
+          name: ai-agent-chroma
+          property: host
+      - key: CHROMA_PORT
+        value: "8000"
+      # Code execution
+      - key: CODE_EXECUTION_ENABLED
+        value: "true"
+      - key: CODE_EXECUTION_TIMEOUT
+        value: "30"
+    healthCheckPath: /api/v1/health
+    autoDeploy: false  # Controlled by GitHub Actions
+    plan: free
+
+  - type: redis
+    name: ai-agent-redis
+    ipAllowList: []  # Allow all (internal only)
+    plan: free
+
+  - type: web
+    name: ai-agent-chroma
+    runtime: docker
+    repo: https://github.com/chroma-core/chroma
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: CHROMA_SERVER_AUTHN_CREDENTIALS
+        generateValue: true
+      - key: CHROMA_SERVER_AUTHN_PROVIDER
+        value: chromadb.auth.token_authn.TokenAuthServerProvider
+      - key: CHROMA_SERVER_HOST
+        value: 0.0.0.0
+      - key: CHROMA_SERVER_PORT
+        value: "8000"
+      - key: PERSIST_DIRECTORY
+        value: /chroma/chroma
+    disk:
+      name: chroma-data
+      mountPath: /chroma
+      sizeGB: 1
+    plan: free

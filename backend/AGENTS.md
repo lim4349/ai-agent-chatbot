@@ -1,0 +1,287 @@
+# Backend AGENTS.md
+
+> FastAPI + Python 3.12 AI Chatbot 백엔드 개발 가이드
+
+---
+
+## 개요
+
+FastAPI 기반의 AI 챗봇 백엔드. LangGraph 멀티 에이전트 아키텍처와 Protocol 기반 DI를 적용한 프로덕션 수준 API 서버입니다.
+
+---
+
+## 기술 스택
+
+| 구성 요소 | 기술 | 버전 | 용도 |
+|-----------|------|------|------|
+| **Framework** | FastAPI | 0.115+ | 고성능 ASGI API 서버 |
+| **Language** | Python | 3.12+ | 타입 힌트, 최신 문법 |
+| **AI/LLM** | LangGraph | 0.2+ | 멀티 에이전트 오케스트레이션 |
+| **LLM Integration** | LangChain | 0.3+ | OpenAI/Anthropic/Ollama 통합 |
+| **Validation** | Pydantic | 2.0+ | 데이터 검증 및 설정 관리 |
+| **Vector DB** | ChromaDB | 0.5+ | RAG 및 장기 메모리 저장소 |
+| **Session Store** | Redis | 5.0+ | 분산 세션 메모리 (선택) |
+| **Logging** | structlog | 24.0+ | 구조화된 JSON 로깅 |
+| **Testing** | pytest | 8.0+ | 비동기 테스트 지원 |
+| **Linting** | ruff | 0.7+ | 고성능 Python 린터 |
+
+---
+
+## 프로젝트 구조
+
+\`\`\`
+backend/
+├── src/
+│   ├── agents/              # 에이전트 구현
+│   │   ├── base.py          # BaseAgent 추상 클래스
+│   │   ├── supervisor.py    # SupervisorAgent (라우터)
+│   │   ├── chat_agent.py    # ChatAgent (일반 대화)
+│   │   ├── code_agent.py    # CodeAgent (코드 생성/분석)
+│   │   ├── rag_agent.py     # RAGAgent (문서 기반 Q&A)
+│   │   ├── web_search_agent.py  # WebSearchAgent (실시간 검색)
+│   │   └── factory.py       # AgentFactory (DI 팩토리)
+│   │
+│   ├── api/                 # REST API 계층
+│   │   ├── routes.py        # API 엔드포인트 정의
+│   │   ├── schemas.py       # Pydantic 요청/응답 모델
+│   │   ├── dependencies.py  # FastAPI 의존성 주입
+│   │   └── middleware.py    # CORS, 로깅, 보안 미들웨어
+│   │
+│   ├── core/                # 핵심 인프라
+│   │   ├── config.py        # Pydantic-settings 기반 설정
+│   │   ├── container.py     # DI 컨테이너 (@cached_property)
+│   │   ├── protocols.py     # Protocol 기반 인터페이스
+│   │   ├── logging.py       # structlog 설정
+│   │   ├── auto_summarize.py    # SummarizationManager
+│   │   ├── user_profiler.py     # UserProfiler
+│   │   └── topic_memory.py      # TopicMemory
+│   │
+│   ├── documents/           # 문서 처리 (RAG)
+│   │   ├── parser.py        # PDF/DOCX/TXT 파싱
+│   │   ├── chunker.py       # 구조 인식 청킹
+│   │   ├── embeddings.py    # OpenAI 임베딩 생성
+│   │   ├── store.py         # ChromaDB 벡터 저장소
+│   │   ├── retriever_impl.py    # DocumentRetriever 구현
+│   │   └── factory.py       # DocumentProcessorFactory
+│   │
+│   ├── graph/               # LangGraph 오케스트레이션
+│   │   ├── builder.py       # StateGraph 빌더
+│   │   ├── state.py         # AgentState 타입 정의
+│   │   └── edges.py         # 조건 라우팅 로직
+│   │
+│   ├── llm/                 # LLM 추상화
+│   │   ├── base.py          # LLMProvider Protocol
+│   │   ├── openai_provider.py
+│   │   ├── anthropic_provider.py
+│   │   ├── ollama_provider.py
+│   │   └── factory.py       # LLMFactory (레지스트리 패턴)
+│   │
+│   ├── memory/              # 메모리 관리
+│   │   ├── base.py          # MemoryStore Protocol
+│   │   ├── in_memory_store.py
+│   │   ├── redis_store.py
+│   │   ├── long_term_memory.py  # ChromaDB 기반 장기 메모리
+│   │   └── factory.py       # MemoryStoreFactory
+│   │
+│   ├── tools/               # 에이전트 도구
+│   │   ├── registry.py      # ToolRegistry
+│   │   ├── web_search.py    # Tavily 웹 검색
+│   │   ├── code_executor.py # RestrictedPython 샌드박스
+│   │   ├── retriever.py     # 문서 검색 도구
+│   │   └── memory_tool.py   # 시맨틱 메모리 검색
+│   │
+│   ├── utils/               # 유틸리티
+│   │   └── token_counter.py # tiktoken 기반 토큰 계산
+│   │
+│   └── main.py              # FastAPI 앱 진입점
+│
+├── tests/                   # 테스트
+│   ├── unit/                # 단위 테스트
+│   ├── integration/         # 통합 테스트
+│   └── conftest.py          # pytest 픽스처
+│
+├── pyproject.toml           # 프로젝트 설정 (의존성, 도구)
+├── Dockerfile               # 컨테이너 이미지
+└── .env.example             # 환경 변수 예시
+\`\`\`
+
+---
+
+## 개발 가이드
+
+### 1. 환경 설정
+
+\`\`\`bash
+# Python 3.12+ 확인
+python --version  # Python 3.12.x
+
+# 가상환경 생성
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+
+# 의존성 설치 (개발용)
+pip install -e ".[dev]"
+
+# 환경 변수 설정
+cp .env.example .env
+# .env 파일에 API 키 설정 (OPENAI_API_KEY 등)
+\`\`\`
+
+### 2. 개발 서버 실행
+
+\`\`\`bash
+# 개발 모드 (auto-reload)
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+# 프로덕션 모드
+uvicorn src.main:app --host 0.0.0.0 --port 8000
+\`\`\`
+
+### 3. 코드 품질
+
+\`\`\`bash
+# 린트 검사
+ruff check src/
+
+# 린트 자동 수정
+ruff check src/ --fix
+
+# 코드 포맷팅
+ruff format src/
+
+# 타입 체크
+mypy src/ --ignore-missing-imports
+\`\`\`
+
+### 4. 테스트 실행
+
+\`\`\`bash
+# 전체 테스트
+pytest tests/ -v
+
+# 특정 테스트
+pytest tests/unit/test_agents.py -v
+
+# 커버리지 포함
+pytest tests/ --cov=src --cov-report=html
+\`\`\`
+
+---
+
+## 핵심 패턴
+
+### 1. Protocol 기반 설계
+
+\`\`\`python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class LLMProvider(Protocol):
+    async def generate(self, messages: list[dict[str, str]], **kwargs) -> str: ...
+
+# 상속 없이 구현 가능
+class OpenAIProvider:
+    async def generate(self, messages, **kwargs) -> str:
+        return response
+\`\`\`
+
+### 2. Dependency Injector 기반 DI
+
+**의존성 주입 라이브러리**: `dependency-injector` (DeclarativeContainer)
+
+```python
+from dependency_injector import containers, providers
+from dependency_injector.wiring import inject, Provide
+
+class DIContainer(containers.DeclarativeContainer):
+    """Main dependency injection container."""
+
+    config = providers.Singleton(get_config)
+    llm = providers.Factory(_create_llm, config=config.provided.llm)
+    memory = providers.Factory(_create_memory, config=config.provided.memory)
+    # ... other providers
+
+
+# @inject 데코레이터 사용 예시
+@inject
+def my_function(
+    llm: LLMProvider = Provide[DIContainer.llm],
+    memory: MemoryStore = Provide[DIContainer.memory],
+):
+    pass
+```
+
+#### @inject 데코레이터 패턴
+
+**FastAPI Routes**:
+```python
+from dependency_injector.wiring import inject, Provide
+from src.core.di_container import DIContainer
+
+@router.post("/chat")
+@inject
+async def chat(
+    request: ChatRequest,
+    graph: CompiledGraph = Depends(Provide[DIContainer.graph]),
+    memory: MemoryStore = Depends(Provide[DIContainer.memory]),
+):
+    # 의존성이 자동으로 주입됨
+    pass
+```
+
+**Agent 클래스**:
+```python
+class SupervisorAgent:
+    @inject
+    def __init__(
+        self,
+        llm: LLMProvider = Provide[DIContainer.llm],
+        memory: MemoryStore = Provide[DIContainer.memory],
+        memory_tool: MemoryTool = Provide[DIContainer.memory_tool],
+    ):
+        self.llm = llm
+        self.memory = memory
+        self.memory_tool = memory_tool
+```
+
+#### 테스트에서 의존성 오버라이드
+
+```python
+import pytest
+from src.core.di_container import di_container
+
+@pytest.fixture
+def test_container(mock_llm, mock_memory):
+    """Create test container with mocked dependencies."""
+    # Override providers for testing
+    di_container.llm.override(providers.Object(mock_llm))
+    di_container.memory.override(providers.Object(mock_memory))
+
+    yield di_container
+
+    # Reset overrides after test
+    di_container.reset_singletons()
+```
+
+---
+
+## 배포
+
+### Docker 이미지 빌드
+
+\`\`\`bash
+docker build -t ai-agent-backend .
+docker run -p 8000:8000 --env-file .env ai-agent-backend
+\`\`\`
+
+### Render.com 배포
+
+\`\`\`bash
+# render.yaml 참고
+# GitHub Actions 자동 배포: .github/workflows/ci-cd.yml
+\`\`\`
+
+---
+
+*Backend AGENTS.md*
+*마지막 업데이트: 2026-02-15*

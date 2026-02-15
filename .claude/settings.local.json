@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(npm run build:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:developer.chrome.com)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:shopify.engineering)",
+      "WebFetch(domain:streamdown.ai)",
+      "WebFetch(domain:virtuoso.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:www.turing.com)",
+      "WebFetch(domain:zustand.docs.pmnd.rs)",
+      "WebFetch(domain:unocss.dev)",
+      "WebFetch(domain:betterstack.com)",
+      "WebFetch(domain:www.firecrawl.dev)"
+    ]
+  }
+}

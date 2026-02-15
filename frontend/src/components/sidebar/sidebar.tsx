@@ -1,0 +1,61 @@
+'use client';
+
+import { useChatStore } from '@/stores/chat-store';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { SessionItem } from './session-item';
+import { NewSessionButton } from './new-session-button';
+import { useTranslation } from '@/lib/i18n';
+
+export function Sidebar() {
+  const sessions = useChatStore((state) => state.sessions);
+  const activeSessionId = useChatStore((state) => state.activeSessionId);
+  const createSession = useChatStore((state) => state.createSession);
+  const switchSession = useChatStore((state) => state.switchSession);
+  const deleteSession = useChatStore((state) => state.deleteSession);
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex flex-col h-full bg-card border-r border-border">
+      {/* Header */}
+      <div className="p-4">
+        <h2 className="text-lg font-semibold">{t('sidebar.title')}</h2>
+      </div>
+
+      {/* New Chat Button */}
+      <div className="px-4 pb-4">
+        <NewSessionButton onClick={createSession} />
+      </div>
+
+      <Separator />
+
+      {/* Session List */}
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1">
+          {sessions.map((session) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              isActive={session.id === activeSessionId}
+              onSelect={() => switchSession(session.id)}
+              onDelete={() => deleteSession(session.id)}
+            />
+          ))}
+
+          {sessions.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {t('sidebar.empty')}
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-border">
+        <p className="text-xs text-muted-foreground text-center">
+          {t('sidebar.count', sessions.length)}
+        </p>
+      </div>
+    </div>
+  );
+}
