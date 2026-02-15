@@ -1,25 +1,19 @@
-name: PR - Claude Code Review + Knowledge Update
+name: PR - Claude Code Review
 
 on:
   pull_request:
     branches: [dev, main]
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
-  issues: write
 
 jobs:
-  # ===========================================
-  # PR 리뷰 및 지식 추출
-  # ===========================================
   claude-review:
-    name: Claude Code Review (GLM-5)
+    name: Code Review (GLM-5)
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'pull_request' &&
-      github.event.action != 'closed' &&
       github.actor != 'dependabot[bot]' &&
       !contains(github.event.pull_request.labels.*.name, 'skip-review')
 
@@ -29,150 +23,72 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Claude Code
+      - name: Get changed files
+        id: files
         run: |
-          npm install -g @anthropic-ai/claude-code
+          git diff --name-status origin/${{ github.base_ref }}...HEAD | head -50 > changed_files.txt
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat changed_files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Run Claude Code Review
+      - name: Run GLM-5 Code Review
+        id: review
         env:
-          ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic"
-          ANTHROPIC_API_KEY: ${{ secrets.GLM_API_KEY }}
-          ANTHROPIC_MODEL: "glm-5"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
         run: |
-          cat > review_prompt.txt << 'REVIEWEOF'
+          cat > prompt.txt << 'PROMPTEOF'
           당신은 AI Agent Chatbot 프로젝트의 시니어 코드 리뷰어입니다.
 
-          다음 PR을 리뷰하고 아래 형식으로 분석해주세요:
+          다음 PR을 리뷰해주세요:
 
-          ## 1. 변경사항 요약
-          - 무엇이 변경되었는지 3줄 이내로 요약
-
-          ## 2. 잠재적 문제점
-          - 발견된 버그, 코드 스멜, 안티패턴
-          - 각 문제에 대해 파일:라인 위치 명시
-
-          ## 3. 학습 사항 (LESSONS.md 업데이트용)
-          이 PR에서 배울 수 있는 교훈:
-          - 문제 상황
-          - 해결 방법
-          - 관련 파일/코드
-
-          ## 4. 권장 수정사항
-          - 구체적인 코드 개선 제안
-
-          ## 5. 승인 여부
-          - [ ] Approve (수정 없이 승인)
-          - [ ] Approve with comments (경미한 수정 필요)
-          - [ ] Request changes (필수 수정 필요)
-
-          리뷰 코멘트로 답변을 달아주세요.
-          REVIEWEOF
-
-          claude -p "$(cat review_prompt.txt)" --allowedTools="Bash,Read,Edit,Glob,Grep" > review_output.md
-
-          # PR에 리뷰 코멘트로 게시
-          gh pr comment $PR_NUMBER --body-file review_output.md || true
-        working-directory: ${{ github.workspace }}
-
-  # ===========================================
-  # PR 병합 시 LESSONS.md 자동 업데이트
-  # ===========================================
-  update-knowledge:
-    name: Update LESSONS.md
-    runs-on: ubuntu-latest
-    # PR이 main에 병합되었을 때만 실행
-    if: |
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.base.ref == 'main'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Claude Code
-        run: |
-          npm install -g @anthropic-ai/claude-code
-
-      - name: Extract lessons and update LESSONS.md
-        env:
-          ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic"
-          ANTHROPIC_API_KEY: ${{ secrets.GLM_API_KEY }}
-          ANTHROPIC_MODEL: "glm-5"
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-        run: |
-          # PR의 변경사항 가져오기
-          git log --oneline -10 > recent_commits.txt
-          git diff HEAD~1 --name-only > changed_files.txt
-
-          # Claude에게 LESSONS.md 업데이트 요청
-          cat > lessons_prompt.txt << 'LESSONSEOF'
-          당신은 프로젝트 지식 관리 전문가입니다.
-
-          현재 PR이 main 브랜치에 병합되었습니다. 다음 정보를 바탕으로 LESSONS.md 파일을 업데이트해주세요:
-
-          PR 정보:
-          - 번호: #${{ env.PR_NUMBER }}
-          - 제목: ${{ env.PR_TITLE }}
-          - 본문: ${{ env.PR_BODY }}
-          - 머지 커밋: ${{ env.COMMIT_SHA }}
-
-          최근 커밋:
-          $(cat recent_commits.txt)
+          PR 제목: ${{ github.event.pull_request.title }}
+          PR 설명: ${{ github.event.pull_request.body }}
 
           변경된 파일:
-          $(cat changed_files.txt)
+          ${{ steps.files.outputs.files }}
 
-          다음 규칙을 따라주세요:
-          1. 새로운 문제/해결책이 있다면 적절한 섹션에 추가
-          2. 중복 내용은 추가하지 않음
-          3. "자동 업데이트 로그" 테이블에 새 행 추가
-          4. 마지막 업데이트 날짜를 오늘로 변경
+          리뷰 형식:
+          ## 변경사항 요약
+          (3줄 이내로 요약)
 
-          LESSONS.md 파일을 직접 수정하세요.
-          LESSONSEOF
+          ## 잠재적 문제점
+          - 파일:라인 위치와 함께 문제점 설명
 
-          claude -p "$(cat lessons_prompt.txt)" --allowedTools="Read,Edit" || echo "Claude update skipped"
+          ## 프로젝트 룰 업데이트 제안 (AGENTS.md)
+          이 PR에서 배운 새로운 규칙/패턴이 있다면 아래 형식으로 작성:
+          - 카테고리: (CI/CD, Backend, Frontend, Security, Performance 등)
+          - 규칙: 간단한 규칙 설명
+          - 이유: 왜 이 규칙이 필요한지
 
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          ## 권장 수정사항
+          - 구체적인 개선 제안
 
-          if git diff --quiet LESSONS.md; then
-            echo "No changes to LESSONS.md"
-            exit 0
-          fi
+          ## 승인 여부
+          - [ ] Approve
+          - [ ] Approve with comments
+          - [ ] Request changes
+          PROMPTEOF
 
-          git add LESSONS.md
-          git commit -m "docs: Update LESSONS.md from PR #${{ github.event.pull_request.number }}
+          response=$(curl -s -X POST "https://api.z.ai/api/anthropic/v1/messages" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GLM_API_KEY" \
+            -H "x-api-key: $GLM_API_KEY" \
+            -d '{
+              "model": "glm-5",
+              "max_tokens": 4000,
+              "messages": [
+                {"role": "user", "content": '$(jq -Rs . < prompt.txt)'}
+              ]
+            }' 2>/dev/null || echo '{"error": "API call failed"}')
 
-          - Auto-generated by Claude Code Review (GLM-5)
-          - PR: ${{ github.event.pull_request.title }}
+          review_content=$(echo "$response" | jq -r '.content[0].text // .error // "API Error"')
+          echo "$review_content" > review_output.md
+          echo "review<<REVIEWEOF" >> $GITHUB_OUTPUT
+          echo "$review_content" >> $GITHUB_OUTPUT
+          echo "REVIEWEOF" >> $GITHUB_OUTPUT
 
-          Co-Authored-By: Claude <noreply@anthropic.com>"
-
-          git push origin main
+      - name: Post review comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body-file review_output.md || true

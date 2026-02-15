@@ -283,5 +283,66 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 
 ---
 
+## 프로젝트 룰 (Project Rules)
+
+> PR 리뷰에서 발견된 반복적인 패턴과 규칙을 기록합니다.
+> 새로운 규칙은 이 섹션에 추가하세요.
+
+### CI/CD
+
+#### Git Flow 브랜칭
+- **룰**: 모든 기능 개발은 `feat/*` 브랜치에서 시작하여 `dev`로 PR
+- **이유**: `main`은 프로덕션 배포용으로만 사용, 직접 push 금지
+- **적용**: `feat/xxx` → `dev` (CI) → `main` (CI+CD)
+
+#### YAML 문법
+- **룰**: 같은 키는 한 번만 정의, 브랜치 목록은 배열로 관리
+- **이유**: 중복된 `push` 키는 YAML 파싱 오류 발생
+- **예시**:
+  ```yaml
+  # ❌ 잘못됨
+  push:
+    branches: [dev]
+  push:
+    branches: [main]
+
+  # ✅ 올바름
+  push:
+    branches: [dev, main]
+  ```
+
+### Python
+
+#### DI 컨테이너 순서
+- **룰**: Factory 함수는 클래스 정의 **전**에 배치
+- **이유**: 클래스 본문에서 함수 참조 시 NameError 방지
+- **예시**:
+  ```python
+  # ✅ 올바른 순서
+  def _create_llm(config): ...
+
+  class DIContainer:
+      llm = providers.Singleton(_create_llm)
+  ```
+
+### 환경 변수
+
+#### NEXT_PUBLIC_* 변수
+- **룰**: `NEXT_PUBLIC_` 접두사 변수는 Secret이 아닌 Plaintext로 설정
+- **이유**: 빌드 타임에 값이 필요함, Secret은 런타임에만 사용 가능
+- **적용**: Vercel Dashboard → Environment Variables → Plaintext 선택
+
+### Security
+
+#### API Key 관리
+- **룰**: 모든 API key는 GitHub Secrets에 저장, 코드에 노출 금지
+- **이유**: 보안 침해 방지, 키 노출 시 revoke 필요
+- **적용**:
+  - `.env.example`에는 dummy 값만 포함
+  - Render/Vercel 대시보드에서 직접 설정
+  - GitHub Secrets: `OPENAI_API_KEY`, `GLM_API_KEY`, `TAVILY_API_KEY`
+
+---
+
 *Backend AGENTS.md*
 *마지막 업데이트: 2026-02-15*
