@@ -1,16 +1,14 @@
 name: CI/CD - Git Flow
 
 on:
-  # PR 생성/업데이트 시: CI 실행 (dev, main 모두)
+  # PR에서만 CI 실행 (dev, main 모두)
   pull_request:
     branches: [dev, main]
     types: [opened, synchronize, reopened]
 
-  # 브랜치 푸시 시:
-  # - dev: CI만 실행 (배포 없음)
-  # - main: CD 실행 (프로덕션 배포)
+  # main 브랜치 푸시 시: CD 실행 (프로덕션 배포)
   push:
-    branches: [dev, main]
+    branches: [main]
 
 env:
   PYTHON_VERSION: '3.12'
@@ -23,8 +21,8 @@ jobs:
   ci-backend:
     name: CI - Backend
     runs-on: ubuntu-latest
-    # PR to dev/main OR push to dev
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    # PR에서만 실행
+    if: github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: ./backend
@@ -57,8 +55,8 @@ jobs:
   ci-frontend:
     name: CI - Frontend
     runs-on: ubuntu-latest
-    # PR to dev/main OR push to dev
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    # PR에서만 실행
+    if: github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: ./frontend
@@ -90,8 +88,8 @@ jobs:
   ci-security:
     name: CI - Security Scan
     runs-on: ubuntu-latest
-    # PR to dev/main OR push to dev
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    # PR에서만 실행
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
       

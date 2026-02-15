@@ -158,10 +158,10 @@ export const useAuthStore = create<AuthStore>()(
         const payload = tokenManager.getTokenPayload();
         if (payload) {
           const user: User = {
-            id: payload.user_id || payload.sub || '',
-            email: payload.email || '',
-            username: payload.username,
-            full_name: payload.full_name,
+            id: String(payload.user_id || payload.sub || ''),
+            email: String(payload.email || ''),
+            username: payload.username ? String(payload.username) : undefined,
+            full_name: payload.full_name ? String(payload.full_name) : undefined,
           };
 
           set({
