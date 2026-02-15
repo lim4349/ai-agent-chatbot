@@ -243,9 +243,14 @@ class DocumentVectorStore:
         # Format results
         search_results: list[SearchResult] = []
 
-        documents = results.get("documents", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
-        distances = results.get("distances", [[]])[0]
+        # Safely extract results with None checks
+        documents_raw = results.get("documents")
+        metadatas_raw = results.get("metadatas")
+        distances_raw = results.get("distances")
+
+        documents = documents_raw[0] if documents_raw and len(documents_raw) > 0 else []
+        metadatas = metadatas_raw[0] if metadatas_raw and len(metadatas_raw) > 0 else []
+        distances = distances_raw[0] if distances_raw and len(distances_raw) > 0 else []
 
         for doc, metadata, distance in zip(
             documents, metadatas, distances, strict=False
