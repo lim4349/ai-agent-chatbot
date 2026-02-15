@@ -73,25 +73,15 @@ services:
     ipAllowList: []  # Allow all (internal only)
     plan: free
 
-  - type: web
-    name: ai-agent-chroma
-    runtime: docker
-    repo: https://github.com/chroma-core/chroma
-    dockerContext: .
-    dockerfilePath: Dockerfile
-    envVars:
-      - key: CHROMA_SERVER_AUTHN_CREDENTIALS
-        generateValue: true
-      - key: CHROMA_SERVER_AUTHN_PROVIDER
-        value: chromadb.auth.token_authn.TokenAuthServerProvider
-      - key: CHROMA_SERVER_HOST
-        value: 0.0.0.0
-      - key: CHROMA_SERVER_PORT
-        value: "8000"
-      - key: PERSIST_DIRECTORY
-        value: /chroma/chroma
-    disk:
-      name: chroma-data
-      mountPath: /chroma
-      sizeGB: 1
-    plan: free
+  # Note: ChromaDB must be created manually in Render Dashboard
+  # 1. New → Web Service
+  # 2. Name: ai-agent-chroma
+  # 3. Repo: https://github.com/chroma-core/chroma
+  # 4. Environment: Docker
+  # 5. Add env vars:
+  #    CHROMA_SERVER_AUTHN_PROVIDER=chromadb.auth.token_authn.TokenAuthServerProvider
+  #    CHROMA_SERVER_AUTHN_CREDENTIALS=(auto-generated)
+  #    CHROMA_SERVER_HOST=0.0.0.0
+  #    CHROMA_SERVER_PORT=8000
+  #    PERSIST_DIRECTORY=/chroma/chroma
+  # 6. Add disk: /chroma (1GB)
