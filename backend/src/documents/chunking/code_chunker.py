@@ -23,28 +23,28 @@ class CodeDocumentChunker(BaseChunker):
     # Language-specific patterns for code structure detection
     PATTERNS = {
         "python": {
-            "function": r'def\s+\w+\s*\(.*?\):',
-            "class": r'class\s+\w+.*?:',
-            "decorator": r'@\w+',
+            "function": r"def\s+\w+\s*\(.*?\):",
+            "class": r"class\s+\w+.*?:",
+            "decorator": r"@\w+",
         },
         "javascript": {
-            "function": r'(?:function\s+\w+\s*\(.*?\)|const\s+\w+\s*=.*?=>|\w+\s*\(.*?\)\s*=>)',
-            "class": r'class\s+\w+.*?{',
-            "method": r'async\s+\w+\s*\(.*?\)|\w+\s*\(.*?\)[^{]*{',
+            "function": r"(?:function\s+\w+\s*\(.*?\)|const\s+\w+\s*=.*?=>|\w+\s*\(.*?\)\s*=>)",
+            "class": r"class\s+\w+.*?{",
+            "method": r"async\s+\w+\s*\(.*?\)|\w+\s*\(.*?\)[^{]*{",
         },
         "java": {
-            "class": r'(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?class\s+\w+',
-            "method": r'(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?\w+\s+\w+\s*\(.*?\)',
-            "interface": r'interface\s+\w+',
+            "class": r"(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?class\s+\w+",
+            "method": r"(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?\w+\s+\w+\s*\(.*?\)",
+            "interface": r"interface\s+\w+",
         },
         "go": {
-            "function": r'func\s+(?:\(\*\w+\s*)?\w+\s*)\(.*?\)',
-            "interface": r'type\s+\w+\s+interface',
+            "function": r"func\s+(?:\(\*\w+\s*)?\w+\s*)\(.*?\)",
+            "interface": r"type\s+\w+\s+interface",
         },
         "rust": {
-            "function": r'fn\s+\w+\s*\(.*?\)',
-            "struct": r'struct\s+\w+',
-            "impl": r'impl\s+\w+\s+for',
+            "function": r"fn\s+\w+\s*\(.*?\)",
+            "struct": r"struct\s+\w+",
+            "impl": r"impl\s+\w+\s+for",
         },
     }
 
@@ -132,29 +132,20 @@ class CodeDocumentChunker(BaseChunker):
 
             # Check if we've accumulated enough content
             current_text = "\n".join(current_lines)
-            if (
-                self._estimate_tokens(current_text) >= self.max_tokens
-                or idx == len(boundaries) - 1
-            ):
+            if self._estimate_tokens(current_text) >= self.max_tokens or idx == len(boundaries) - 1:
                 # Create chunk
                 chunk_text = "\n".join(current_lines)
-                chunks.append(
-                    self._create_chunk(
-                        chunk_text, section, source, language=language
-                    )
-                )
+                chunks.append(self._create_chunk(chunk_text, section, source, language=language))
 
                 # Start new chunk with overlap (last few lines)
                 overlap_count = min(3, len(current_lines))
                 current_lines = current_lines[-overlap_count:]
 
-        return chunks if chunks else [
-            self._create_chunk(content, section, source, language=language)
-        ]
+        return (
+            chunks if chunks else [self._create_chunk(content, section, source, language=language)]
+        )
 
-    def _find_boundaries(
-        self, content: str, patterns: dict[str, str]
-    ) -> list[dict]:
+    def _find_boundaries(self, content: str, patterns: dict[str, str]) -> list[dict]:
         """Find code structure boundaries with their positions."""
         boundaries: list[dict] = []
         lines = content.split("\n")
@@ -205,16 +196,12 @@ class CodeDocumentChunker(BaseChunker):
             if current_tokens + line_tokens > self.max_tokens and current_lines:
                 # Create chunk from accumulated lines
                 chunk_text = "\n".join(current_lines)
-                chunks.append(
-                    self._create_chunk(chunk_text, section, source, language=language)
-                )
+                chunks.append(self._create_chunk(chunk_text, section, source, language=language))
 
                 # Start new chunk with overlap lines
                 overlap_count = min(5, len(current_lines))
                 current_lines = current_lines[-overlap_count:]
-                current_tokens = sum(
-                    self._estimate_tokens(line + "\n") for line in current_lines
-                )
+                current_tokens = sum(self._estimate_tokens(line + "\n") for line in current_lines)
 
             current_lines.append(line)
             current_tokens += line_tokens
@@ -222,8 +209,6 @@ class CodeDocumentChunker(BaseChunker):
         # Don't forget the last chunk
         if current_lines:
             chunk_text = "\n".join(current_lines)
-            chunks.append(
-                self._create_chunk(chunk_text, section, source, language=language)
-            )
+            chunks.append(self._create_chunk(chunk_text, section, source, language=language))
 
         return chunks

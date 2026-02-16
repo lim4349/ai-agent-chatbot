@@ -81,24 +81,22 @@ Guidelines:
                 history = await self.memory.get_messages(session_id)
                 messages.extend(history)
 
-            messages.append({
-                "role": "user",
-                "content": f"Search Results:\n{search_results}\n\nQuestion: {query}",
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Search Results:\n{search_results}\n\nQuestion: {query}",
+                }
+            )
             response = await self.llm.generate(messages)
         except Exception as e:
             response = f"I encountered an error while searching: {str(e)}. Please try again later."
-            tool_results.append(
-                {"tool": "web_search", "query": query, "error": str(e)}
-            )
+            tool_results.append({"tool": "web_search", "query": query, "error": str(e)})
 
         # Store the search exchange in memory if available
         if self.memory:
             last_msg = state["messages"][-1]
             await self.memory.add_message(session_id, message_to_dict(last_msg))
-            await self.memory.add_message(
-                session_id, {"role": "assistant", "content": response}
-            )
+            await self.memory.add_message(session_id, {"role": "assistant", "content": response})
 
         return {
             **state,

@@ -108,9 +108,7 @@ class DocumentVectorStore:
                 )
             # Ephemeral client mode (in-memory only)
             else:
-                self._client = chromadb.Client(
-                    settings=Settings(anonymized_telemetry=False)
-                )
+                self._client = chromadb.Client(settings=Settings(anonymized_telemetry=False))
                 logger.info("chromadb_ephemeral_client_initialized")
 
             self._collection = self._client.get_or_create_collection(
@@ -252,9 +250,7 @@ class DocumentVectorStore:
         metadatas = metadatas_raw[0] if metadatas_raw and len(metadatas_raw) > 0 else []
         distances = distances_raw[0] if distances_raw and len(distances_raw) > 0 else []
 
-        for doc, metadata, distance in zip(
-            documents, metadatas, distances, strict=False
-        ):
+        for doc, metadata, distance in zip(documents, metadatas, distances, strict=False):
             # Convert distance to similarity score (ChromaDB returns distances)
             # Cosine distance to similarity: score = 1 - distance
             score = 1.0 - float(distance) if distance is not None else 0.0
@@ -352,9 +348,7 @@ class DocumentVectorStore:
 
             # Aggregate stats
             chunk_count = len(results["ids"])
-            total_tokens = sum(
-                m.get("token_count", 0) for m in metadatas if isinstance(m, dict)
-            )
+            total_tokens = sum(m.get("token_count", 0) for m in metadatas if isinstance(m, dict))
 
             # Get common metadata from first chunk
             first_meta = metadatas[0] if metadatas else {}

@@ -31,10 +31,7 @@ PII_PATTERNS = {
 }
 
 # Additional pattern for URLs with credentials (checked separately)
-URL_WITH_CREDENTIALS_PATTERN = re.compile(
-    r"https?://[^\s]+:[^\s]+@[^\s]+",
-    re.IGNORECASE
-)
+URL_WITH_CREDENTIALS_PATTERN = re.compile(r"https?://[^\s]+:[^\s]+@[^\s]+", re.IGNORECASE)
 
 # Global PII masking configuration
 _PII_MASKING_ENABLED = True
@@ -64,11 +61,13 @@ def mask_pii_in_message(message: str, full_mask: bool = False) -> tuple[str, lis
     for pii_type, pattern in PII_PATTERNS.items():
         for match in re.finditer(pattern, message, re.IGNORECASE):
             original = match.group()
-            detected.append({
-                "type": pii_type,
-                "position": match.span(),
-                "original": original[:20] + "..." if len(original) > 20 else original
-            })
+            detected.append(
+                {
+                    "type": pii_type,
+                    "position": match.span(),
+                    "original": original[:20] + "..." if len(original) > 20 else original,
+                }
+            )
 
             if full_mask or pii_type in ("api_key", "ssn"):
                 replacement = "***"
@@ -86,13 +85,17 @@ def mask_pii_in_message(message: str, full_mask: bool = False) -> tuple[str, lis
     # Check for URLs with credentials
     for match in URL_WITH_CREDENTIALS_PATTERN.finditer(message):
         original = match.group()
-        detected.append({
-            "type": "url_with_credentials",
-            "position": match.span(),
-            "original": original[:30] + "..." if len(original) > 30 else original
-        })
+        detected.append(
+            {
+                "type": "url_with_credentials",
+                "position": match.span(),
+                "original": original[:30] + "..." if len(original) > 30 else original,
+            }
+        )
         # Mask the credentials part
-        masked = masked.replace(original, URL_WITH_CREDENTIALS_PATTERN.sub("https://***:***@***", original), 1)
+        masked = masked.replace(
+            original, URL_WITH_CREDENTIALS_PATTERN.sub("https://***:***@***", original), 1
+        )
 
     return masked, detected
 
@@ -101,7 +104,7 @@ def configure_pii_masking(
     enabled: bool = True,
     full_mask: bool = False,
     mask_in_debug: bool = False,
-    log_detections: bool = True
+    log_detections: bool = True,
 ) -> None:
     """Configure PII masking behavior.
 
@@ -191,7 +194,7 @@ def setup_logging(
     pii_masking_enabled: bool = True,
     pii_full_mask: bool = False,
     pii_mask_in_debug: bool = False,
-    pii_log_detections: bool = True
+    pii_log_detections: bool = True,
 ) -> None:
     """Configure structured logging.
 
@@ -209,7 +212,7 @@ def setup_logging(
         enabled=pii_masking_enabled,
         full_mask=pii_full_mask,
         mask_in_debug=pii_mask_in_debug,
-        log_detections=pii_log_detections
+        log_detections=pii_log_detections,
     )
     # Set standard library logging level
     root_logger = logging.getLogger()
@@ -227,28 +230,31 @@ def setup_logging(
     if log_to_file:
         # App log (all levels) - clean format
         app_handler = CleanFileHandler(APP_LOG_FILE, max_size_mb=10, max_days=30)
-        app_handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        ))
+        app_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
         app_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(app_handler)
 
         # Error log (errors only)
         error_handler = CleanFileHandler(ERROR_LOG_FILE, max_size_mb=5, max_days=60)
-        error_handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s\n%(exc_info)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        ))
+        error_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s\n%(exc_info)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
         error_handler.setLevel(logging.ERROR)
         root_logger.addHandler(error_handler)
 
         # Request log (for API calls)
         request_handler = CleanFileHandler(REQUEST_LOG_FILE, max_size_mb=20, max_days=7)
-        request_handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        ))
+        request_handler.setFormatter(
+            logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        )
         # Create a separate logger for requests
         request_logger = logging.getLogger("request")
         request_logger.addHandler(request_handler)
@@ -323,7 +329,9 @@ def log_request(
     max_len = 500
     user_msg_processed = None
     if user_message:
-        user_msg_processed = user_message[:max_len] + "..." if len(user_message) > max_len else user_message
+        user_msg_processed = (
+            user_message[:max_len] + "..." if len(user_message) > max_len else user_message
+        )
 
     response_processed = None
     if response:
@@ -334,17 +342,28 @@ def log_request(
         if user_msg_processed:
             user_msg_processed, user_pii = mask_pii_in_message(user_msg_processed, _PII_FULL_MASK)
             if user_pii and pii_logger:
-                pii_logger.info(f"PII detected in user_message: {len(user_pii)} items", extra={"pii_types": [p["type"] for p in user_pii]})
+                pii_logger.info(
+                    f"PII detected in user_message: {len(user_pii)} items",
+                    extra={"pii_types": [p["type"] for p in user_pii]},
+                )
 
         if response_processed:
-            response_processed, response_pii = mask_pii_in_message(response_processed, _PII_FULL_MASK)
+            response_processed, response_pii = mask_pii_in_message(
+                response_processed, _PII_FULL_MASK
+            )
             if response_pii and pii_logger:
-                pii_logger.info(f"PII detected in response: {len(response_pii)} items", extra={"pii_types": [p["type"] for p in response_pii]})
+                pii_logger.info(
+                    f"PII detected in response: {len(response_pii)} items",
+                    extra={"pii_types": [p["type"] for p in response_pii]},
+                )
 
         if error:
             error, error_pii = mask_pii_in_message(error, _PII_FULL_MASK)
             if error_pii and pii_logger:
-                pii_logger.warning(f"PII detected in error: {len(error_pii)} items", extra={"pii_types": [p["type"] for p in error_pii]})
+                pii_logger.warning(
+                    f"PII detected in error: {len(error_pii)} items",
+                    extra={"pii_types": [p["type"] for p in error_pii]},
+                )
 
     # Build log message
     parts = [f"[{method}] {path}"]

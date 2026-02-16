@@ -16,6 +16,7 @@ try:
         safer_getattr,
     )
     from RestrictedPython.PrintCollector import PrintCollector
+
     RESTRICTED_PYTHON_AVAILABLE = True
 except ImportError:
     RESTRICTED_PYTHON_AVAILABLE = False
@@ -257,11 +258,28 @@ class RestrictedPythonExecutor:
                     for module in module_names:
                         module_base = module.split(".")[0]
                         dangerous_modules = [
-                            "os", "sys", "subprocess", "shutil", "socket",
-                            "http", "urllib", "requests", "ftplib", "telnetlib",
-                            "pickle", "shelve", "marshal", "importlib",
-                            "ctypes", "multiprocessing", "threading",
-                            "eval", "exec", "compile", "open", "__import__",
+                            "os",
+                            "sys",
+                            "subprocess",
+                            "shutil",
+                            "socket",
+                            "http",
+                            "urllib",
+                            "requests",
+                            "ftplib",
+                            "telnetlib",
+                            "pickle",
+                            "shelve",
+                            "marshal",
+                            "importlib",
+                            "ctypes",
+                            "multiprocessing",
+                            "threading",
+                            "eval",
+                            "exec",
+                            "compile",
+                            "open",
+                            "__import__",
                         ]
                         if module_base in dangerous_modules:
                             logger.warning(
@@ -275,7 +293,11 @@ class RestrictedPythonExecutor:
                             }
 
                 # Block attribute access on dangerous types
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("__import__", "eval", "exec", "compile"):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id in ("__import__", "eval", "exec", "compile")
+                ):
                     logger.warning(
                         "code_executor_blocked",
                         reason=f"Dangerous function: {node.func.id}",

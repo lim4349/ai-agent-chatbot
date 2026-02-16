@@ -91,9 +91,7 @@ When writing code:
         if self.memory:
             last_msg = state["messages"][-1]
             await self.memory.add_message(session_id, message_to_dict(last_msg))
-            await self.memory.add_message(
-                session_id, {"role": "assistant", "content": response}
-            )
+            await self.memory.add_message(session_id, {"role": "assistant", "content": response})
 
         return {
             **state,

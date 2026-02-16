@@ -23,8 +23,10 @@ def _get_logger():
     global _logger
     if _logger is None:
         from src.core.logging import get_logger
+
         _logger = get_logger(__name__)
     return _logger
+
 
 # Default batch size for embedding requests
 DEFAULT_BATCH_SIZE = 100
@@ -255,6 +257,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
         """Get or create Pinecone client."""
         if self._pinecone_client is None:
             from pinecone import Pinecone
+
             self._pinecone_client = Pinecone(api_key=self._api_key)
         return self._pinecone_client
 
@@ -288,7 +291,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
                         client.inference.embed,
                         model=self.model,
                         inputs=batch,
-                        parameters={"input_type": "passage", "truncate": "END"}
+                        parameters={"input_type": "passage", "truncate": "END"},
                     )
 
                     # Extract embeddings from response
@@ -300,7 +303,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
                     error_str = str(e).lower()
 
                     if "rate limit" in error_str or "429" in error_str or "timeout" in error_str:
-                        wait_time = RETRY_DELAY * (2 ** attempt)
+                        wait_time = RETRY_DELAY * (2**attempt)
                         _get_logger().warning(
                             "pinecone_embedding_retry",
                             attempt=attempt + 1,
@@ -313,7 +316,9 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
                         _get_logger().error("pinecone_embedding_failed", error=str(e))
                         raise
             else:
-                raise RuntimeError(f"Max retries exceeded for Pinecone embedding, batch starting at {i}")
+                raise RuntimeError(
+                    f"Max retries exceeded for Pinecone embedding, batch starting at {i}"
+                )
 
         _get_logger().info(
             "pinecone_embeddings_generated",
@@ -346,7 +351,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
                     client.inference.embed,
                     model=self.model,
                     inputs=[query],
-                    parameters={"input_type": "query", "truncate": "END"}
+                    parameters={"input_type": "query", "truncate": "END"},
                 )
                 return response.data[0].values if response.data else []
 
@@ -354,7 +359,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
                 error_str = str(e).lower()
 
                 if "rate limit" in error_str or "429" in error_str or "timeout" in error_str:
-                    wait_time = RETRY_DELAY * (2 ** attempt)
+                    wait_time = RETRY_DELAY * (2**attempt)
                     _get_logger().warning(
                         "pinecone_query_embedding_retry",
                         attempt=attempt + 1,

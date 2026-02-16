@@ -23,9 +23,7 @@ class MemoryTool:
         self._store = memory_store
         self._embedding_provider = embedding_provider
 
-    async def execute(
-        self, query: str, session_id: str, top_k: int = 5
-    ) -> list[dict[str, Any]]:
+    async def execute(self, query: str, session_id: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Search memory for relevant messages.
 
         Performs semantic search across conversation history to find
@@ -151,17 +149,13 @@ class MemoryTool:
             return 0.0
 
         # Calculate average distance between consecutive keywords
-        distances = [
-            positions[i + 1] - positions[i] for i in range(len(positions) - 1)
-        ]
+        distances = [positions[i + 1] - positions[i] for i in range(len(positions) - 1)]
         avg_distance = sum(distances) / len(distances) if distances else 0
 
         # Score inversely proportional to distance
         return 1.0 / (1.0 + avg_distance)
 
-    async def get_recent_context(
-        self, session_id: str, message_count: int = 5
-    ) -> list[dict]:
+    async def get_recent_context(self, session_id: str, message_count: int = 5) -> list[dict]:
         """Get recent conversation context.
 
         Args:
@@ -199,14 +193,10 @@ class MemoryTool:
 
         try:
             messages = await self._store.get_messages(session_id)
-            weighted = [
-                msg for msg in messages if msg.get("weight", 0.5) >= min_weight
-            ]
+            weighted = [msg for msg in messages if msg.get("weight", 0.5) >= min_weight]
             return weighted[:limit]
         except Exception as e:
-            logger.error(
-                "get_weighted_memories_failed", error=str(e), session_id=session_id
-            )
+            logger.error("get_weighted_memories_failed", error=str(e), session_id=session_id)
             return []
 
     async def search_memory(

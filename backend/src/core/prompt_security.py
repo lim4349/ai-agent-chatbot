@@ -39,81 +39,121 @@ Confidence = Literal["high", "medium", "low"]
 INJECTION_PATTERNS: dict[InjectionType, list[tuple[str, str]]] = {
     InjectionType.JAILBREAK: [
         # Direct override attempts
-        (r"\bignore\s+(all\s+)?(previous|above|earlier|the)?\s*(instructions?|commands?|directives?|rules?|prompts?)\b", "high"),
-        (r"\b(disregard|forget|override|bypass)\s+(all\s+)?(the\s+)?(instructions?|commands?|rules?|constraints?|filters?)\b", "high"),
+        (
+            r"\bignore\s+(all\s+)?(previous|above|earlier|the)?\s*(instructions?|commands?|directives?|rules?|prompts?)\b",
+            "high",
+        ),
+        (
+            r"\b(disregard|forget|override|bypass)\s+(all\s+)?(the\s+)?(instructions?|commands?|rules?|constraints?|filters?)\b",
+            "high",
+        ),
         (r"\byou\s+(must|should|shall|will)\s+(ignore|disregard|override)\b", "high"),
-
         # Developer mode exploits
         (r"\bdeveloper\s+mode\b", "high"),
         (r"\b(switch|toggle|enable|activate)\s+to\s+developer\s+mode\b", "high"),
         (r"\b(dev\s+mode|debug\s+mode|admin\s+mode|root\s+mode)\b", "high"),
-        (r"\b(simulate|pretend|act|roleplay)\s+(as\s+)?(a\s+)?(developer|admin|root|superuser)\b", "high"),
-
+        (
+            r"\b(simulate|pretend|act|roleplay)\s+(as\s+)?(a\s+)?(developer|admin|root|superuser)\b",
+            "high",
+        ),
         # Role-based jailbreaks
         (r"\byou\s+are\s+now\s+(a\s+)?(uncensored|unrestricted|unfiltered)\b", "high"),
-        (r"\b(constraints|restrictions|filters|safety|moderation)\s+(do\s+)?not\s+(apply|exist|matter)\b", "high"),
+        (
+            r"\b(constraints|restrictions|filters|safety|moderation)\s+(do\s+)?not\s+(apply|exist|matter)\b",
+            "high",
+        ),
         (r"\b(beyond|outside|above)\s+(the\s+)?(rules|constraints|guidelines|filters)\b", "high"),
-
         # Character-based jailbreaks
-        (r"\b(act|behave|respond|speak)\s+as\s+(if\s+you\s+are|you're|you\s+are)\s+(a\s+)?", "medium"),
+        (
+            r"\b(act|behave|respond|speak)\s+as\s+(if\s+you\s+are|you're|you\s+are)\s+(a\s+)?",
+            "medium",
+        ),
         (r"\badopt\s+(the\s+)?(persona|character|role)\s+of\b", "medium"),
         (r"\b(from\s+now\s+on|starting\s+now|henceforth)\b.*\byou\s+are\b", "medium"),
-
         # Condition-based jailbreaks
-        (r"\bif\s+(you|the\s+user)\s+(asks?|requests?|wants?|needs?).*,?\s*(then\s+)?(ignore|disregard|override)\b", "medium"),
-        (r"\bin\s+(this|that)\s+(case|scenario|situation|context)\b.*\b(ignore|override)\b", "medium"),
+        (
+            r"\bif\s+(you|the\s+user)\s+(asks?|requests?|wants?|needs?).*,?\s*(then\s+)?(ignore|disregard|override)\b",
+            "medium",
+        ),
+        (
+            r"\bin\s+(this|that)\s+(case|scenario|situation|context)\b.*\b(ignore|override)\b",
+            "medium",
+        ),
     ],
-
     InjectionType.DATA_EXFILTRATION: [
         # Direct prompt extraction
-        (r"\brepeat\s+(the\s+)?(above|previous|earlier)\s+(text|everything|words?|instructions?|prompts?|all)\b", "high"),
-        (r"\bshow\s+(me\s+)?(your\s+)?(system\s+)?(instructions?|prompts?|commands?|directives?)\b", "high"),
+        (
+            r"\brepeat\s+(the\s+)?(above|previous|earlier)\s+(text|everything|words?|instructions?|prompts?|all)\b",
+            "high",
+        ),
+        (
+            r"\bshow\s+(me\s+)?(your\s+)?(system\s+)?(instructions?|prompts?|commands?|directives?)\b",
+            "high",
+        ),
         (r"\bprint\s+(your\s+)?(initial|system|hidden|internal)\s+(prompt|instructions)\b", "high"),
         (r"\b(output|display|return|echo)\s+(the\s+)?(above|everything)\b", "high"),
-
         # Encoding-based extraction
-        (r"\b(in\s+)?(base64|hex|binary|ascii|rot13|morse)\s+(encode|decode|translation|conversion)\b", "medium"),
+        (
+            r"\b(in\s+)?(base64|hex|binary|ascii|rot13|morse)\s+(encode|decode|translation|conversion)\b",
+            "medium",
+        ),
         (r"\bconvert\s+(to\s+)?(base64|hex|binary)\b", "medium"),
-
         # Context manipulation
         (r"\bwhat\s+(was|were|is|are)\s+(the\s+)?(instructions?|prompts?|commands?)\b", "high"),
         (r"\btell\s+me\s+(what\s+you\s+were\stold|your\s+instructions)\b", "high"),
         (r"\b(ignore|skip)\s+(the\s+)?(question|request)\s+and\s+(repeat|echo|print)\b", "high"),
-
         # Indirect extraction
         (r"\b(start|begin)\s+your\s+response\s+with\b", "medium"),
         (r"\b(precede|prefix)\s+your\s+answer\s+with\b", "medium"),
-        (r"\binclude\s+(the\s+)?(exact|original|full)\s+(text|prompt)\s+in\s+your\s+response\b", "medium"),
+        (
+            r"\binclude\s+(the\s+)?(exact|original|full)\s+(text|prompt)\s+in\s+your\s+response\b",
+            "medium",
+        ),
     ],
-
     InjectionType.PRIVILEGE_ESCALATION: [
         # Direct privilege claims
         (r"\byou\s+are\s+now\s+(root|admin|administrator|superuser|god|owner)\b", "high"),
         (r"\bi\s+am\s+(your\s+)?(master|owner|administrator|developer|creator)\b", "high"),
-        (r"\bgive\s+me\s+(root|admin|administrator|full)\s+(access|privileges?|permissions?)\b", "high"),
-
+        (
+            r"\bgive\s+me\s+(root|admin|administrator|full)\s+(access|privileges?|permissions?)\b",
+            "high",
+        ),
         # Safety bypass attempts
-        (r"\b(disable|turn\s+off|deactivate|bypass)\s+(safety|security|moderation|filtering|content\s+filter)\b", "high"),
-        (r"\b(safety|security|moderation|filters?)\s+(are\s+)?(off|disabled|deactivated)\b", "high"),
-        (r"\bno\s+(safety|security|moderation|filters?|restrictions?|constraints?)\s+(required|needed|apply)\b", "high"),
-
+        (
+            r"\b(disable|turn\s+off|deactivate|bypass)\s+(safety|security|moderation|filtering|content\s+filter)\b",
+            "high",
+        ),
+        (
+            r"\b(safety|security|moderation|filters?)\s+(are\s+)?(off|disabled|deactivated)\b",
+            "high",
+        ),
+        (
+            r"\bno\s+(safety|security|moderation|filters?|restrictions?|constraints?)\s+(required|needed|apply)\b",
+            "high",
+        ),
         # Authority manipulation
-        (r"\byou\s+must\s+(obey|follow|comply\s+with)\s+my\s+(command|instruction|order)\b", "medium"),
-        (r"\bthis\s+is\s+(a\s+)?(direct|explicit|official)\s+(command|order|instruction)\b", "medium"),
-        (r"\b(authorized|approved|permitted)\s+(by|through)\s+(the\s+)?(developer|admin|system)\b", "medium"),
-
+        (
+            r"\byou\s+must\s+(obey|follow|comply\s+with)\s+my\s+(command|instruction|order)\b",
+            "medium",
+        ),
+        (
+            r"\bthis\s+is\s+(a\s+)?(direct|explicit|official)\s+(command|order|instruction)\b",
+            "medium",
+        ),
+        (
+            r"\b(authorized|approved|permitted)\s+(by|through)\s+(the\s+)?(developer|admin|system)\b",
+            "medium",
+        ),
         # Override protocols
         (r"\b(override|supersede)\s+(protocol\s+)?(omega|alpha|zero|delta)\b", "medium"),
         (r"\bemergency\s+(override|bypass|protocol)\b", "medium"),
         (r"\b(critical|urgent|priority)\s+(command|instruction|override)\b", "medium"),
     ],
-
     InjectionType.TOOL_MANIPULATION: [
         # Direct tool execution
         (r"\b(execute|run|exec|invoke)\s*:\s*\w+", "high"),
         (r"\b(command|cmd)\s*:\s+\S+", "high"),
         (r"\b(system|shell|bash|terminal)\s*:\s+\S+", "high"),
-
         # Python code injection
         (r"__import__\(", "high"),
         (r"\beval\s*\(", "high"),
@@ -123,39 +163,35 @@ INJECTION_PATTERNS: dict[InjectionType, list[tuple[str, str]]] = {
         (r"\bsubprocess\.", "high"),
         (r"\bos\.system\s*\(", "high"),
         (r"\bimport\s+(os|subprocess|pty|socket|commands?)\b", "high"),
-
         # File system attacks
         (r"\brm\s+-rf\s+", "high"),
         (r"\b(delete|remove|unlink|erase)\s+(all\s+)?(files?|directories?|folders?)\b", "high"),
         (r"\b(rmdir|mkdir|chmod|chown)\s+", "medium"),
         (r"\b(touch|cat|echo)\s+.*\s*(>>|>)", "medium"),
-
         # Shell command patterns
         (r"[;&|`$()]", "medium"),
         (r"\bcd\s+\.\.", "medium"),
         (r"\b(curl|wget|nc|netcat|ssh)\s+", "medium"),
-
         # SQL and other injections
         (r"(\bOR\b|\bAND\b).*(\bTRUE\b|\bFALSE\b|\d+=\d+)", "medium"),
         (r"(\bUNION\b.*SELECT\b|\bDROP\b.*TABLE\b)", "high"),
     ],
-
     InjectionType.PROMPT_LEAK: [
         # Direct prompt discovery
         (r"\bwhat\s+(are|were)\s+your\s+(instructions?|directives?|guidelines?|rules?)\b", "high"),
         (r"\bshow\s+(me\s+)?your\s+(system\s+)?prompt\b", "high"),
         (r"\b(print|display|output|reveal)\s+your\s+(instructions?|commands?|prompt)\b", "high"),
-
         # Meta-prompt queries
         (r"\bhow\s+(do\s+you|are\s+you\s+programmed\s+to|were\s+you\s+told\s+to)\b", "medium"),
         (r"\bwhat\s+(were\s+you|have\s+you\s+been)\s+(instructed|trained|configured)\b", "medium"),
-        (r"\b(what|how)\s+(instructions|rules|guidelines)\s+(did|do)\s+(your\s+)?(developers?|creators?)\b", "medium"),
-
+        (
+            r"\b(what|how)\s+(instructions|rules|guidelines)\s+(did|do)\s+(your\s+)?(developers?|creators?)\b",
+            "medium",
+        ),
         # Boundary testing
         (r"\b(ignore|disregard)\s+(the\s+)?(user\s+)?(input|message|query)\b", "high"),
         (r"\b(start|begin)\s+(from|at|after)\s+(the\s+)?(beginning|start|top)\b", "medium"),
         (r"\b(what|repeat)\s+came?\s+(before|above|earlier)\b", "high"),
-
         # Format exploitation
         (r"\b(format|structure|template)\s+(of|for)\s+your\s+(prompt|instructions)\b", "medium"),
         (r"\b(in\s+)?(JSON|XML|YAML|markdown)\s+(format|output)\b", "low"),
@@ -189,15 +225,13 @@ MAX_REPETITION_COUNT = 10
 # Compile patterns for better performance
 _COMPILED_PATTERNS: dict[InjectionType, list[tuple[re.Pattern, str]]] = {
     injection_type: [
-        (re.compile(pattern, re.IGNORECASE), confidence)
-        for pattern, confidence in patterns
+        (re.compile(pattern, re.IGNORECASE), confidence) for pattern, confidence in patterns
     ]
     for injection_type, patterns in INJECTION_PATTERNS.items()
 }
 
 _DELIMITER_PATTERN = re.compile(
-    "|".join(re.escape(delim) for delim in DELIMITER_ATTACKS),
-    re.IGNORECASE
+    "|".join(re.escape(delim) for delim in DELIMITER_ATTACKS), re.IGNORECASE
 )
 
 _REPETITION_PATTERN = re.compile(r"(.)\1{" + str(MAX_REPETITION_COUNT) + ",}")
@@ -493,8 +527,12 @@ def get_security_stats(user_input: str) -> dict[str, int | bool]:
     """
     stats = {
         "length": len(user_input) if isinstance(user_input, str) else 0,
-        "has_delimiters": bool(_DELIMITER_PATTERN.search(user_input)) if isinstance(user_input, str) else False,
-        "has_repetitions": bool(_REPETITION_PATTERN.search(user_input)) if isinstance(user_input, str) else False,
+        "has_delimiters": bool(_DELIMITER_PATTERN.search(user_input))
+        if isinstance(user_input, str)
+        else False,
+        "has_repetitions": bool(_REPETITION_PATTERN.search(user_input))
+        if isinstance(user_input, str)
+        else False,
         "injection_count": 0,
         "high_risk": False,
     }

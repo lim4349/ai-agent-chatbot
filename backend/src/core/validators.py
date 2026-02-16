@@ -33,9 +33,7 @@ ALLOWED_FILE_TYPES: dict[str, dict[str, Any]] = {
     },
     "docx": {
         "magic_bytes": [b"PK\x03\x04"],  # ZIP container
-        "mime_types": [
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        ],
+        "mime_types": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
         "description": "Microsoft Word Document",
     },
     "txt": {
@@ -100,16 +98,12 @@ REDOS_PATTERNS: list[re.Pattern[str]] = [
 # PII detection patterns
 PII_PATTERNS: dict[str, dict[str, Any]] = {
     "email": {
-        "pattern": re.compile(
-            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-        ),
+        "pattern": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
         "description": "Email address",
         "severity": "medium",
     },
     "phone": {
-        "pattern": re.compile(
-            r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
-        ),
+        "pattern": re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
         "description": "Phone number (US format)",
         "severity": "medium",
     },
@@ -253,9 +247,15 @@ def validate_message_content(content: str) -> tuple[bool, str | None]:
 
     # Excessive whitespace check
     if " " * (MAX_CONSECUTIVE_SPACES + 1) in content:
-        return False, f"Message contains excessive consecutive spaces (max {MAX_CONSECUTIVE_SPACES})"
+        return (
+            False,
+            f"Message contains excessive consecutive spaces (max {MAX_CONSECUTIVE_SPACES})",
+        )
     if "\n" * (MAX_CONSECUTIVE_NEWLINES + 1) in content:
-        return False, f"Message contains excessive consecutive newlines (max {MAX_CONSECUTIVE_NEWLINES})"
+        return (
+            False,
+            f"Message contains excessive consecutive newlines (max {MAX_CONSECUTIVE_NEWLINES})",
+        )
 
     return True, None
 
@@ -306,7 +306,10 @@ def validate_session_id(session_id: str) -> tuple[bool, str | None]:
 
     # Format validation
     if not SESSION_ID_PATTERN.fullmatch(session_id):
-        return False, "Session ID contains invalid characters (only alphanumeric, hyphen, underscore allowed)"
+        return (
+            False,
+            "Session ID contains invalid characters (only alphanumeric, hyphen, underscore allowed)",
+        )
 
     return True, None
 
@@ -770,7 +773,9 @@ def has_sensitive_pii(content: str, min_severity: str = "medium") -> bool:
 # =============================================================================
 
 
-def validate_json_size(json_str: str, max_size_kb: int = MAX_JSON_SIZE_KB) -> tuple[bool, str | None]:
+def validate_json_size(
+    json_str: str, max_size_kb: int = MAX_JSON_SIZE_KB
+) -> tuple[bool, str | None]:
     """Validate JSON string size and structure.
 
     Validates:
@@ -824,7 +829,10 @@ def validate_json_size(json_str: str, max_size_kb: int = MAX_JSON_SIZE_KB) -> tu
 
     depth = get_depth(parsed)
     if depth > MAX_JSON_NESTING_DEPTH:
-        return False, f"JSON nesting depth exceeds maximum of {MAX_JSON_NESTING_DEPTH} (got {depth})"
+        return (
+            False,
+            f"JSON nesting depth exceeds maximum of {MAX_JSON_NESTING_DEPTH} (got {depth})",
+        )
 
     return True, None
 

@@ -286,9 +286,7 @@ Conversation:
 Summary:"""
 
         # Generate summary using LLM
-        response = await self.llm.generate(
-            [{"role": "user", "content": summary_prompt}]
-        )
+        response = await self.llm.generate([{"role": "user", "content": summary_prompt}])
 
         return response if isinstance(response, str) else response.get("content", "")
 
