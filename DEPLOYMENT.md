@@ -20,31 +20,19 @@
 
 ---
 
-## GitHub Flow 배포 프로세스
+## Git Flow 배포 프로세스
 
-이 프로젝트는 표준 **GitHub Flow**를 따릅니다:
+이 프로젝트는 **Git Flow**를 따릅니다:
 
 ```
-feature/my-feature  ──PR 생성──→  CI 실행 (테스트/린트/보안)
-                                      │
-                                      ▼
-                              코드 리뷰 + 승인
-                                      │
-                                      ▼
-                              PR 머지 (main 브랜치)
-                                      │
-                                      ▼
-                              CD 실행 (자동 배포)
-                                      │
-                    ┌─────────────────┼─────────────────┐
-                    ▼                 ▼                 ▼
-               [Redis]         [ChromaDB]        [Backend]
-                                                    │
-                                                    ▼
-                                              [Frontend]
-                                                    │
-                                                    ▼
-                                              헬스 체크
+feature/my-feature  ──PR──→  dev  ──PR──→  main
+     │                      │              │
+     ▼                      ▼              ▼
+ CI (테스트/린트)      CI (최종 확인)   CD (자동 배포)
+                                            │
+                          ┌─────────────────┼─────────────────┐
+                          ▼                 ▼                 ▼
+                     [Pinecone]        [Backend]         [Frontend]
 ```
 
 ### 브랜치 전략
@@ -52,18 +40,21 @@ feature/my-feature  ──PR 생성──→  CI 실행 (테스트/린트/보안
 | 브랜치 | 용도 | 보호 규칙 |
 |--------|------|-----------|
 | `main` | 프로덕션 | PR 필수, CI 통과 필수 |
+| `dev` | 개발 통합 | PR 필수 |
 | `feature/*` | 기능 개발 | - |
 | `fix/*` | 버그 수정 | - |
+| `docs/*` | 문서 수정 | - |
 
 ### PR 워크플로우
 
-1. **feature 브랜치 생성**: `git checkout -b feature/my-feature`
+1. **작업 브랜치 생성**: `git checkout -b feature/my-feature`
 2. **코드 작성 및 커밋**: `git commit -m "feat: ..."`
-3. **PR 생성**: GitHub에서 main 브랜치로 PR 생성
+3. **dev에 PR 생성**: `gh pr create --base dev`
 4. **CI 자동 실행**: 테스트, 린트, 보안 스캔
 5. **코드 리뷰**: 팀원 리뷰 및 승인
-6. **PR 머지**: `main` 브랜치로 머지
-7. **CD 자동 실행**: 프로덕션에 자동 배포
+6. **dev에 머지**: `dev` 브랜치로 머지
+7. **main에 PR 생성**: `gh pr create --base main --head dev`
+8. **main에 머지**: CD 자동 실행 → 프로덕션 배포
 
 ---
 
