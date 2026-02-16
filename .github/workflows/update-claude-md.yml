@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   update-claude-md:
-    # Only run on approved reviews from Claude
     if: github.event.review.user.login == 'claude-code[bot]' || contains(github.event.review.user.login, 'claude')
     runs-on: ubuntu-latest
     steps:
@@ -25,36 +24,25 @@ jobs:
         env:
           REVIEW_BODY: ${{ github.event.review.body }}
         run: |
-          # Get current date
           DATE=$(date +%Y-%m-%d)
 
-          # Create insights section
-          INSIGHTS=""
-
-          # Check if Lessons Learned section exists
           if grep -q "## 학습한 내용" CLAUDE.md; then
-            # Check if today's date exists
             if grep -q "### $DATE" CLAUDE.md; then
-              # Append to existing date section
-              INSIGHTS="\n\n$REVIEW_BODY"
-              sed -i "s/### $DATE/### $DATE$INSIGHTS/" CLAUDE.md
+              echo "" >> CLAUDE.md
+              echo "$REVIEW_BODY" >> CLAUDE.md
             else
-              # Add new date section
-              INSIGHTS="\n\n### $DATE\n\n$REVIEW_BODY"
-              sed -i "s/## 학습한 내용/## 학습한 내용 (Lessons Learned)$INSIGHTS/" CLAUDE.md
+              sed -i "/## 학습한 내용/a \\\n### $DATE\n" CLAUDE.md
+              echo "$REVIEW_BODY" >> CLAUDE.md
             fi
           else
-            # Create new Lessons Learned section
-            cat >> CLAUDE.md << EOF
-
----
-
-## 학습한 내용 (Lessons Learned)
-
-### $DATE
-
-$REVIEW_BODY
-EOF
+            echo "" >> CLAUDE.md
+            echo "---" >> CLAUDE.md
+            echo "" >> CLAUDE.md
+            echo "## 학습한 내용 (Lessons Learned)" >> CLAUDE.md
+            echo "" >> CLAUDE.md
+            echo "### $DATE" >> CLAUDE.md
+            echo "" >> CLAUDE.md
+            echo "$REVIEW_BODY" >> CLAUDE.md
           fi
 
           echo "updated=true" >> $GITHUB_OUTPUT
