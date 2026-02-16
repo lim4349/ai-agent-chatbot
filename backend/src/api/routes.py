@@ -28,7 +28,6 @@ from src.api.schemas import (
     SessionResponse,
 )
 from src.auth import User, get_current_user
-from src.auth.dependencies import CurrentUser
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import log_request
@@ -53,6 +52,21 @@ from src.tools.registry import ToolRegistry
 
 router = APIRouter()
 
+# Rate limiting: session_id -> call_count
+_rate_limits: dict[str, int] = {}
+RATE_LIMIT_PER_SESSION = 20
+
+
+def check_rate_limit(session_id: str) -> None:
+    """Check if session has exceeded rate limit."""
+    count = _rate_limits.get(session_id, 0)
+    if count >= RATE_LIMIT_PER_SESSION:
+        raise HTTPException(
+            status_code=429,
+            detail=f"세션당 최대 {RATE_LIMIT_PER_SESSION}회 호출 가능합니다. 새 세션을 시작해주세요."
+        )
+    _rate_limits[session_id] = count + 1
+
 
 def get_message_content(msg) -> str:
     """Extract content from a message (dict or LangChain message)."""
@@ -67,13 +81,15 @@ def get_message_content(msg) -> str:
 @inject
 async def chat(
     request: ChatRequest,
-    user: CurrentUser,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
     The supervisor will route to the appropriate specialist agent.
     """
+    # Rate limiting
+    check_rate_limit(request.session_id)
+
     start_time = time.perf_counter()
 
     # Security: Check for prompt injection attacks
@@ -155,13 +171,15 @@ async def chat(
 @inject
 async def chat_stream(
     request: ChatRequest,
-    user: CurrentUser,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
     Yields tokens as they are generated.
     """
+    # Rate limiting
+    check_rate_limit(request.session_id)
+
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
     if injection:
