@@ -123,20 +123,20 @@ npm test
 ### 4. Git Workflow (필수 준수)
 
 ```
-{feature|fix|docs}/* → dev → main
+{feat|fix|docs}/* → dev → main
 ```
 
 **브랜치 전략**:
 - `main`: 프로덕션 브랜치 (자동 배포)
 - `dev`: 개발 통합 브랜치
-- `feature/*`: 기능 개발 브랜치
+- `feat/*`: 기능 개발 브랜치
 - `fix/*`: 버그 수정 브랜치
 - `docs/*`: 문서 수정 브랜치
 
 **⚠️ 필수 프로세스**:
 ```
-1. feature/xxx 브랜치 생성
-2. 작업 완료 후 feature/xxx → dev PR 생성
+1. feat/xxx 브랜치 생성
+2. 작업 완료 후 feat/xxx → dev PR 생성
 3. dev에서 테스트 & 리뷰 통과 후 merge
 4. dev → main PR 생성
 5. main merge 시 자동 배포
@@ -145,28 +145,69 @@ npm test
 **금지 사항**:
 - ❌ dev에 직접 commit/push 금지
 - ❌ main에 직접 commit/push 금지
-- ❌ feature 브랜치 없이 작업 금지
+- ❌ feat 브랜치 없이 작업 금지
 
 **올바른 예시**:
 ```bash
 # 1. feature 브랜치 생성
 git checkout dev
 git pull origin dev
-git checkout -b feature/pinecone-embedding
+git checkout -b feat/pinecone-embedding
 
 # 2. 작업 & 커밋
 git add .
 git commit -m "feat: Add Pinecone embedding support"
 
 # 3. 푸시 & PR (→ dev)
-git push origin feature/pinecone-embedding
-gh pr create --base dev --head feature/pinecone-embedding
+git push origin feat/pinecone-embedding
+gh pr create --base dev --head feat/pinecone-embedding
 
 # 4. dev merge 후 main PR
 gh pr create --base main --head dev
 ```
 
 ### 5. ⚠️ 필수 규칙
+
+**Commit 메시지 형식 (commitlint.config.js 준수)**:
+```
+<type>: <subject>
+
+[optional body]
+```
+
+**허용 타입**:
+- `feat`: 새로운 기능
+- `fix`: 버그 수정
+- `docs`: 문서 변경
+- `style`: 코드 스타일 변경
+- `refactor`: 리팩토링
+- `test`: 테스트 추가/수정
+- `chore`: 빌드/보조 도구 변경
+- `build`: 빌드 시스템 변경
+- `ci`: CI 설정 변경
+- `perf`: 성능 개선
+- `revert`: 이전 커밋 되돌리기
+- `release`: 릴리즈
+
+**규칙**:
+- subject는 소문자로 시작
+- subject 길이: 3~72자
+- 예: `feat: Add user authentication`
+
+**Pre-commit Hooks (.pre-commit-config.yaml)**:
+```bash
+# 설치 (최초 1회)
+pip install pre-commit
+pre-commit install
+
+# 수동 실행
+pre-commit run --all-files
+```
+
+**실행되는 검사**:
+- Backend: Ruff lint + format
+- Frontend: ESLint
+- 공통: trailing whitespace, EOF, YAML/JSON 검사
 
 **모든 작업 전 git pull 필수**:
 ```bash
@@ -217,6 +258,19 @@ npm run build                      # 빌드 테스트
 4. **문서 업로드 UX**
    - 상태 확인 후 모달 닫기: `uploadStatus === 'completed'` 체크
    - 에러 시 모달 유지 필요
+
+5. **GLM 모델 토큰화 이슈**
+   - GLM 모델이 문장 끝 punctuation 뒤 공백 없이 토큰 생성
+   - 해결: `fixSentenceSpacing()` 함수로 후처리
+   - 패턴: `/([.!?。！？])([A-Za-z가-힣])/g` → `$1 $2`
+
+6. **SSE JSON 이스케이핑**
+   - heredoc으로 JSON 생성 시 특수 문자로 파싱 에러
+   - 해결: `jq -Rs` 사용하여 안전하게 JSON 생성
+
+7. **threading.Lock for thread-safe dict**
+   - FastAPI는 비동기지만 글로벌 dict 접근 시 race condition 가능
+   - `threading.Lock`으로 보호 (임시 방편, DB 마이그레이션 권장)
 
 ---
 
@@ -278,6 +332,8 @@ llm = LLMFactory.create(config)  # 자동 매핑
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - 배포 가이드
 - [backend/AGENTS.md](./backend/AGENTS.md) - 백엔드 상세 가이드
 - [frontend/AGENTS.md](./frontend/AGENTS.md) - 프론트엔드 상세 가이드
+- [commitlint.config.js](./commitlint.config.js) - 커밋 메시지 규칙
+- [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Pre-commit hooks
 
 ---
 
