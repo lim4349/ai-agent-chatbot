@@ -13,7 +13,7 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 - RAG 파이프라인 (Pinecone + Pinecone Inference Embeddings)
 - 실시간 스트리밍 응답 (SSE)
 - 구조 기반 문서 청킹
-- 메모리 관리 (In-Memory + 요약)
+- 영구 세션 메모리 (Upstash Redis)
 
 ---
 
@@ -27,7 +27,7 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 | **LLM** | OpenAI / Anthropic / GLM | GPT-4o / Claude / GLM-4 |
 | **Vector DB** | Pinecone | - |
 | **Embedding** | Pinecone Inference (multilingual-e5-large) | - |
-| **Session** | In-Memory | - |
+| **Session** | Upstash Redis (프로덕션) / In-Memory (로컬) | - |
 | **배포** | Render + Vercel | - |
 
 ---

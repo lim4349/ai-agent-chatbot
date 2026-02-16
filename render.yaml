@@ -4,10 +4,10 @@
 #
 # This blueprint creates:
 #   1. ai-agent-backend (FastAPI web service)
-#   2. ai-agent-redis (Redis session store)
 #
-# Note: Vector DB uses Pinecone (managed service)
-# Set PINECONE_API_KEY and PINECONE_INDEX_NAME in Render Dashboard
+# External Services (set up separately):
+#   - Pinecone (Vector DB): https://app.pinecone.io
+#   - Upstash Redis (Session Memory): https://upstash.com
 #
 # After initial creation, GitHub Actions will handle deployments
 # via .github/workflows/ci-cd.yml
@@ -39,14 +39,13 @@ services:
         sync: false
       - key: TAVILY_API_KEY
         sync: false
-      # Memory configuration
+      # Memory configuration (Upstash Redis)
       - key: MEMORY_BACKEND
         value: redis
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: ai-agent-redis
-          property: connectionString
+      - key: MEMORY_REDIS_URL
+        sync: false  # Set from Upstash Dashboard: rediss://default:<password>@<endpoint>.upstash.io:6379
+      - key: MEMORY_TTL_SECONDS
+        value: "3600"
       # RAG configuration (Pinecone)
       - key: RAG_CHUNK_SIZE
         value: "1000"
@@ -74,12 +73,16 @@ services:
     autoDeploy: false  # Controlled by GitHub Actions
     plan: free
 
-  - type: redis
-    name: ai-agent-redis
-    ipAllowList: []  # Allow all (internal only)
-    plan: free
-
-# Note: Pinecone is used for vector storage (managed service)
-# Create index at https://app.pinecone.io and set:
-#   RAG_PINECONE_API_KEY=<your_api_key>
-#   RAG_PINECONE_INDEX_NAME=<your_index_name>
+# External Services Setup:
+#
+# 1. Pinecone (Vector DB for RAG):
+#    - Create account: https://app.pinecone.io
+#    - Create index: name=documents, dimensions=1024, metric=cosine
+#    - Copy API Key to RAG_PINECONE_API_KEY
+#
+# 2. Upstash Redis (Session Memory):
+#    - Create account: https://upstash.com
+#    - Create Redis database (free tier: 10,000 requests/day)
+#    - Copy "UPSTASH_REDIS_REST_URL" or use "Rediss URL" format:
+#      rediss://default:<password>@<endpoint>.upstash.io:6379
+#    - Set to MEMORY_REDIS_URL in Render Dashboard
