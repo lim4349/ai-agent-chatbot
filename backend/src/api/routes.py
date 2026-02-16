@@ -505,6 +505,7 @@ async def upload_file(
             file_type=file_type,
             chunks_created=len(chunks),
             total_tokens=doc.total_tokens,
+            upload_time=doc.upload_time,
             status="success",
             message=f"Successfully processed {filename} ({len(chunks)} chunks)",
         )

@@ -254,6 +254,10 @@ Consider the context of the conversation when making your decision."""
             logger.warning("supervisor_llm_returned_none", session_id=session_id)
             decision = {"selected_agent": "chat", "reasoning": "LLM response was empty, defaulting to chat"}
 
+        # Safe access with defaults
+        selected_agent = decision.get("selected_agent", "chat")
+        reasoning = decision.get("reasoning", "No reasoning provided")
+
         # Store the routing exchange in memory if available
         if self.memory:
             last_msg = state["messages"][-1]
@@ -262,15 +266,15 @@ Consider the context of the conversation when making your decision."""
                 session_id,
                 {
                     "role": "assistant",
-                    "content": f"Routing to: {decision['selected_agent']} (reasoning: {decision['reasoning']})",
+                    "content": f"Routing to: {selected_agent} (reasoning: {reasoning})",
                 },
             )
 
         return {
             **state,
-            "next_agent": decision["selected_agent"],
+            "next_agent": selected_agent,
             "metadata": {
                 **state.get("metadata", {}),
-                "route_reasoning": decision["reasoning"],
+                "route_reasoning": reasoning,
             },
         }
