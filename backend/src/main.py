@@ -56,17 +56,18 @@ async def lifespan(app: FastAPI):
         await mcp_manager.initialize()
         tools = await mcp_manager.discover_tools()
 
+        tool_registry = container.tool_registry()
         for tool in tools:
-            if not container.tool_registry.has_tool(tool.name):
-                container.tool_registry.register(tool)
+            if not tool_registry.has_tool(tool.name):
+                tool_registry.register(tool)
                 logger.info("mcp_tool_registered", tool=tool.name, server=tool.server_name)
             else:
                 logger.warning("mcp_tool_name_conflict", tool_name=tool.name)
 
     logger.info(
         "container_initialized",
-        llm_providers=type(container.llm).__name__,
-        available_tools=container.tool_registry.list_tools(),
+        llm_providers=type(container.llm()).__name__,
+        available_tools=container.tool_registry().list_tools(),
     )
 
     yield
@@ -80,8 +81,9 @@ async def lifespan(app: FastAPI):
 
     logger.info("application_shutting_down")
     # Close Redis connection if needed
-    if hasattr(container.memory, "close"):
-        await container.memory.close()
+    memory = container.memory()
+    if hasattr(memory, "close"):
+        await memory.close()
 
 
 def create_app() -> FastAPI:
