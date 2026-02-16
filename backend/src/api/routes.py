@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from langchain_core.messages import BaseMessage
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.auth import User, get_current_user, get_optional_user
+from src.auth import User, get_current_user
 from src.api.schemas import (
     AgentInfo,
     AgentListResponse,
