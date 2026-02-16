@@ -34,13 +34,20 @@ jobs:
         env:
           GLM_KEY: ${{ secrets.GLM_API_KEY }}
 
-      - name: Get changed files
+      - name: Get changed files and diff
         id: files
         run: |
           git fetch origin ${{ github.base_ref }} --depth=1
           files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | head -20 | tr '\n' ', ')
           echo "changed_files=$files" >> $GITHUB_OUTPUT
           echo "Files: $files"
+
+          # Get diff content (limit to 8000 chars to avoid token limits)
+          diff_content=$(git diff origin/${{ github.base_ref }}...HEAD | head -500 | cut -c1-8000)
+          echo "diff_content<<DIFFEOF" >> $GITHUB_OUTPUT
+          echo "$diff_content" >> $GITHUB_OUTPUT
+          echo "DIFFEOF" >> $GITHUB_OUTPUT
+          echo "Diff length: ${#diff_content} chars"
 
       - name: Run GLM-5 Code Review
         id: review
@@ -49,18 +56,19 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           FILES: ${{ steps.files.outputs.changed_files }}
+          DIFF: ${{ steps.files.outputs.diff_content }}
         run: |
           echo "Calling GLM-5 API..."
 
-          # Create JSON payload
+          # Create JSON payload with diff content
           payload=$(cat <<JSONEOF
           {
             "model": "glm-5",
-            "max_tokens": 2000,
+            "max_tokens": 3000,
             "messages": [
               {
                 "role": "user",
-                "content": "다음 PR을 코드 리뷰해주세요:\n\n제목: $PR_TITLE\n\n변경된 파일: $FILES\n\n다음 내용을 포함하여 한국어로 리뷰를 작성해주세요:\n1. 변경사항 요약\n2. 잠재적인 문제점\n3. AGENTS.md에 추가하면 좋을 프로젝트 규칙"
+                "content": "다음 PR을 코드 리뷰해주세요:\n\n제목: $PR_TITLE\n\n변경된 파일: $FILES\n\n코드 변경사항 (diff):\n\`\`\`diff\n$DIFF\n\`\`\`\n\n다음 내용을 포함하여 한국어로 리뷰를 작성해주세요:\n1. 변경사항 요약\n2. 코드 품질 검토 (버그, 보안 문제, 성능 이슈)\n3. 개선 제안\n4. AGENTS.md에 추가하면 좋을 프로젝트 규칙"
               }
             ]
           }
