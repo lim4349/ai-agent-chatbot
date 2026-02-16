@@ -29,8 +29,11 @@ class LLMProvider(Protocol):
         messages: list[dict[str, str]],
         output_schema: type,
         **kwargs,
-    ) -> dict:
-        """Generate structured output using function calling or JSON mode."""
+    ) -> dict | None:
+        """Generate structured output using function calling or JSON mode.
+
+        Returns None if the LLM fails to generate valid structured output.
+        """
         ...
 
 
