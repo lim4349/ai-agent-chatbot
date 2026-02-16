@@ -11,7 +11,9 @@
 | 서비스 | 용도 | 제공량 |
 |--------|------|--------|
 | **Render.com** | 백엔드 API | 512MB RAM, 0.1 CPU |
-| **Pinecone** | 벡터 DB + 세션 저장소 | 무료 티어 |
+| **Pinecone** | 벡터 DB (RAG) | 무료 티어 |
+| **Supabase** | 인증 + 세션 DB + 장기 메모리 | 무료 티어 |
+| **Upstash Redis** | 단기 세션 메모리 | 무료 티어 |
 | **Vercel** | 프론트엔드 | 100GB/월 트래픽 |
 | **GitHub Actions** | CI/CD | 무제한 (Public repo) |
 
@@ -72,7 +74,10 @@ Repository → Settings → Secrets and variables → Actions → New repository
 | `VERCEL_ORG_ID` | team_xxxxxxxx | Vercel 조직 ID |
 | `VERCEL_PROJECT_ID` | prj_xxxxxxxx | Vercel 프로젝트 ID |
 | `PINECONE_API_KEY` | xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx | Pinecone API 키 |
+| `SUPABASE_URL` | https://xxx.supabase.co | Supabase 프로젝트 URL |
+| `SUPABASE_SERVICE_KEY` | eyJ... | Supabase Service Role Key |
 | `UPSTASH_REDIS_URL` | rediss://default:xxx@xxx.upstash.io:6379 | Upstash Redis URL |
+| `UPSTASH_REDIS_TOKEN` | xxxxx | Upstash Redis Token |
 
 ---
 
@@ -107,7 +112,17 @@ Repository → Settings → Secrets and variables → Actions → New repository
    - **Metric**: cosine
 3. API Key 발급 및 Render Environment Variables에 추가
 
-#### Upstash Redis 설정 (세션 메모리)
+#### Supabase 설정 (인증 + 세션 DB + 장기 메모리)
+1. [Supabase 콘솔](https://supabase.com)에서 계정 생성
+2. 새 프로젝트 생성
+3. Settings → API에서 다음 정보 복사:
+   - **Project URL**: `https://xxx.supabase.co`
+   - **Service Role Key**: `eyJ...` (anon key가 아님!)
+4. Render Environment Variables에 추가:
+   - `SUPABASE_URL` = (프로젝트 URL)
+   - `SUPABASE_SERVICE_KEY` = (Service Role Key)
+
+#### Upstash Redis 설정 (단기 세션 메모리)
 1. [Upstash 콘솔](https://upstash.com)에서 계정 생성
 2. 새 Redis 데이터베이스 생성:
    - **Name**: ai-agent-session
@@ -117,7 +132,8 @@ Repository → Settings → Secrets and variables → Actions → New repository
    - 형식: `rediss://default:<password>@<endpoint>.upstash.io:6379`
 4. Render Environment Variables에 추가:
    - `MEMORY_BACKEND` = `redis`
-   - `MEMORY_REDIS_URL` = (복사한 URL)
+   - `UPSTASH_REDIS_URL` = (복사한 URL)
+   - `UPSTASH_REDIS_TOKEN` = (복사한 Token)
 
 ---
 
@@ -160,12 +176,15 @@ vercel --prod
 |------|---------|------|
 | `OPENAI_API_KEY` | sk-... | OpenAI API 키 |
 | `ANTHROPIC_API_KEY` | sk-ant-... | Anthropic API 키 |
+| `GLM_API_KEY` | xxx... | GLM API 키 (Zhipu AI) |
 | `TAVILY_API_KEY` | tvly-... | Tavily 검색 API |
 | `PINECONE_API_KEY` | xxx-xxx-xxx | Pinecone API 키 |
 | `PINECONE_INDEX_NAME` | ai-agent-index | Pinecone 인덱스 이름 |
-| `EMBEDDING_PROVIDER` | pinecone | 임베딩 제공자 (pinecone/openai) |
+| `SUPABASE_URL` | https://xxx.supabase.co | Supabase 프로젝트 URL |
+| `SUPABASE_SERVICE_KEY` | eyJ... | Supabase Service Role Key |
+| `UPSTASH_REDIS_URL` | rediss://default:xxx@... | Upstash Redis URL |
+| `UPSTASH_REDIS_TOKEN` | xxxxx | Upstash Redis Token |
 | `MEMORY_BACKEND` | redis | 메모리 백엔드 (in_memory/redis) |
-| `MEMORY_REDIS_URL` | rediss://default:xxx@... | Upstash Redis URL |
 
 ### Vercel (Frontend)
 
@@ -249,4 +268,4 @@ curl https://your-app.onrender.com/api/v1/health
 ---
 
 *배포 가이드*
-*마지막 업데이트: 2026-02-16*
+*마지막 업데이트: 2026-02-17*

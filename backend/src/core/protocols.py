@@ -1,7 +1,7 @@
 """Protocol interfaces for dependency injection."""
 
 from collections.abc import AsyncIterator
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -11,7 +11,7 @@ class LLMProvider(Protocol):
     async def generate(
         self,
         messages: list[dict[str, str]],
-        **kwargs,
+        **kwargs: Any,
     ) -> str:
         """Generate a single response."""
         ...
@@ -19,7 +19,7 @@ class LLMProvider(Protocol):
     async def stream(
         self,
         messages: list[dict[str, str]],
-        **kwargs,
+        **kwargs: Any,
     ) -> AsyncIterator[str]:
         """Generate a streaming response."""
         ...
@@ -28,8 +28,8 @@ class LLMProvider(Protocol):
         self,
         messages: list[dict[str, str]],
         output_schema: type,
-        **kwargs,
-    ) -> dict | None:
+        **kwargs: Any,
+    ) -> dict[str, Any] | None:
         """Generate structured output using function calling or JSON mode.
 
         Returns None if the LLM fails to generate valid structured output.
@@ -41,11 +41,11 @@ class LLMProvider(Protocol):
 class MemoryStore(Protocol):
     """Conversation memory interface."""
 
-    async def get_messages(self, session_id: str) -> list[dict]:
+    async def get_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Get conversation history for a session."""
         ...
 
-    async def add_message(self, session_id: str, message: dict) -> None:
+    async def add_message(self, session_id: str, message: dict[str, Any]) -> None:
         """Add a message to the session history."""
         ...
 
@@ -57,7 +57,7 @@ class MemoryStore(Protocol):
         self,
         session_id: str,
         max_tokens: int,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get conversation history limited by token count.
 
         Args:
@@ -98,14 +98,14 @@ class DocumentRetriever(Protocol):
         self,
         query: str,
         top_k: int = 3,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Retrieve relevant document chunks.
 
         Returns: [{"content": str, "metadata": dict, "score": float}]
         """
         ...
 
-    async def add_documents(self, documents: list[dict]) -> None:
+    async def add_documents(self, documents: list[dict[str, Any]]) -> None:
         """Add documents (embed + store)."""
         ...
 
@@ -124,7 +124,7 @@ class Tool(Protocol):
         """Tool description."""
         ...
 
-    async def execute(self, **kwargs) -> str:
+    async def execute(self, **kwargs: Any) -> str:
         """Execute the tool with given arguments."""
         ...
 
@@ -137,7 +137,7 @@ class DocumentParser(Protocol):
         self,
         content: bytes,
         file_type: str,
-    ) -> list:
+    ) -> list[Any]:
         """Parse document from bytes.
 
         Args:
@@ -154,7 +154,7 @@ class DocumentParser(Protocol):
         self,
         file_path: str,
         file_type: str,
-    ) -> list:
+    ) -> list[Any]:
         """Parse document from file path.
 
         Args:
@@ -174,9 +174,9 @@ class DocumentChunker(Protocol):
 
     def chunk(
         self,
-        sections: list,
+        sections: list[Any],
         source: str = "",
-    ) -> list:
+    ) -> list[Any]:
         """Chunk document sections respecting structure.
 
         Args:
@@ -194,7 +194,7 @@ class DocumentChunker(Protocol):
 class Summarizer(Protocol):
     """Summarization interface for conversation summarization."""
 
-    async def summarize(self, session_id: str, messages: list[dict]) -> str | None:
+    async def summarize(self, session_id: str, messages: list[dict[str, Any]]) -> str | None:
         """Generate summary for conversation messages.
 
         Args:
@@ -211,7 +211,7 @@ class Summarizer(Protocol):
 class UserProfiler(Protocol):
     """User profiling interface for extracting user preferences."""
 
-    async def extract_profile(self, session_id: str, messages: list[dict]) -> dict | None:
+    async def extract_profile(self, session_id: str, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
         """Extract user profile from conversation.
 
         Args:
@@ -223,7 +223,7 @@ class UserProfiler(Protocol):
         """
         ...
 
-    async def get_profile(self, user_id: str) -> dict | None:
+    async def get_profile(self, user_id: str) -> dict[str, Any] | None:
         """Get stored user profile.
 
         Args:
@@ -239,7 +239,7 @@ class UserProfiler(Protocol):
 class TopicMemory(Protocol):
     """Topic memory interface for cross-session topic tracking."""
 
-    async def extract_topics(self, session_id: str, messages: list[dict]) -> list[str]:
+    async def extract_topics(self, session_id: str, messages: list[dict[str, Any]]) -> list[str]:
         """Extract topics from conversation.
 
         Args:
@@ -277,7 +277,7 @@ class MemoryTool(Protocol):
         """Tool description."""
         ...
 
-    async def execute(self, query: str, **kwargs) -> str:
+    async def execute(self, query: str, **kwargs: Any) -> str:
         """Execute memory search.
 
         Args:
@@ -286,5 +286,74 @@ class MemoryTool(Protocol):
 
         Returns:
             Search results as formatted string
+        """
+        ...
+
+
+@runtime_checkable
+class SessionStore(Protocol):
+    """Session storage interface."""
+
+    async def create(
+        self,
+        session_id: str,
+        user_id: str,
+        title: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> object:
+        """Create a new session.
+
+        Args:
+            session_id: Unique session identifier
+            user_id: Owner user ID
+            title: Session title
+            metadata: Optional session metadata
+
+        Returns:
+            Created session object
+        """
+        ...
+
+    async def get(self, session_id: str) -> object | None:
+        """Get a session by ID.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Session object or None if not found
+        """
+        ...
+
+    async def list_by_user(self, user_id: str) -> list[Any]:
+        """List all sessions for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            List of session objects
+        """
+        ...
+
+    async def delete(self, session_id: str) -> bool:
+        """Delete a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if deleted, False if not found
+        """
+        ...
+
+    async def exists(self, session_id: str) -> bool:
+        """Check if a session exists.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if session exists
         """
         ...

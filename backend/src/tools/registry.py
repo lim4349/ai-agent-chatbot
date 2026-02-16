@@ -1,5 +1,7 @@
 """Tool registry for managing agent tools."""
 
+from typing import Any
+
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -8,15 +10,15 @@ logger = get_logger(__name__)
 class ToolRegistry:
     """Registry for managing tools by name."""
 
-    def __init__(self):
-        self._tools: dict[str, any] = {}
+    def __init__(self) -> None:
+        self._tools: dict[str, Any] = {}
 
-    def register(self, tool) -> None:
+    def register(self, tool: Any) -> None:
         """Register a tool."""
         self._tools[tool.name] = tool
         logger.debug("tool_registered", name=tool.name)
 
-    def get(self, name: str):
+    def get(self, name: str) -> Any:
         """Get a tool by name."""
         return self._tools.get(name)
 

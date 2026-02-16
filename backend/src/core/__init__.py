@@ -2,7 +2,7 @@
 
 from src.core.auto_summarize import AutoSummarizeTrigger, SummarizationManager
 from src.core.config import AppConfig, LLMConfig, MemoryConfig, RAGConfig, ToolsConfig
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.exceptions import AgentError, AppError, LLMError, ToolExecutionError
 
 __all__ = [
@@ -11,7 +11,7 @@ __all__ = [
     "MemoryConfig",
     "RAGConfig",
     "ToolsConfig",
-    "Container",
+    "DIContainer",
     "AppError",
     "LLMError",
     "AgentError",

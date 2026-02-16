@@ -6,7 +6,7 @@ from dependency_injector.wiring import Provide, inject
 from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
 
@@ -41,9 +41,9 @@ class WebSearchAgent(BaseAgent):
     @inject
     def __init__(
         self,
-        llm: LLMProvider = Provide[Container.llm],
-        search_tool: Tool = Provide[Container.tool_registry],
-        memory: MemoryStore = Provide[Container.memory],
+        llm: LLMProvider = Provide[DIContainer.llm],
+        search_tool: Tool = Provide[DIContainer.tool_registry],
+        memory: MemoryStore = Provide[DIContainer.memory],
     ):
         super().__init__(llm, tools=[search_tool], memory=memory)
         self.search_tool = search_tool

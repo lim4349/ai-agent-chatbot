@@ -1,7 +1,7 @@
-"""Long-term cross-session memory store using ChromaDB."""
+"""Long-term cross-session memory store using Supabase with in-memory fallback."""
 
 import hashlib
-import json
+import re
 from datetime import datetime
 from typing import Any
 
@@ -13,86 +13,65 @@ logger = get_logger(__name__)
 class LongTermMemory:
     """Long-term memory for cross-session user data and topic storage.
 
-    Uses ChromaDB for vector storage to enable similarity search across sessions.
+    Uses Supabase PostgreSQL for persistent storage with in-memory fallback.
     Stores user profiles, topic summaries, and session relationships.
     """
 
     def __init__(
         self,
-        embedding_function=None,
-        persist_directory: str | None = None,
+        supabase_url: str | None = None,
+        supabase_key: str | None = None,
         anonymize: bool = True,
     ):
         """Initialize long-term memory store.
 
         Args:
-            embedding_function: Optional embedding function for vector search
-            persist_directory: Directory to persist ChromaDB data
+            supabase_url: Supabase project URL
+            supabase_key: Supabase service key
             anonymize: Whether to anonymize sensitive user data
         """
         self.anonymize = anonymize
-        self._persist_directory = persist_directory
-        self._embedding_function = embedding_function
+        self._supabase_url = supabase_url
+        self._supabase_key = supabase_key
 
-        # In-memory fallback when ChromaDB is not available
+        # In-memory fallback
         self._user_profiles: dict[str, dict] = {}
         self._topic_summaries: dict[str, list[dict]] = {}
         self._session_topics: dict[str, set[str]] = {}
         self._topic_sessions: dict[str, set[str]] = {}
         self._facts: dict[str, list[dict]] = {}
 
-        # Try to import and initialize ChromaDB
-        self._chroma_client = None
-        self._user_collection = None
-        self._topic_collection = None
-        self._fact_collection = None
+        # Try to initialize Supabase client
+        self._client = None
+        self._use_supabase = False
 
-        try:
-            import chromadb
-            from chromadb.config import Settings
+        if supabase_url and supabase_key:
+            try:
+                from supabase import create_client
 
-            if persist_directory:
-                self._chroma_client = chromadb.PersistentClient(
-                    path=persist_directory,
-                    settings=Settings(anonymized_telemetry=False),
+                self._client = create_client(supabase_url, supabase_key)
+                # Test connection
+                self._client.table("user_profiles").select("id").limit(1).execute()
+                self._use_supabase = True
+                logger.info("long_term_memory_initialized", supabase=True)
+            except ImportError:
+                logger.warning(
+                    "supabase_not_available",
+                    message="Supabase client not installed, using in-memory fallback",
                 )
-            else:
-                self._chroma_client = chromadb.Client(settings=Settings(anonymized_telemetry=False))
-
-            # Get or create collections
-            self._user_collection = self._chroma_client.get_or_create_collection(
-                name="user_profiles",
-                embedding_function=self._embedding_function,
-            )
-            self._topic_collection = self._chroma_client.get_or_create_collection(
-                name="topic_summaries",
-                embedding_function=self._embedding_function,
-            )
-            self._fact_collection = self._chroma_client.get_or_create_collection(
-                name="user_facts",
-                embedding_function=self._embedding_function,
-            )
-
-            logger.info("long_term_memory_initialized", chroma_available=True)
-        except ImportError:
-            logger.warning(
-                "chroma_not_available",
-                message="ChromaDB not installed, using in-memory fallback",
-            )
-        except Exception as e:
-            logger.error(
-                "chroma_init_failed",
-                error=str(e),
-                message="Using in-memory fallback",
-            )
+            except Exception as e:
+                logger.warning(
+                    "supabase_connection_failed",
+                    error=str(e),
+                    message="Using in-memory fallback",
+                )
+        else:
+            logger.info("long_term_memory_initialized", supabase=False, in_memory=True)
 
     def _anonymize(self, text: str) -> str:
         """Anonymize potentially sensitive information."""
         if not self.anonymize:
             return text
-
-        # Simple anonymization: hash emails, phone numbers, etc.
-        import re
 
         # Replace email addresses
         text = re.sub(
@@ -145,22 +124,17 @@ class LongTermMemory:
             self._facts[user_id] = []
         self._facts[user_id].append(fact_data)
 
-        # Store in ChromaDB if available
-        if self._fact_collection:
+        # Store in Supabase if available
+        if self._use_supabase and self._client:
             try:
-                doc_id = self._generate_id(user_id, anonymized_fact, timestamp)
-                self._fact_collection.add(
-                    documents=[anonymized_fact],
-                    metadatas=[
-                        {
-                            "user_id": user_id,
-                            "category": category,
-                            "confidence": confidence,
-                            "timestamp": timestamp,
-                        }
-                    ],
-                    ids=[doc_id],
-                )
+                self._client.table("user_facts").insert(
+                    {
+                        "user_id": user_id,
+                        "fact": anonymized_fact,
+                        "category": category,
+                        "confidence": confidence,
+                    }
+                ).execute()
             except Exception as e:
                 logger.error("failed_to_store_fact", error=str(e))
 
@@ -196,7 +170,7 @@ class LongTermMemory:
         if user_id in self._user_profiles:
             profile.update(self._user_profiles[user_id])
 
-        # Get facts
+        # Get facts from memory
         if user_id in self._facts:
             for fact_data in self._facts[user_id]:
                 category = fact_data["category"]
@@ -204,35 +178,49 @@ class LongTermMemory:
                     profile["facts"][category] = []
                 profile["facts"][category].append(fact_data)
 
-        # Query ChromaDB if available
-        if self._fact_collection:
+        # Get from Supabase if available
+        if self._use_supabase and self._client:
             try:
-                results = self._fact_collection.query(
-                    query_texts=[""],
-                    where={"user_id": user_id},
-                    n_results=100,
+                # Get profile data
+                profile_result = (
+                    self._client.table("user_profiles")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .maybe_single()
+                    .execute()
                 )
+                if profile_result.data:
+                    profile_data = profile_result.data["profile_data"]
+                    profile.update(profile_data)
+                    profile["created_at"] = profile_result.data.get("created_at")
+                    profile["updated_at"] = profile_result.data.get("updated_at")
 
-                for i, doc in enumerate(results.get("documents", [[]])[0]):
-                    metadata = results["metadatas"][0][i]
-                    category = metadata.get("category", "general")
-
+                # Get facts
+                facts_result = (
+                    self._client.table("user_facts")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                for fact_row in facts_result.data:
+                    category = fact_row["category"]
                     if category not in profile["facts"]:
                         profile["facts"][category] = []
 
                     # Check if already in profile from memory
-                    existing = any(f["fact"] == doc for f in profile["facts"][category])
+                    fact_text = fact_row["fact"]
+                    existing = any(f["fact"] == fact_text for f in profile["facts"][category])
                     if not existing:
                         profile["facts"][category].append(
                             {
-                                "fact": doc,
+                                "fact": fact_text,
                                 "category": category,
-                                "confidence": metadata.get("confidence", 1.0),
-                                "timestamp": metadata.get("timestamp"),
+                                "confidence": fact_row.get("confidence", 0.5),
+                                "timestamp": fact_row.get("created_at"),
                             }
                         )
             except Exception as e:
-                logger.error("failed_to_query_facts", error=str(e))
+                logger.error("failed_to_query_profile", error=str(e))
 
         return profile
 
@@ -252,7 +240,7 @@ class LongTermMemory:
                 "created_at": datetime.utcnow().isoformat(),
             }
 
-        # Update profile
+        # Update profile in memory
         for key, value in updates.items():
             if key == "facts":
                 # Handle facts separately
@@ -268,28 +256,23 @@ class LongTermMemory:
 
         self._user_profiles[user_id]["updated_at"] = datetime.utcnow().isoformat()
 
-        # Store in ChromaDB if available
-        if self._user_collection:
+        # Update in Supabase if available
+        if self._use_supabase and self._client:
             try:
-                profile_text = json.dumps(
-                    {
-                        k: v
-                        for k, v in self._user_profiles[user_id].items()
-                        if k not in ("created_at", "updated_at")
-                    }
-                )
-                doc_id = self._generate_id(user_id)
+                # Prepare profile data (exclude facts from profile_data)
+                profile_data = {
+                    k: v
+                    for k, v in self._user_profiles[user_id].items()
+                    if k not in ("created_at", "updated_at", "facts")
+                }
 
-                self._user_collection.upsert(
-                    documents=[profile_text],
-                    metadatas=[
-                        {
-                            "user_id": user_id,
-                            "updated_at": self._user_profiles[user_id]["updated_at"],
-                        }
-                    ],
-                    ids=[doc_id],
-                )
+                # Upsert profile
+                self._client.table("user_profiles").upsert(
+                    {
+                        "user_id": user_id,
+                        "profile_data": profile_data,
+                    }
+                ).execute()
             except Exception as e:
                 logger.error("failed_to_update_profile", error=str(e))
 
@@ -335,22 +318,17 @@ class LongTermMemory:
                 self._topic_sessions[topic] = set()
             self._topic_sessions[topic].add(session_id)
 
-        # Store in ChromaDB if available
-        if self._topic_collection:
+        # Store in Supabase if available
+        if self._use_supabase and self._client:
             try:
-                doc_id = self._generate_id(topic, summary, timestamp)
-                self._topic_collection.add(
-                    documents=[summary],
-                    metadatas=[
-                        {
-                            "topic": topic,
-                            "session_id": session_id,
-                            "timestamp": timestamp,
-                            **(metadata or {}),
-                        }
-                    ],
-                    ids=[doc_id],
-                )
+                self._client.table("topic_summaries").insert(
+                    {
+                        "topic": topic,
+                        "summary": summary,
+                        "session_id": session_id,
+                        "metadata": metadata or {},
+                    }
+                ).execute()
             except Exception as e:
                 logger.error("failed_to_store_topic", error=str(e))
 
@@ -374,30 +352,30 @@ class LongTermMemory:
         # Get from in-memory store
         summaries = self._topic_summaries.get(topic, [])
 
-        # Query ChromaDB if available
-        if self._topic_collection:
+        # Get from Supabase if available
+        if self._use_supabase and self._client:
             try:
-                results = self._topic_collection.query(
-                    query_texts=[topic],
-                    where={"topic": topic},
-                    n_results=limit,
+                result = (
+                    self._client.table("topic_summaries")
+                    .select("*")
+                    .eq("topic", topic)
+                    .order("created_at", desc=True)
+                    .limit(limit)
+                    .execute()
                 )
-
-                for i, doc in enumerate(results.get("documents", [[]])[0]):
-                    metadata = results["metadatas"][0][i]
+                for row in result.data:
                     entry = {
-                        "topic": topic,
-                        "summary": doc,
-                        "session_id": metadata.get("session_id"),
-                        "timestamp": metadata.get("timestamp"),
-                        "metadata": {
-                            k: v
-                            for k, v in metadata.items()
-                            if k not in ("topic", "session_id", "timestamp")
-                        },
+                        "topic": row["topic"],
+                        "summary": row["summary"],
+                        "session_id": row.get("session_id"),
+                        "timestamp": row.get("created_at"),
+                        "metadata": row.get("metadata", {}),
                     }
                     # Check if already in list
-                    if not any(s["timestamp"] == entry["timestamp"] for s in summaries):
+                    if not any(
+                        s["timestamp"] == entry["timestamp"] and s["summary"] == entry["summary"]
+                        for s in summaries
+                    ):
                         summaries.append(entry)
             except Exception as e:
                 logger.error("failed_to_query_topics", error=str(e))
@@ -422,6 +400,33 @@ class LongTermMemory:
         for topic in topics:
             related.update(self._topic_sessions.get(topic, set()))
 
+        # Get from Supabase if available
+        if self._use_supabase and self._client:
+            try:
+                # Find all topics for this session
+                result = (
+                    self._client.table("topic_summaries")
+                    .select("topic")
+                    .eq("session_id", session_id)
+                    .execute()
+                )
+                topics_from_db = {row["topic"] for row in result.data}
+
+                # Find all sessions for those topics
+                for topic in topics_from_db:
+                    sessions_result = (
+                        self._client.table("topic_summaries")
+                        .select("session_id")
+                        .eq("topic", topic)
+                        .not_.is_("session_id", None)
+                        .execute()
+                    )
+                    for row in sessions_result.data:
+                        if row["session_id"]:
+                            related.add(row["session_id"])
+            except Exception as e:
+                logger.error("failed_to_query_related_sessions", error=str(e))
+
         # Remove self
         related.discard(session_id)
 
@@ -443,38 +448,37 @@ class LongTermMemory:
         Returns:
             List of similar facts
         """
-        if not self._fact_collection:
-            # Fallback: simple text search in memory
-            facts = self._facts.get(user_id, [])
-            results = []
-            query_lower = query.lower()
-            for fact in facts:
-                if query_lower in fact["fact"].lower():
-                    results.append(fact)
-            return results[:top_k]
-
-        try:
-            results = self._fact_collection.query(
-                query_texts=[query],
-                where={"user_id": user_id},
-                n_results=top_k,
-            )
-
-            facts = []
-            for i, doc in enumerate(results.get("documents", [[]])[0]):
-                metadata = results["metadatas"][0][i]
-                facts.append(
-                    {
-                        "fact": doc,
-                        "category": metadata.get("category", "general"),
-                        "confidence": metadata.get("confidence", 1.0),
-                        "timestamp": metadata.get("timestamp"),
-                    }
+        # Simple text search (ILIKE for case-insensitive matching)
+        if self._use_supabase and self._client:
+            try:
+                result = (
+                    self._client.table("user_facts")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .ilike("fact", f"%{query}%")
+                    .limit(top_k)
+                    .execute()
                 )
-            return facts
-        except Exception as e:
-            logger.error("similarity_search_failed", error=str(e))
-            return []
+                return [
+                    {
+                        "fact": row["fact"],
+                        "category": row.get("category", "general"),
+                        "confidence": row.get("confidence", 0.5),
+                        "timestamp": row.get("created_at"),
+                    }
+                    for row in result.data
+                ]
+            except Exception as e:
+                logger.error("similarity_search_failed", error=str(e))
+
+        # Fallback: simple text search in memory
+        facts = self._facts.get(user_id, [])
+        results = []
+        query_lower = query.lower()
+        for fact in facts:
+            if query_lower in fact["fact"].lower():
+                results.append(fact)
+        return results[:top_k]
 
     async def search_topics(
         self,
@@ -490,37 +494,41 @@ class LongTermMemory:
         Returns:
             List of topic summaries
         """
-        if not self._topic_collection:
-            # Fallback: simple text search in memory
-            results = []
-            query_lower = query.lower()
-            for _topic, summaries in self._topic_summaries.items():
-                for summary_data in summaries:
-                    if query_lower in summary_data["summary"].lower():
-                        results.append(summary_data)
-            return results[:top_k]
-
-        try:
-            results = self._topic_collection.query(
-                query_texts=[query],
-                n_results=top_k,
-            )
-
-            topics = []
-            for i, doc in enumerate(results.get("documents", [[]])[0]):
-                metadata = results["metadatas"][0][i]
-                topics.append(
-                    {
-                        "topic": metadata.get("topic", "unknown"),
-                        "summary": doc,
-                        "session_id": metadata.get("session_id"),
-                        "timestamp": metadata.get("timestamp"),
-                    }
+        # Search in summary text and topic name
+        if self._use_supabase and self._client:
+            try:
+                # Search in summary text
+                result = (
+                    self._client.table("topic_summaries")
+                    .select("*")
+                    .or_(f"topic.ilike.%{query}%,summary.ilike.%{query}%")
+                    .order("created_at", desc=True)
+                    .limit(top_k)
+                    .execute()
                 )
-            return topics
-        except Exception as e:
-            logger.error("topic_search_failed", error=str(e))
-            return []
+                return [
+                    {
+                        "topic": row["topic"],
+                        "summary": row["summary"],
+                        "session_id": row.get("session_id"),
+                        "timestamp": row.get("created_at"),
+                    }
+                    for row in result.data
+                ]
+            except Exception as e:
+                logger.error("topic_search_failed", error=str(e))
+
+        # Fallback: simple text search in memory
+        results = []
+        query_lower = query.lower()
+        for _topic, summaries in self._topic_summaries.items():
+            for summary_data in summaries:
+                if (
+                    query_lower in summary_data["summary"].lower()
+                    or query_lower in _topic.lower()
+                ):
+                    results.append(summary_data)
+        return results[:top_k]
 
     async def clear_user_data(self, user_id: str) -> None:
         """Clear all data for a user (GDPR compliance).
@@ -532,20 +540,14 @@ class LongTermMemory:
         self._user_profiles.pop(user_id, None)
         self._facts.pop(user_id, None)
 
-        # Clear from ChromaDB
-        if self._fact_collection:
+        # Clear from Supabase
+        if self._use_supabase and self._client:
             try:
-                results = self._fact_collection.get(where={"user_id": user_id})
-                if results and results["ids"]:
-                    self._fact_collection.delete(ids=results["ids"])
+                # Delete facts
+                self._client.table("user_facts").delete().eq("user_id", user_id).execute()
+                # Delete profile
+                self._client.table("user_profiles").delete().eq("user_id", user_id).execute()
             except Exception as e:
-                logger.error("failed_to_clear_facts", error=str(e))
-
-        if self._user_collection:
-            try:
-                doc_id = self._generate_id(user_id)
-                self._user_collection.delete(ids=[doc_id])
-            except Exception as e:
-                logger.error("failed_to_clear_profile", error=str(e))
+                logger.error("failed_to_clear_user_data", error=str(e))
 
         logger.info("user_data_cleared", user_id=user_id)

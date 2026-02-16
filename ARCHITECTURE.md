@@ -1,408 +1,769 @@
 # AI Agent Chatbot: 아키텍처 기술 개요
 
-> LangGraph 기반 멀티 에이전트 챗봇 - 프로덕션 레디 아키텍처
+> LangGraph 기반 멀티 에이전트 챗봇 - 프로덕션 아키텍처
 
 ---
 
 ## 목차
 
 1. [시스템 아키텍처 개요](#1-시스템-아키텍처-개요)
-2. [레이어별 기술 분석](#2-레이어별-기술-분석)
-   - 2.1 [프론트엔드: Next.js 16 + TypeScript](#21-프론트엔드-nextjs-16--typescript)
-   - 2.2 [백엔드: FastAPI (Python 3.11+)](#22-백엔드-fastapi-python-311)
-   - 2.3 [AI 오케스트레이션: LangGraph](#23-ai-오케스트레이션-langgraph)
-   - 2.4 [데이터 저장소](#24-데이터-저장소)
-   - 2.5 [컨테이너화: Docker Compose](#25-컨테이너화-docker-compose)
-3. [핵심 설계 패턴](#3-핵심-설계-패턴)
-   - 3.1 [Protocol 지향 아키텍처](#31-protocol-지향-아키텍처)
-   - 3.2 [Factory 패턴](#32-factory-패턴)
-   - 3.3 [Strategy 패턴](#33-strategy-패턴)
-   - 3.4 [의존성 주입 (DI)](#34-의존성-주입-di)
-4. [확장 로드맵](#4-확장-로드맵)
-5. [기술 스택 요약](#5-기술-스택-요약)
-6. [핵심 강점](#6-핵심-강점)
+2. [백엔드 아키텍처](#2-백엔드-아키텍처)
+3. [프론트엔드 아키텍처](#3-프론트엔드-아키텍처)
+4. [데이터 흐름도](#4-데이터-흐름도)
+5. [메모리 시스템](#5-메모리-시스템)
+6. [문서 처리 파이프라인](#6-문서-처리-파이프라인)
+7. [애플리케이션 보안](#7-애플리케이션-보안)
+8. [인프라 & 배포](#8-인프라--배포)
+9. [설계 패턴](#9-설계-패턴)
+10. [보완점 & 개선 로드맵](#10-보완점--개선-로드맵)
 
 ---
 
 ## 1. 시스템 아키텍처 개요
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         클라이언트 레이어                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Next.js   │  │    React    │  │    Zustand (상태)        │  │
-│  │  (프론트)    │  │  (컴포넌트)  │  │                         │  │
-│  └──────┬──────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────┼───────────────────────────────────────────────────────┘
-          │ HTTPS / WebSocket
-┌─────────▼───────────────────────────────────────────────────────┐
-│                         API 게이트웨이                           │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Nginx / ALB (SSL 종료, Rate Limiting, 로드밸런싱)         │  │
-│  └────────────────────────┬─────────────────────────────────┘  │
-└───────────────────────────┼─────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────┐
-│                        서비스 레이어                             │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              FastAPI (Python 3.12+)                       │  │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐ │  │
-│  │  │    REST     │ │  WebSocket  │ │   Server-Sent       │ │  │
-│  │  │    API      │ │   (채팅)     │ │   Events (스트림)    │ │  │
-│  │  └─────────────┘ └─────────────┘ └─────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└───────────────────────────┼─────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────┐
-│                      오케스트레이션 레이어                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              LangGraph (상태 머신)                        │  │
-│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌──────────┐ │  │
-│  │  │ Supervisor│ │   RAG     │ │Web Search │ │  Code    │ │  │
-│  │  │  (라우터)  │ │  (에이전트) │ │  (에이전트) │ │ (에이전트) │ │  │
-│  │  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └────┬─────┘ │  │
-│  │        └─────────────┴─────────────┴────────────┘        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└───────────────────────────┼─────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────┐
-│                      인프라스트럭처 레이어                        │
-│  ┌──────────────────────────┐ ┌──────────────────────────────┐  │
-│  │        Pinecone          │  │      OpenAI/Anthropic       │  │
-│  │  (벡터 DB + 임베딩)        │  │         (LLM API)           │  │
-│  └──────────────────────────┘  └──────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          클라이언트 레이어                            │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Next.js 16 + TypeScript + Zustand + shadcn/ui              │   │
+│   │  (App Router, React 19, Server Components)                  │   │
+│   └─────────────────────────┬───────────────────────────────────┘   │
+└─────────────────────────────┼───────────────────────────────────────┘
+                              │ HTTPS (REST + SSE)
+┌─────────────────────────────▼───────────────────────────────────────┐
+│                          API 게이트웨이                              │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  FastAPI (Python 3.12+)                                     │   │
+│   │  - CORS Middleware                                          │   │
+│   │  - ExceptionHandler Middleware                              │   │
+│   │  - RequestLogging Middleware                                │   │
+│   │  - REST API + SSE Streaming                                 │   │
+│   └─────────────────────────┬───────────────────────────────────┘   │
+└─────────────────────────────┼───────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────────────┐
+│                        오케스트레이션 레이어                          │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  LangGraph StateGraph                                       │   │
+│   │  ┌──────────┐  ┌──────┐  ┌─────────┐  ┌────────┐  ┌─────┐  │   │
+│   │  │Supervisor│─▶│ Chat │  │   RAG   │  │  Web   │  │Code │  │   │
+│   │  │ (Router) │  │      │  │ (Docs)  │  │ Search │  │     │  │   │
+│   │  └──────────┘  └──────┘  └─────────┘  └────────┘  └─────┘  │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────┬───────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────────────┐
+│                        인프라스트럭처 레이어                          │
+│   ┌────────────┐  ┌────────────┐  ┌────────────┐                     │
+│   │  Pinecone  │  │   Redis    │  │  Supabase  │                     │
+│   │ (Vector DB)│  │  (Session) │  │(Auth + DB) │                     │
+│   └────────────┘  └────────────┘  └────────────┘                     │
+│   ┌────────────┐  ┌────────────┐  ┌────────────┐                    │
+│   │   OpenAI   │  │ Anthropic  │  │   Ollama   │                    │
+│   │   (LLM)    │  │   (LLM)    │  │  (Local)   │                    │
+│   └────────────┘  └────────────┘  └────────────┘                    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+> **참고**: 인프라 보안(SSL/TLS, DDoS, WAF, CDN Rate Limiting)은 Vercel/Render가 자동 처리
+
+### 기술 스택 요약
+
+| 레이어 | 기술 | 버전 |
+|--------|------|------|
+| **프론트엔드** | Next.js + TypeScript | 16.x |
+| **백엔드** | FastAPI + Python | 3.12 |
+| **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
+| **LLM** | OpenAI / Anthropic / GLM | GPT-4o / Claude / GLM-4 |
+| **Vector DB** | Pinecone | - |
+| **임베딩** | Pinecone Inference (multilingual-e5-large) | - |
+| **세션 메모리** | Upstash Redis (프로덕션) / In-Memory (로컬) | - |
+| **장기 메모리** | Supabase PostgreSQL (프로덕션) / In-Memory (로컬) | - |
+| **인증** | Supabase | - |
+| **웹 검색** | Tavily API | - |
+| **배포** | Render (백엔드) + Vercel (프론트엔드) | - |
 
 ---
 
-## 2. 레이어별 기술 분석
+## 2. 백엔드 아키텍처
 
-### 2.1 프론트엔드: Next.js 16 + TypeScript
+### 2.1 디렉토리 구조
 
-#### 왜 Next.js인가?
-
-| 요구사항 | Next.js 적합성 |
-|---------|---------------|
-| **SSR/SSG 필요** | ✅ App Router의 서버 컴포넌트 |
-| **AI 스트리밍 UI** | ✅ Server-Sent Events 네이티브 지원 |
-| **타입 안전성** | ✅ 퍼스트클스 TypeScript 지원 |
-| **API Routes** | ✅ 풀스택 개발 가능 |
-
-#### 대안 비교
-
-| 대안 | 장점 | 단점 | 선택하지 않은 이유 |
-|------|------|------|-------------------|
-| **React (CRA)** | 단순함 | SSR 어려움, SEO 문제 | AI 챗봇은 SEO가 중요 |
-| **Vue.js** | 학습 곡선 낮음 | 생태계 작음, LLM 통합 예시 적음 | TypeScript 통합이 약함 |
-| **Svelte** | 성능 우수 | 채용 시장 작음, 대규모 프로젝트 경험 부족 | 이력서용으로는 위험 |
-| **Remix** | 웹 표준 중심 | 상대적으로 새로움, 생태계 성장 중 | Next.js가 더 성숙 |
-
-#### 확장 시 추가
-
-```typescript
-// 상태 관리: Zustand → Redux Toolkit (대규모)
-// API Client: Fetch → TanStack Query (캐싱)
-// UI 라이브러리: shadcn/ui → Ant Design (어드민)
+```
+backend/src/
+├── agents/                    # 멀티 에이전트 시스템
+│   ├── base.py               # BaseAgent ABC
+│   ├── factory.py            # AgentFactory
+│   ├── supervisor.py         # Supervisor (라우팅)
+│   ├── chat_agent.py         # 일반 대화 + 메모리 명령
+│   ├── code_agent.py         # 코드 생성/실행
+│   ├── rag_agent.py          # 문서 기반 Q&A
+│   └── web_search_agent.py   # 웹 검색
+│
+├── api/                       # REST API
+│   ├── routes.py             # 엔드포인트 정의
+│   ├── schemas.py            # Pydantic 모델
+│   ├── middleware.py         # 미들웨어
+│   └── dependencies.py       # FastAPI 의존성
+│
+├── auth/                      # 인증
+│   ├── supabase_client.py    # Supabase Auth 클라이언트
+│   ├── dependencies.py       # get_current_user
+│   └── schemas.py            # User 모델
+│
+├── core/                      # 핵심 모듈
+│   ├── config.py             # Pydantic Settings
+│   ├── di_container.py       # DI 컨테이너 (dependency-injector)
+│   ├── protocols.py          # Protocol 인터페이스
+│   ├── prompt_security.py    # 프롬프트 인젝션 탐지
+│   ├── validators.py         # 입력 검증
+│   ├── logging.py            # 구조화 로깅 (structlog)
+│   ├── auto_summarize.py     # 자동 요약
+│   ├── user_profiler.py      # 사용자 프로파일링
+│   └── topic_memory.py       # 토픽 메모리
+│
+├── documents/                 # 문서 처리
+│   ├── parser.py             # 다중 포맷 파서
+│   ├── chunker.py            # 구조 인식 청커
+│   ├── pinecone_store.py     # Pinecone 벡터 스토어
+│   ├── embeddings.py         # 임베딩 생성
+│   ├── retriever_impl.py     # 문서 검색
+│   └── chunking/             # 도메인별 청킹 전략
+│
+├── graph/                     # LangGraph 상태 머신
+│   ├── builder.py            # 그래프 빌드
+│   ├── state.py              # AgentState TypedDict
+│   └── edges.py              # 조건부 라우팅
+│
+├── llm/                       # LLM 프로바이더
+│   ├── factory.py            # LLMFactory
+│   ├── openai_provider.py    # OpenAI
+│   ├── anthropic_provider.py # Anthropic (+ GLM)
+│   └── ollama_provider.py    # Ollama (로컬)
+│
+├── memory/                    # 메모리 시스템
+│   ├── factory.py            # MemoryStoreFactory
+│   ├── in_memory_store.py    # 개발용
+│   ├── redis_store.py        # 프로덕션용
+│   ├── long_term_memory.py   # Supabase/InMemory
+│   └── memory_weights.py     # 가중치 기반 필터링
+│
+├── tools/                     # 에이전트 도구
+│   ├── registry.py           # ToolRegistry
+│   ├── web_search.py         # Tavily 웹 검색
+│   ├── code_executor.py      # Python 실행
+│   ├── retriever.py          # 문서 검색 도구
+│   ├── memory_tool.py        # 메모리 검색 도구
+│   └── mcp/                  # MCP 서버 통합
+│
+└── main.py                    # FastAPI 진입점
 ```
 
----
+### 2.2 Protocol 인터페이스
 
-### 2.2 백엔드: FastAPI (Python 3.12+)
+`backend/src/core/protocols.py`
 
-#### 왜 FastAPI인가?
+| Protocol | 메서드 | 설명 |
+|----------|--------|------|
+| `LLMProvider` | `generate()`, `stream()`, `generate_structured()` | LLM 추상화 |
+| `MemoryStore` | `get_messages()`, `add_message()`, `clear()`, `add_summary()`, `get_summary()` | 대화 메모리 |
+| `DocumentRetriever` | `retrieve()`, `add_documents()` | RAG 검색 |
+| `Tool` | `name`, `description`, `execute()` | 에이전트 도구 |
+| `DocumentParser` | `parse_from_bytes()`, `parse()` | 문서 파싱 |
+| `DocumentChunker` | `chunk()` | 문서 청킹 |
+| `Summarizer` | `summarize()` | 대화 요약 |
+| `UserProfiler` | `extract_profile()`, `get_profile()` | 사용자 프로파일 |
+| `TopicMemory` | `extract_topics()`, `get_related_sessions()` | 토픽 추적 |
+| `MemoryTool` | `name`, `description`, `execute()` | 메모리 검색 |
 
-| 요구사항 | FastAPI 적합성 |
-|---------|---------------|
-| **AI/ML 통합** | ✅ Python 생태계 직접 사용 |
-| **비동기 처리** | ✅ `async/await` 네이티브 지원 |
-| **자동 문서화** | ✅ OpenAPI/Swagger 자동 생성 |
-| **타입 안전성** | ✅ Pydantic 기반 |
+### 2.3 DI 컨테이너
 
-#### 대안 비교
+`backend/src/core/di_container.py`
 
-| 대안 | 장점 | 단점 | 선택하지 않은 이유 |
-|------|------|------|-------------------|
-| **Django** | 풀스택, 관리자 UI | 무거움, 비동기 약함 | AI 에이전트에는 과함 |
-| **Flask** | 단순함 | 수동 설정 많음, 비동기 미흡 | FastAPI가 더 현대적 |
-| **Node.js/Express** | 프론트와 동일 언어 | Python AI 라이브러리 사용 어려움 | LangChain Python이 더 성숙 |
-| **Go/Gin** | 성능 우수 | AI 생태계 부족 | 생산성이 Python보다 낮음 |
-
-#### 핵심 설계 결정
+**dependency-injector** 라이브러리 사용:
 
 ```python
-# Pydantic v2: 설정 관리 + 요청/응답 검증
-class ChatRequest(BaseModel):
-    message: str = Field(..., max_length=2000)  # 자동 검증
+class DIContainer(containers.DeclarativeContainer):
+    # Singleton
+    config = providers.Singleton(get_config)
+    llm = providers.Singleton(_create_llm, config=config.provided.llm)
+    memory = providers.Singleton(_create_memory, config=config.provided.memory)
+    embedding_generator = providers.Singleton(_create_embedding_generator, config=config)
+    vector_store = providers.Singleton(_create_vector_store, config=config)
+    retriever = providers.Singleton(_create_retriever, vector_store=vector_store, config=config)
+    long_term_memory = providers.Singleton(_create_long_term_memory, config=config)
+    tool_registry = providers.Singleton(_create_tool_registry, config=config, retriever=retriever)
+    graph = providers.Singleton(_create_graph_factory)
 
-# Python 3.12: 최신 문법 활용
-async def chat(request: ChatRequest) -> ChatResponse: ...
-
-# 의존성 주입: FastAPI의 Depends + 커스텀 컨테이너
-async def chat(
-    request: ChatRequest,
-    container: Container = Depends(get_container_dependency)
-):
+    # Factory
+    summarizer = providers.Factory(_create_summarizer, config=config, llm=llm, memory=memory)
+    user_profiler = providers.Factory(_create_user_profiler, config=config, long_term_memory=long_term_memory)
+    topic_memory = providers.Factory(_create_topic_memory, config=config, long_term_memory=long_term_memory)
+    memory_tool = providers.Factory(_create_memory_tool, memory=memory, embedding_generator=embedding_generator)
+    document_parser = providers.Factory(_create_document_parser)
+    document_chunker = providers.Factory(_create_document_chunker, config=config)
 ```
 
----
+### 2.4 LangGraph 상태 머신
 
-### 2.3 AI 오케스트레이션: LangGraph
-
-#### 왜 LangGraph인가?
-
-| 요구사항 | LangGraph 적합성 |
-|---------|-----------------|
-| **멀티 에이전트** | ✅ 에이전트 라우팅 네이티브 지원 |
-| **상태 관리** | ✅ State Machine 기반 |
-| **스트리밍** | ✅ 이벤트 기반 스트림 |
-| **확장성** | ✅ 노드 추가가 모듈식 |
-
-#### 대안 비교
-
-| 대안 | 장점 | 단점 | 선택하지 않은 이유 |
-|------|------|------|-------------------|
-| **직접 구현** | 완전한 제어 | 복잡함, 유지보수 어려움 | LangGraph가 검증됨 |
-| **CrewAI** | 멀티 에이전트 특화 | 유연성 부족 | 라우팅 로직 커스텀 필요 |
-| **AutoGen (MS)** | 마이크로소프트 지원 | 복잡한 대화 패턴 | 학습 곡선 가파름 |
-| **LlamaIndex** | RAG 특화 | 에이전트 오케스트레이션 약함 | LangGraph와 함께 사용 |
-
-#### 아키텍처 패턴
+`backend/src/graph/state.py`
 
 ```python
-# StateGraph: 명시적 상태 머신
-graph = StateGraph(AgentState)
+class AgentState(TypedDict, total=False):
+    messages: Annotated[list, add_messages]  # 메시지 누적
+    next_agent: str | None                    # 라우팅 대상
+    tool_results: list[dict]                  # 도구 실행 결과
+    metadata: dict                            # session_id, user_id, routing_info 등
+```
 
-# 노드 추가 (에이전트)
-graph.add_node("supervisor", supervisor_agent)
-graph.add_node("rag", rag_agent)
+`backend/src/graph/builder.py`
 
-# 엣지 (조건부 라우팅)
-graph.add_conditional_edges(
-    "supervisor",
-    route_to_agent,
-    {"rag": "rag", "chat": "chat", ...}
-)
+```
+그래프 흐름:
+START → supervisor → route_by_next_agent → {chat | code | rag | web_search} → END
+
+- rag, web_search는 조건부 노드 (설정에 따라 추가/제거)
+- MemorySaver로 상태 영속화
+```
+
+### 2.5 에이전트 시스템
+
+| 에이전트 | 역할 | 주요 기능 |
+|----------|------|----------|
+| **Supervisor** | 라우팅 | 사용자 쿼리 분석 → 적절한 에이전트 선택 |
+| **ChatAgent** | 일반 대화 | 메모리 명령, 사용자 프로파일링, 토픽 메모리 |
+| **CodeAgent** | 코드 | 코드 생성/설명/디버깅, 선택적 실행 |
+| **RAGAgent** | 문서 Q&A | 문서 검색 + 컨텍스트 기반 답변 |
+| **WebSearchAgent** | 웹 검색 | Tavily API로 실시간 검색 |
+
+**메모리 명령 (ChatAgent)**:
+- `기억해:` / `기억해줘:` - 사용자 정보 저장
+- `알고 있니?` - 저장된 메모리 검색
+- `잊어줘:` - 메모리 삭제
+- `요약해줘` - 대화 요약
+
+### 2.6 API 엔드포인트
+
+`backend/src/api/routes.py`
+
+| Method | Path | Auth | 설명 |
+|--------|------|------|------|
+| POST | `/api/v1/chat` | ❌ | 동기 채팅 |
+| POST | `/api/v1/chat/stream` | ❌ | SSE 스트리밍 채팅 |
+| GET | `/api/v1/health` | ❌ | 헬스 체크 |
+| GET | `/api/v1/agents` | ❌ | 에이전트 목록 |
+| POST | `/api/v1/documents/upload` | ✅ | 파일 업로드 |
+| GET | `/api/v1/documents` | ✅ | 문서 목록 |
+| DELETE | `/api/v1/documents/{id}` | ✅ | 문서 삭제 |
+| POST | `/api/v1/sessions` | ✅ | 세션 생성 |
+| GET | `/api/v1/sessions` | ✅ | 세션 목록 |
+| DELETE | `/api/v1/sessions/{id}` | ❌ | 세션 메모리 삭제 |
+| DELETE | `/api/v1/sessions/{id}/full` | ✅ | 세션 + 문서 전체 삭제 |
+| GET | `/api/v1/logs` | ❌ | 로그 조회 |
+| DELETE | `/api/v1/logs` | ❌ | 로그 삭제 |
+
+---
+
+## 3. 프론트엔드 아키텍처
+
+### 3.1 디렉토리 구조
+
+```
+frontend/src/
+├── app/                       # App Router
+│   ├── layout.tsx            # 루트 레이아웃
+│   ├── page.tsx              # 홈
+│   └── chat/page.tsx         # 채팅 페이지
+│
+├── components/
+│   ├── auth/                 # 인증 컴포넌트
+│   ├── chat/                 # 채팅 UI
+│   │   ├── chat-container.tsx
+│   │   ├── chat-input.tsx
+│   │   ├── message-list.tsx
+│   │   ├── message-bubble.tsx
+│   │   ├── markdown-renderer.tsx
+│   │   ├── typing-indicator.tsx
+│   │   ├── agent-badge.tsx
+│   │   └── memory-*.tsx      # 메모리 관련 컴포넌트
+│   ├── documents/            # 문서 업로드 UI
+│   ├── sidebar/              # 세션 사이드바
+│   ├── header/               # 헤더 + 헬스 인디케이터
+│   └── ui/                   # shadcn/ui 컴포넌트
+│
+├── stores/                    # Zustand 스토어
+│   ├── chat-store.ts         # 채팅 상태
+│   ├── auth-store.ts         # 인증 상태
+│   ├── document-store.ts     # 문서 상태
+│   └── toast-store.ts        # 알림
+│
+├── lib/                       # 유틸리티
+│   ├── api.ts                # API 클라이언트
+│   ├── sse.ts                # SSE 스트리밍
+│   ├── token-manager.ts      # JWT 토큰 관리
+│   ├── security-validator.ts # 입력 검증
+│   └── file-validation.ts    # 파일 검증
+│
+└── types/                     # TypeScript 타입
+    └── index.ts
+```
+
+### 3.2 상태 관리 (Zustand)
+
+| 스토어 | 상태 | 설명 |
+|--------|------|------|
+| **ChatStore** | sessions, messages, streaming, isSidebarOpen | 채팅 상태, localStorage 영속화 |
+| **AuthStore** | user, isAuthenticated, tokens | 인증 상태, 자동 토큰 갱신 |
+| **DocumentStore** | documents, uploadStatus | 문서 업로드 상태 |
+| **ToastStore** | notifications | 알림 큐 |
+
+### 3.3 SSE 스트리밍 파이프라인
+
+`frontend/src/lib/sse.ts`
+
+```
+사용자 입력
+    ↓
+ChatStore.sendMessage()
+    ↓
+POST /api/v1/chat/stream (Authorization: Bearer <token>)
+    ↓
+EventSource (fetch + ReadableStream)
+    ↓
+이벤트 파싱: metadata | token | agent | done | error
+    ↓
+토큰 버퍼링 (50ms flush, 100자 임계값)
+    ↓
+fixSentenceSpacing() [GLM 후처리]
+    ↓
+상태 업데이트 → UI 리렌더
+```
+
+### 3.4 인증 흐름
+
+```
+로그인 요청 (Supabase)
+    ↓
+JWT 토큰 발급 (access_token, refresh_token)
+    ↓
+tokenManager.setToken() → sessionStorage / localStorage
+    ↓
+API 요청 시 Authorization 헤더 자동 추가
+    ↓
+401 응답 시 자동 토큰 갱신 (5분 전)
+    ↓
+갱신 실패 시 로그아웃
 ```
 
 ---
 
-### 2.4 데이터 저장소
+## 4. 데이터 흐름도
 
-#### 2.4.1 벡터 DB + 임베딩: Pinecone
+### 4.1 채팅 요청 (동기)
 
-**왜 Pinecone인가?**
-- 관리형 서비스 (운영 오버헤드 없음)
-- 무료 티어 제공
-- Pinecone Inference API로 무료 임베딩 지원
-- 높은 가용성 및 확장성
+```
+Client
+    │ POST /api/v1/chat {message, session_id}
+    ▼
+detect_injection(message)
+    │ 프롬프트 인젝션 탐지
+    ▼
+sanitize_for_llm(message)
+    │ 입력 새니타이징
+    ▼
+create_initial_state(message, session_id)
+    │ AgentState 생성
+    ▼
+graph.ainvoke(state, config)
+    │ LangGraph 실행
+    ▼
+supervisor.process(state)
+    │ 쿼리 분석 → next_agent 결정
+    ▼
+route_by_next_agent(state)
+    │ 조건부 라우팅
+    ▼
+{chat|code|rag|web_search}.process(state)
+    │ 전문 에이전트 실행
+    ▼
+filter_llm_output(response)
+    │ 프롬프트 유출 필터링
+    ▼
+ChatResponse 반환
+```
 
-**세션 메모리**: In-Memory Store (간단한 구현)
-- 개발/테스트용으로 충분
-- 필요시 Redis로 확장 가능
+### 4.2 채팅 스트리밍 (SSE)
 
-#### 대안 비교
+```
+Client
+    │ POST /api/v1/chat/stream
+    ▼
+EventSourceResponse
+    │ SSE 연결 설정
+    ▼
+graph.astream_events(state, config)
+    │ 스트리밍 모드 실행
+    ▼
+이벤트 yield:
+    ├── event: metadata → {"session_id": "...", "agent": "..."}
+    ├── event: token → {"content": "..."}
+    ├── event: agent → {"from": "supervisor", "to": "chat"}
+    ├── event: done → {"message": "Complete"}
+    └── event: error → {"error": "..."}
+```
 
-| 대안 | 장점 | 단점 | 선택하지 않은 이유 |
-|------|------|------|-------------------|
-| **ChromaDB** | 오픈소스, 로컬 지원 | 운영 복잡성 | 무료 배포 시 리소스 제한 |
-| **Weaviate** | GraphQL 지원 | 복잡함 | 단순한 유스케이스 |
-| **Qdrant** | Rust 기반, 빠름 | 상대적으로 새로움 | Pinecone 무료 티어 충분 |
-| **pgvector** | PostgreSQL 통합 | 성능 제한 | 별도 벡터 DB 선호 |
+### 4.3 문서 업로드 (RAG 파이프라인)
+
+```
+Client
+    │ POST /api/v1/documents/upload (multipart/form-data)
+    ▼
+validate_file_upload(file)
+    │ 매직 바이트, MIME, 확장자 검증
+    ▼
+DocumentParser.parse_from_bytes(file)
+    │ 포맷별 파싱 (PDF, DOCX, TXT, MD, CSV, JSON)
+    │ 한국어 인코딩 감지 (UTF-8 → CP949 → EUC-KR → Latin-1)
+    ▼
+DomainAwareChunker.chunk(sections)
+    │ 구조 인식 청킹 (default | code | tabular)
+    │ 500 토큰 max, 50 토큰 overlap
+    ▼
+PineconeVectorStore.add_document(chunks)
+    │ 임베딩 생성 (Pinecone Inference API)
+    │ 네임스페이스: user_{user_id}
+    ▼
+FileUploadResponse 반환
+```
+
+### 4.4 인증
+
+```
+Client
+    │ Supabase 로그인
+    ▼
+Supabase Auth API
+    │ JWT 발급
+    ▼
+tokenManager.setToken(access_token, refresh_token)
+    │ 저장소 선택: sessionStorage (기본) / localStorage (remember me)
+    ▼
+API 요청
+    │ Authorization: Bearer <access_token>
+    ▼
+Backend: get_current_user()
+    │ SupabaseAuthClient.verify_token()
+    ▼
+User 객체 반환
+    │ id, email, metadata
+```
 
 ---
 
-### 2.5 컨테이너화: Docker Compose
+## 5. 메모리 시스템
 
-**왜 Docker Compose인가?**
-- 개발/프로덕션 환경 일치
-- 간편한 서비스 추가
-- 볼륨 관리
+### 5.1 단기 메모리 (Session Memory)
 
-**대안**: Kubernetes (과함), Podman (Docker 대체), Nomad (HashiCorp)
+| 구현체 | 용도 | 특징 |
+|--------|------|------|
+| **InMemoryStore** | 개발/테스트 | dict 기반, 서버 재시작 시 데이터 유실 |
+| **RedisStore** | 프로덕션 | Upstash Redis, TTL 기반 자동 만료 |
 
-#### 확장 로드맵
+```python
+# RedisStore 주요 기능
+- 메시지: Redis List (FIFO, TTL)
+- 요약: Redis Key (TTL × 2로 더 오래 보관)
+- get_messages_with_limit(): 토큰 제한 기반 조회
+```
+
+### 5.2 장기 메모리 (Long-term Memory)
+
+Supabase PostgreSQL 기반 (프로덕션), In-Memory (로컬 개발):
+
+| 테이블 | 용도 |
+|--------|------|
+| `user_profiles` | 사용자 프로필 및 선호도 |
+| `topic_summaries` | 대화 토픽 요약 |
+| `user_facts` | 사용자에 대한 개별 팩트 |
+
+### 5.3 자동 요약
+
+`backend/src/core/auto_summarize.py`
+
+**트리거 조건**:
+- 토큰 수 > 2000
+- 메시지 수 > 20
+- 마지막 요약 후 10분 경과
+
+### 5.4 메모리 가중치
+
+`backend/src/memory/memory_weights.py`
+
+| 팩터 | 가중치 | 설명 |
+|--------|--------|------|
+| LENGTH | +0.1/100자 (max 0.3) | 긴 메시지일수록 중요 |
+| CODE | +0.2 | 코드 블록 포함 |
+| QUESTION | +0.15 | 질문 포함 |
+| EMPHASIS | +0.15 | 강조 표시 (!!, ??, CAPS) |
+
+### 5.5 메모리 명령
+
+한국어 명령어 지원 (ChatAgent):
+
+| 명령 | 예시 | 동작 |
+|------|------|------|
+| 기억해 | `기억해: 나는 커피를 좋아해` | LongTermMemory에 저장 |
+| 알고 있니? | `내가 좋아하는 게 뭐야?` | 메모리 검색 |
+| 잊어줘 | `잊어줘: 커피` | 메모리 삭제 |
+| 요약해줘 | `지금까지 대화 요약해줘` | 즉시 요약 생성 |
+
+---
+
+## 6. 문서 처리 파이프라인
+
+### 6.1 파서
+
+`backend/src/documents/parser.py`
+
+| 포맷 | 라이브러리 | 특징 |
+|------|-----------|------|
+| PDF | pdfplumber | 텍스트 + 테이블 추출 |
+| DOCX | python-docx | 헤딩, 테이블 지원 |
+| TXT | - | 문단 분리 |
+| MD | - | 헤딩, 코드 블록 보존 |
+| CSV | - | 헤더 매핑, 행별 처리 |
+| JSON | - | 재귀적 키-값 추출 |
+
+**출력**: `DocumentSection(content, page, heading, section_type)`
+
+### 6.2 청커
+
+`backend/src/documents/chunking/`
+
+| 전략 | 용도 | 특징 |
+|------|------|------|
+| default | 일반 텍스트 | 500 토큰 max, 50 토큰 overlap |
+| code | 소스 코드 | 코드 블록 보존 |
+| tabular | 표 데이터 | 행 단위 처리 |
+
+**DomainAwareChunker**: 파일 확장자/내용 비율로 자동 전략 선택
+
+### 6.3 임베딩
+
+Pinecone Inference API:
+- 모델: `multilingual-e5-large`
+- 차원: 1024
+- 비동기 처리: `asyncio.to_thread()`
+
+### 6.4 벡터 저장소
+
+`backend/src/documents/pinecone_store.py`
+
+```python
+# 네임스페이스 격리
+namespace = f"user_{user_id}"
+
+# 메타데이터
+{
+    "document_id": "...",
+    "chunk_id": "...",
+    "filename": "...",
+    "file_type": "...",
+    "page": 1,
+    "heading": "...",
+    "section_type": "paragraph",
+    "text": "청크 내용",
+    "user_id": "...",
+    "session_id": "...",
+}
+```
+
+---
+
+## 7. 애플리케이션 보안
+
+> **참고**: 인프라 보안(SSL/TLS, DDoS, WAF, CDN Rate Limiting)은 Vercel/Render가 자동 처리
+
+### 7.1 입력 보안
+
+`backend/src/core/prompt_security.py`
+
+**프롬프트 인젝션 탐지** (5개 카테고리):
+- JAILBREAK: 시스템 프롬프트 우회 시도
+- DATA_EXFILTRATION: 데이터 탈취 시도
+- PRIVILEGE_ESCALATION: 권한 상승 시도
+- TOOL_MANIPULATION: 도구 조작 시도
+- PROMPT_LEAK: 프롬프트 유출 시도
+
+**신뢰도 레벨**: high (차단), medium (경고), low (로그)
+
+### 7.2 출력 보안
+
+`filter_llm_output()`: 프롬프트 유출 패턴 탐지 및 마스킹
+
+### 7.3 인증/인가
+
+- **Supabase JWT**: Bearer 토큰 인증
+- **get_current_user()**: FastAPI 의존성
+- **API 엔드포인트 권한**: `CurrentUser` 의존성 추가로 제어
+
+### 7.4 파일 업로드 보안
+
+`backend/src/core/validators.py`
+
+- 매직 바이트 검증 (PDF: `%PDF`, DOCX: `PK`)
+- MIME 타입 일치 확인
+- 파일 크기 제한 (10MB)
+- PII 탐지 (이메일, 전화번호, SSN, 신용카드, API 키, IP)
+
+### 7.5 프론트엔드 보안
+
+`frontend/src/lib/security-validator.ts`
+
+- 4단계 심각도: critical, error, warning, info
+- XSS 패턴 탐지 (script, event handlers, iframe, object, embed)
+- `sanitizeInput()`: null byte, 과도한 반복, 개행 제거
+
+---
+
+## 8. 인프라 & 배포
+
+### 8.1 로컬 개발
+
+`docker-compose.yml`
 
 ```yaml
-# 현재: Docker Compose
-# 단계 1: Docker Swarm (경량 오케스트레이션)
-# 단계 2: Kubernetes (EKS/GKE) - 대규모 트래픽 시
+services:
+  backend:    FastAPI (port 8000)
+  frontend:   Next.js (port 3000)
+  redis:      Redis 7 Alpine (port 6379)
+  ollama:     Ollama (port 11434)
+```
+
+### 8.2 프로덕션
+
+| 서비스 | 플랫폼 | 용도 |
+|--------|--------|------|
+| 백엔드 | Render | FastAPI 앱 |
+| 프론트엔드 | Vercel | Next.js 앱 |
+| Vector DB | Pinecone | 관리형 벡터 DB |
+| 세션 메모리 | Upstash Redis | 관리형 Redis |
+| 인증 | Supabase | Auth + User Management |
+
+### 8.3 CI/CD
+
+`.github/workflows/ci-cd.yml`
+
+```
+PR 트리거:
+├── ci-backend: ruff lint, pytest (unit)
+├── ci-frontend: npm lint, type-check, build
+└── ci-security: Trivy scan, npm audit
+
+main 브랜치 push:
+├── cd-render: 백엔드 배포
+├── cd-vercel: 프론트엔드 배포
+└── health-check: 배포 후 헬스 체크 (10회 재시도, 10초 간격)
 ```
 
 ---
 
-## 3. 핵심 설계 패턴
+## 9. 설계 패턴
 
-### 3.1 Protocol 지향 아키텍처
+### 9.1 Protocol 지향 아키텍처
 
 ```python
-# Interface = Protocol (상속 없이 구현)
 @runtime_checkable
 class LLMProvider(Protocol):
-    async def generate(self, ...) -> str: ...
+    async def generate(self, messages: list[dict], **kwargs) -> str: ...
 
-# 어떤 클래스든 구현 가능
-class OpenAIProvider:  # 상속 불필요!
-    async def generate(self, ...) -> str: ...
+# 상속 없이 구현 가능
+class OpenAIProvider:
+    async def generate(self, messages, **kwargs) -> str: ...
 ```
 
-**왜 이 패턴인가?**
-- 제3자 라이브러리도 래핑 없이 사용 가능
-- 테스트 시 모킹 용이
-- 명확한 계약 정의
-
----
-
-### 3.2 Factory 패턴
+### 9.2 Factory 패턴
 
 ```python
-# 자동 등록: 새로운 LLM 추가 시 자동 인식
+# 데코레이터로 자동 등록
 @LLMFactory.register("openai")
 class OpenAIProvider: ...
 
-# 사용
-llm = LLMFactory.create(config)  # "openai" → OpenAIProvider 인스턴스화
+# 설정 기반 인스턴스화
+llm = LLMFactory.create(config.llm)
+```
+
+### 9.3 Strategy 패턴
+
+```python
+# 설정만 변경하면 구현체 교체
+memory:
+  backend: redis    → RedisStore
+  backend: in_memory → InMemoryStore
+```
+
+### 9.4 의존성 주입
+
+**dependency-injector** 라이브러리 사용:
+
+```python
+@router.post("/chat")
+@inject
+async def chat(
+    request: ChatRequest,
+    graph=Depends(Provide[DIContainer.graph]),
+) -> ChatResponse:
+    ...
 ```
 
 ---
 
-### 3.3 Strategy 패턴
+## 10. 보완점 & 개선 로드맵
 
-```python
-# 메모리 백엔드 선택: 설정만 변경하면 구현체 변경
-backend: redis → RedisStore
-backend: in_memory → InMemoryStore
-```
+### P1 - Critical (보안/데이터 무결성)
 
----
+| # | 문제 | 위치 | 상태 | 해결 방안 |
+|---|------|------|------|----------|
+| 1 | 세션 저장소가 인메모리 dict | `routes.py` | ✅ 완료 | Supabase DB로 마이그레이션 (`src/session/store.py`) |
+| 2 | 코드 실행 보안 | `code_executor.py` | ⏳ 보류 | Docker/gVisor 샌드박스 도입 |
+| 3 | 채팅 API 인증 없음 | `routes.py` | ✅ 완료 | `CurrentUser` 의존성 추가 |
 
-### 3.4 의존성 주입 (DI)
+### P2 - High (기능 격차)
 
-#### 왜 수동 DI 컨테이너인가?
+| # | 문제 | 상태 | 해결 방안 |
+|---|------|------|----------|
+| 4 | ~~ChromaDB 프로덕션 미배포~~ | ✅ 완료 | Supabase PostgreSQL로 마이그레이션 |
+| 5 | mypy 비활성화 (383+ 타입 에러) | ✅ 개선 | 우선 모듈 타입 수정 완료 (401→375 에러 감소) |
+| 6 | 통합 테스트 CI 미포함 | ⏳ 보류 | pytest-integration 추가 |
+| 7 | ARCHITECTURE.md 부정확 | ✅ 완료 | 본 문서로 업데이트 |
 
-| 측면 | 수동 DI (현재) | Dependency Injector | Lagom |
-|------|---------------|---------------------|-------|
-| **외부 의존성** | 없음 | 있음 | 있음 |
-| **러닝 커브** | 낮음 | 중간 | 낮음 |
-| **보일러플레이트** | 중간 | 낮음 | 매우 낮음 |
-| **자동 와이어링** | 없음 | 있음 | 있음 |
-| **테스트 용이성** | 우수함 | 좋음 | 좋음 |
+### P3 - Medium (운영)
 
-#### 현재 구현
+| # | 문제 | 상태 | 해결 방안 |
+|---|------|------|----------|
+| 8 | 프론트엔드 Error Boundary 없음 | ✅ 완료 | React Error Boundary 추가 (`components/error-boundary.tsx`) |
+| 9 | 영구 DB 없음 | ⏳ 보류 | PostgreSQL/SQLite 도입 검토 |
 
-```python
-@dataclass
-class Container:
-    config: AppConfig
+> **참고**: Rate Limiting, 모니터링, 로깅은 Vercel/Render 인프라에서 기본 제공
 
-    @cached_property
-    def llm(self) -> LLMProvider:
-        return LLMFactory.create(self.config.llm)
+### P4 - Low (개선 가능)
 
-    def override(self, **kwargs) -> "Container":
-        """테스트를 위한 의존성 오버라이드."""
-        new = Container(config=self.config)
-        for key, value in kwargs.items():
-            setattr(new, f"_{key}_override", value)
-        return new
-```
-
-**왜 이 방식인가?**
-- 제로 외부 의존성
-- 객체 라이프사이클 완전 제어
-- 명시적 의존성 그래프 (추적 용이)
-- 깔끔한 오버라이드 메커니즘
+| # | 문제 | 상태 | 해결 방안 |
+|---|------|------|----------|
+| 10 | LLM 응답 캐싱 없음 | ✅ 완료 | Redis 캐싱 레이어 추가 (`src/core/llm_cache.py`) |
+| 11 | 하드코딩된 벡터 차원 | ✅ 완료 | `pinecone_store.py` 1536→1024 수정 |
+| 12 | 프론트엔드 가상화 없음 | ✅ 완료 | react-window 도입 (`message-list.tsx`) |
 
 ---
 
-## 4. 확장 로드맵
+## 핵심 강점
 
-### 4.1 단기 (1-2개월)
-
-```python
-# 1. MCP (Model Context Protocol) 서버 통합
-# 이미 구현됨: src/tools/mcp/manager.py
-mcp_servers = [
-    {"name": "github", "url": "http://localhost:3001"},
-    {"name": "slack", "url": "http://localhost:3002"},
-]
-
-# 2. 웹훅 지원
-@app.post("/webhooks/{integration}")
-async def handle_webhook(integration: str, data: dict): ...
-
-# 3. 플러그인 시스템
-class PluginInterface(Protocol):
-    async def initialize(self): ...
-    async def execute(self, context: dict): ...
-```
-
-### 4.2 중기 (3-6개월)
-
-```python
-# 1. 멀티 테넌시
-class TenantMiddleware:
-    async def __call__(self, request, call_next):
-        tenant_id = request.headers.get("X-Tenant-ID")
-        # 테넌트별 DB 분리 또는 스키마 분리
-
-# 2. 에이전트 마켓플레이스
-# 외부 개발자가 에이전트 등록 가능
-agent_registry = AgentRegistry()
-agent_registry.register("custom_agent", CustomAgent)
-
-# 3. A/B 테스트 프레임워크
-@experiment("prompt_v2")
-async def chat_with_experiment(request: ChatRequest): ...
-```
-
-### 4.3 장기 (6개월+)
-
-```python
-# 1. 자체 호스팅 LLM 지원
-ollama_config = {
-    "model": "llama3.1:70b",
-    "gpu": True,
-}
-
-# 2. 엣지 컴퓨팅
-# Cloudflare Workers에서 프롬프트 캐싱
-
-# 3. 피드백 루프
-# 사용자 피드백 → RLHF → 모델 개선
-feedback_collector = FeedbackCollector()
-```
-
----
-
-## 5. 기술 스택 요약
-
-| 레이어 | 기술 | 대안 | 선택 이유 |
-|--------|------|------|----------|
-| **프론트엔드** | Next.js 16 | React, Vue | SSR, AI 스트리밍 |
-| **백엔드** | FastAPI | Django, Flask | 비동기, 타입 안전 |
-| **AI** | LangGraph | CrewAI, 직접구현 | 멀티 에이전트 오케스트레이션 |
-| **LLM** | OpenAI/Anthropic | Ollama (로컬) | 성능, 안정성 |
-| **벡터 DB** | Pinecone | ChromaDB, Weaviate | 관리형, 무료 티어 |
-| **임베딩** | Pinecone Inference | OpenAI Embeddings | 무료, 간편한 통합 |
-| **세션** | In-Memory | Redis, PostgreSQL | 단순함, 개발용 충분 |
-| **배포** | Docker Compose | K8s, Swarm | 단순함, 충분함 |
-
----
-
-## 6. 핵심 강점
-
-1. **AI 네이티브**: LangGraph로 멀티 에이전트 아키텍처 구현
-2. **타입 안전**: Python 3.11 + TypeScript 전 레이어
+1. **AI 네이티브**: LangGraph 기반 멀티 에이전트 오케스트레이션
+2. **타입 안전**: Python 3.12 + TypeScript 전 레이어
 3. **확장 가능**: Protocol + Factory로 느슨한 결합
-4. **프로덕션 레디**: Docker, 보안, 모니터링 고려
-5. **이력서용**: 현대적인 기술 스택, 클린 아키텍처
+4. **프로덕션 레디**: Docker, 보안, CI/CD 완비
+5. **비용 효율**: 무료 티어 기반 (Pinecone, Render, Vercel)
 
 ---
 
-> 이 아키텍처는 **현대적인 AI SaaS의 표준**을 따르면서도, 과도한 복잡성 없이 실제 운영 가능한 구조입니다.
-
----
-
-*AI Agent Chatbot 프로젝트를 위해 작성됨*
 *최종 업데이트: 2026-02-16*

@@ -93,11 +93,11 @@ docker compose logs -f                # 로그
 
 ## 기술 스택
 
-**Backend**: Python 3.12, FastAPI, LangGraph, LangChain, dependency-injector, ChromaDB, Redis
+**Backend**: Python 3.12, FastAPI, LangGraph, LangChain, dependency-injector, Pinecone, Supabase, Redis
 
 **Frontend**: Next.js 16, TypeScript, Tailwind CSS 4, Zustand, shadcn/ui
 
-**Infrastructure**: Docker, Render.com, Vercel
+**Infrastructure**: Docker, Render.com, Vercel, Pinecone, Supabase, Upstash
 
 ## 프로젝트 구조
 
@@ -118,9 +118,8 @@ ai-agent-chatbot/
 
 - [아키텍처 문서](./ARCHITECTURE.md) — 시스템 설계 및 아키텍처
 - [배포 가이드](./DEPLOYMENT.md) — Render.com + Vercel 배포 방법
-- [백엔드 가이드](./backend/AGENTS.md) — 백엔드 개발 가이드
-- [프론트엔드 가이드](./frontend/AGENTS.md) — 프론트엔드 개발 가이드
 - [백엔드 가이드](./backend/AGENTS.md) — 백엔드 개발 가이드 및 프로젝트 룰
+- [프론트엔드 가이드](./frontend/AGENTS.md) — 프론트엔드 개발 가이드
 
 ## 라이선스
 

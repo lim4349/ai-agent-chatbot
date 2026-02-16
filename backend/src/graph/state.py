@@ -1,6 +1,6 @@
 """Agent state definition for LangGraph."""
 
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langgraph.graph.message import add_messages
 
@@ -17,8 +17,8 @@ class AgentState(TypedDict, total=False):
 
     messages: Annotated[list, add_messages]
     next_agent: str | None
-    tool_results: list[dict]
-    metadata: dict
+    tool_results: list[dict[str, Any]]
+    metadata: dict[str, Any]
 
 
 def create_initial_state(message: str, session_id: str = "default") -> AgentState:

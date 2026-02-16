@@ -6,7 +6,7 @@ from dependency_injector.wiring import Provide, inject
 from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
 
@@ -41,9 +41,9 @@ class RAGAgent(BaseAgent):
     @inject
     def __init__(
         self,
-        llm: LLMProvider = Provide[Container.llm],
-        retriever: DocumentRetriever = Provide[Container.retriever],
-        memory: MemoryStore = Provide[Container.memory],
+        llm: LLMProvider = Provide[DIContainer.llm],
+        retriever: DocumentRetriever = Provide[DIContainer.retriever],
+        memory: MemoryStore = Provide[DIContainer.memory],
     ):
         super().__init__(llm, memory=memory)
         self.retriever = retriever

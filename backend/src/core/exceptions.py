@@ -1,5 +1,7 @@
 """Custom exception hierarchy."""
 
+from typing import Any
+
 
 class AppError(Exception):
     """Base application exception."""
@@ -9,7 +11,7 @@ class AppError(Exception):
         self.code = code
         super().__init__(message)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API responses."""
         return {
             "error": {
@@ -26,7 +28,7 @@ class LLMError(AppError):
         self.provider = provider
         super().__init__(message, code="LLM_ERROR")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         result = super().to_dict()
         result["error"]["details"] = {"provider": self.provider}
         return result
@@ -39,7 +41,7 @@ class AgentError(AppError):
         self.agent_name = agent_name
         super().__init__(message, code="AGENT_ERROR")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         result = super().to_dict()
         result["error"]["details"] = {"agent": self.agent_name}
         return result
@@ -52,7 +54,7 @@ class ToolExecutionError(AppError):
         self.tool_name = tool_name
         super().__init__(message, code="TOOL_ERROR")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         result = super().to_dict()
         result["error"]["details"] = {"tool": self.tool_name}
         return result
@@ -72,7 +74,7 @@ class MCPError(AppError):
         self.server_name = server_name
         super().__init__(message, code="MCP_ERROR")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         result = super().to_dict()
         result["error"]["details"] = {"mcp_server": self.server_name}
         return result

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { List, useDynamicRowHeight, useListRef } from 'react-window';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bot, MessageSquare, ArrowDown } from 'lucide-react';
 import type { Message } from '@/types';
@@ -17,6 +18,11 @@ interface MessageListProps {
 export function MessageList({ messages, isStreaming }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
+  const listRef = useListRef(null);
+  const dynamicRowHeight = useDynamicRowHeight({
+    defaultRowHeight: 100,
+    key: messages.length,
+  });
   const { t } = useTranslation();
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -24,14 +30,24 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
   const isUserScrolling = useRef(false);
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    if (viewportRef.current && isNearBottom) {
-      viewportRef.current.scrollTo({
-        top: viewportRef.current.scrollHeight,
-        behavior,
-      });
-    }
-  }, [isNearBottom]);
+  // Estimate item size for react-window
+  const getItemSize = useCallback((index: number) => {
+    const message = messages[index];
+    if (!message) return 100;
+
+    // Estimate height based on content length
+    const baseHeight = 60; // Minimum height for message bubble
+    const contentLength = message.content.length;
+    const lines = Math.ceil(contentLength / 50); // Assume ~50 chars per line
+    const estimatedHeight = baseHeight + (lines * 20) + 16; // 16px for padding/margin
+
+    return Math.min(Math.max(estimatedHeight, 80), 400); // Clamp between 80px and 400px
+  }, [messages]);
+
+  // Measure and cache actual item size
+  const setItemSize = useCallback((index: number, size: number) => {
+    dynamicRowHeight.setRowHeight(index, size);
+  }, [dynamicRowHeight]);
 
   // Track scroll position with debounce
   const handleScroll = useCallback(() => {
@@ -76,9 +92,14 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     lastMessageCount.current = messages.length;
 
     if (hasNewMessage && isNearBottom) {
-      scrollToBottom('smooth');
+      // Scroll to bottom after a short delay to allow the list to render
+      setTimeout(() => {
+        if (listRef.current) {
+          listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
+        }
+      }, 100);
     }
-  }, [messages.length, isNearBottom, scrollToBottom]);
+  }, [messages.length, isNearBottom, listRef]);
 
   // Streaming scroll - only if user is near bottom and not actively scrolling
   useEffect(() => {
@@ -91,7 +112,9 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
       const now = Date.now();
       // Only scroll every 100ms max, and only if user isn't actively scrolling
       if (now - lastScrollTime > 100 && !isUserScrolling.current && isNearBottom) {
-        scrollToBottom('auto');
+        if (listRef.current) {
+          listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
+        }
         lastScrollTime = now;
       }
       rafId = requestAnimationFrame(checkAndScroll);
@@ -99,7 +122,42 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
 
     rafId = requestAnimationFrame(checkAndScroll);
     return () => cancelAnimationFrame(rafId);
-  }, [isStreaming, isNearBottom, scrollToBottom]);
+  }, [isStreaming, isNearBottom, messages.length, listRef]);
+
+  // Render individual message row
+  type RowProps = {
+    index: number;
+    style: React.CSSProperties;
+    ariaAttributes: { role: string; 'aria-setsize': number; 'aria-posinset': number };
+  };
+
+  const Row = useCallback(({ index, style, ariaAttributes }: RowProps) => {
+    const message = messages[index];
+
+    if (!message) return null;
+
+    // Don't render empty streaming assistant message
+    const isEmptyStreaming =
+      isStreaming &&
+      index === messages.length - 1 &&
+      message.role === 'assistant' &&
+      message.content === '';
+
+    if (isEmptyStreaming) return null;
+
+    return (
+      <div style={style} {...ariaAttributes}>
+        <MessageBubble
+          key={message.id}
+          message={message}
+          isStreaming={
+            isStreaming && index === messages.length - 1 && message.role === 'assistant'
+          }
+          onHeightChange={(height) => setItemSize(index, height)}
+        />
+      </div>
+    );
+  }, [messages, isStreaming, setItemSize]);
 
   const isEmpty = messages.length === 0;
 
@@ -118,27 +176,20 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col py-4">
-              {messages.map((message, index) => {
-                // Don't render empty streaming assistant message - show TypingIndicator instead
-                const isEmptyStreaming =
-                  isStreaming &&
-                  index === messages.length - 1 &&
-                  message.role === 'assistant' &&
-                  message.content === '';
-
-                if (isEmptyStreaming) return null;
-
-                return (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    isStreaming={
-                      isStreaming && index === messages.length - 1 && message.role === 'assistant'
-                    }
-                  />
-                );
-              })}
+            <div className="py-4">
+              <List
+                listRef={listRef}
+                rowComponent={Row}
+                rowCount={messages.length}
+                rowHeight={(index) => {
+                  const cached = dynamicRowHeight.getRowHeight(index);
+                  if (cached !== undefined) return cached;
+                  return getItemSize(index);
+                }}
+                defaultHeight={600}
+                rowProps={{} as any} // eslint-disable-line @typescript-eslint/no-explicit-any
+                overscanCount={5}
+              />
               {/* Typing indicator shown when streaming starts but no content yet */}
               {isStreaming && messages[messages.length - 1]?.content === '' && (
                 <div className="flex gap-3 p-4">
@@ -160,7 +211,9 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
       <button
         onClick={() => {
           setIsNearBottom(true);
-          scrollToBottom('smooth');
+          if (listRef.current) {
+            listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
+          }
         }}
         className={cn(
           'absolute bottom-4 right-4 z-10',
