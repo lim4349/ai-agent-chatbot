@@ -34,10 +34,17 @@ class OpenAIProvider:
 
     async def generate_structured(
         self, messages: list[dict[str, str]], output_schema: type, **kwargs
-    ) -> dict:
-        """Generate structured output using function calling."""
+    ) -> dict | None:
+        """Generate structured output using function calling.
+
+        Returns None if the LLM fails to generate structured output.
+        """
         structured = self.client.with_structured_output(output_schema)
         result = await structured.ainvoke(messages, **kwargs)
+
+        if result is None:
+            return None
+
         if hasattr(result, "model_dump"):
             return result.model_dump()
         return result
