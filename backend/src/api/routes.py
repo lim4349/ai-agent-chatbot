@@ -1,6 +1,7 @@
 """API routes for the chatbot."""
 
 import json
+import threading
 import time
 from datetime import datetime
 from typing import Annotated
@@ -47,7 +48,9 @@ from src.tools.registry import ToolRegistry
 router = APIRouter()
 
 # In-memory session storage (TODO: Replace with Supabase DB)
+# Use threading.Lock for thread-safe access as temporary DoS mitigation
 _sessions: dict[str, dict] = {}
+_sessions_lock = threading.Lock()
 
 
 def get_message_content(msg) -> str:
@@ -344,7 +347,8 @@ async def create_session(
     }
 
     # Store in memory (TODO: Replace with Supabase DB)
-    _sessions[session_id] = session
+    with _sessions_lock:
+        _sessions[session_id] = session
 
     return SessionResponse(
         id=session_id,
@@ -361,18 +365,19 @@ async def list_sessions(
     user: Annotated[User, Depends(get_current_user)],  # noqa: B008
 ) -> SessionListResponse:
     """List all sessions for the authenticated user."""
-    user_sessions = [
-        SessionResponse(
-            id=s["id"],
-            user_id=s["user_id"],
-            title=s["title"],
-            created_at=s["created_at"],
-            updated_at=s["updated_at"],
-            metadata=s.get("metadata", {}),
-        )
-        for s in _sessions.values()
-        if s["user_id"] == user.id
-    ]
+    with _sessions_lock:
+        user_sessions = [
+            SessionResponse(
+                id=s["id"],
+                user_id=s["user_id"],
+                title=s["title"],
+                created_at=s["created_at"],
+                updated_at=s["updated_at"],
+                metadata=s.get("metadata", {}),
+            )
+            for s in _sessions.values()
+            if s["user_id"] == user.id
+        ]
 
     # Sort by created_at descending
     user_sessions.sort(key=lambda x: x.created_at, reverse=True)
@@ -394,12 +399,13 @@ async def delete_session(
     2. Remove the session from storage (documents cascade deleted)
     """
     # Check if session exists and belongs to user
-    session = _sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    with _sessions_lock:
+        session = _sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-    if session["user_id"] != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this session")
+        if session["user_id"] != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this session")
 
     try:
         # 1. Delete vectors from Pinecone
@@ -415,7 +421,8 @@ async def delete_session(
             )
 
         # 2. Delete session from storage (TODO: Replace with Supabase cascade delete)
-        del _sessions[session_id]
+        with _sessions_lock:
+            _sessions.pop(session_id, None)
 
         return {
             "status": "deleted",
@@ -548,11 +555,12 @@ async def upload_file(
         )
 
     # Verify session exists and belongs to user
-    session = _sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session["user_id"] != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+    with _sessions_lock:
+        session = _sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session["user_id"] != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     # Validate metadata JSON size first (prevent DoS)
     is_valid, error = validate_json_size(metadata, max_size_kb=10)
@@ -722,9 +730,7 @@ async def delete_document(
             raise HTTPException(status_code=404, detail="Document not found")
 
         # Delete with user isolation
-        deleted_count = await doc_store.delete_document(document_id, user_id=user.id)
-        if deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Document not found or not authorized")
+        await doc_store.delete_document(document_id, user_id=user.id)
 
         return DocumentDeleteResponse(
             document_id=document_id,

@@ -292,35 +292,30 @@ class PineconeVectorStore:
 
         return pinecone_filter if pinecone_filter else None
 
-    async def delete_document(self, doc_id: str, user_id: str | None = None) -> int:
+    async def delete_document(self, doc_id: str, user_id: str | None = None) -> None:
         """Delete all chunks for a document.
 
         Args:
             doc_id: Document ID to delete
             user_id: User ID for ownership verification
 
-        Returns:
-            Number of chunks deleted
+        Raises:
+            RuntimeError: If Pinecone is not initialized
+            Exception: If deletion fails
         """
         if not self._index:
-            logger.error("pinecone_not_initialized")
-            return 0
+            raise RuntimeError("Pinecone not initialized")
 
         # Use user-specific namespace
         namespace = f"user_{user_id}" if user_id else self.namespace
 
-        try:
-            # Delete by filter
-            self._index.delete(
-                filter={"document_id": {"$eq": doc_id}},
-                namespace=namespace,
-            )
+        # Delete by filter
+        self._index.delete(
+            filter={"document_id": {"$eq": doc_id}},
+            namespace=namespace,
+        )
 
-            logger.info("document_deleted", document_id=doc_id, user_id=user_id)
-            return 1  # Return 1 to indicate success
-        except Exception as e:
-            logger.error("failed_to_delete_document", error=str(e), document_id=doc_id)
-            return 0
+        logger.info("document_deleted", document_id=doc_id, user_id=user_id)
 
     async def delete_session_documents(self, user_id: str, session_id: str) -> int:
         """Delete all documents for a session.

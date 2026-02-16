@@ -1,59 +1,26 @@
 """Authentication schemas for Supabase integration."""
 
+from pydantic import BaseModel, Field
 
-class User:
+
+class User(BaseModel):
     """User model from Supabase auth.users."""
 
-    def __init__(self, id: str, email: str, created_at: str | None = None):
-        """Initialize user.
-
-        Args:
-            id: User UUID from Supabase
-            email: User email address
-            created_at: ISO timestamp of user creation
-        """
-        self.id = id
-        self.email = email
-        self.created_at = created_at
-
-    def __eq__(self, other: object) -> bool:
-        """Check equality based on id."""
-        if not isinstance(other, User):
-            return False
-        return self.id == other.id
+    id: str = Field(..., description="User UUID from Supabase")
+    email: str = Field(..., description="User email address")
+    created_at: str | None = Field(default=None, description="ISO timestamp of user creation")
 
     def __hash__(self) -> int:
-        """Hash based on id."""
+        """Hash based on id for use in sets/dicts."""
         return hash(self.id)
 
-    def __repr__(self) -> str:
-        """String representation."""
-        return f"User(id={self.id!r}, email={self.email!r})"
 
-
-class Session:
+class Session(BaseModel):
     """Session model for authenticated user sessions."""
 
-    def __init__(
-        self,
-        access_token: str,
-        user: User,
-        expires_at: str | None = None,
-        refresh_token: str | None = None,
-    ):
-        """Initialize session.
-
-        Args:
-            access_token: JWT access token
-            user: Authenticated user
-            expires_at: ISO timestamp of token expiration
-            refresh_token: Refresh token for obtaining new access tokens
-        """
-        self.access_token = access_token
-        self.user = user
-        self.expires_at = expires_at
-        self.refresh_token = refresh_token
-
-    def __repr__(self) -> str:
-        """String representation."""
-        return f"Session(user={self.user!r}, expires_at={self.expires_at!r})"
+    access_token: str = Field(..., description="JWT access token")
+    user: User = Field(..., description="Authenticated user")
+    expires_at: str | None = Field(default=None, description="ISO timestamp of token expiration")
+    refresh_token: str | None = Field(
+        default=None, description="Refresh token for obtaining new access tokens"
+    )
