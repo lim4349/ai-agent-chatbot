@@ -67,10 +67,10 @@
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
 │                      인프라스트럭처 레이어                        │
-│  ┌─────────────┐ ┌─────────────┐ ┌──────────────────────────┐  │
-│  │   Redis     │  │  ChromaDB   │  │   OpenAI/Anthropic     │  │
-│  │  (세션)      │  │ (벡터 DB)   │  │      (LLM API)         │  │
-│  └─────────────┘  └─────────────┘  └──────────────────────────┘  │
+│  ┌──────────────────────────┐ ┌──────────────────────────────┐  │
+│  │        Pinecone          │  │      OpenAI/Anthropic       │  │
+│  │  (벡터 DB + 임베딩)        │  │         (LLM API)           │  │
+│  └──────────────────────────┘  └──────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -189,29 +189,25 @@ graph.add_conditional_edges(
 
 ### 2.4 데이터 저장소
 
-#### 2.4.1 세션 메모리: Redis
+#### 2.4.1 벡터 DB + 임베딩: Pinecone
 
-**왜 Redis인가?**
-- TTL 지원 (자동 만료)
-- Pub/Sub (실시간 기능 확장 가능)
-- Atomic operations
+**왜 Pinecone인가?**
+- 관리형 서비스 (운영 오버헤드 없음)
+- 무료 티어 제공
+- Pinecone Inference API로 무료 임베딩 지원
+- 높은 가용성 및 확장성
 
-**대안**: PostgreSQL (영구 저장), Memcached (단순 캐시)
-
-#### 2.4.2 벡터 DB: ChromaDB
-
-**왜 ChromaDB인가?**
-- 임베딩 + 메타데이터 저장
-- 유사도 검색
-- 로컬/서버 모두 지원
+**세션 메모리**: In-Memory Store (간단한 구현)
+- 개발/테스트용으로 충분
+- 필요시 Redis로 확장 가능
 
 #### 대안 비교
 
 | 대안 | 장점 | 단점 | 선택하지 않은 이유 |
 |------|------|------|-------------------|
-| **Pinecone** | 관리형, 확장성 | 비용, 외부 의존성 | 오픈소스 선호 |
+| **ChromaDB** | 오픈소스, 로컬 지원 | 운영 복잡성 | 무료 배포 시 리소스 제한 |
 | **Weaviate** | GraphQL 지원 | 복잡함 | 단순한 유스케이스 |
-| **Qdrant** | Rust 기반, 빠름 | 상대적으로 새로움 | Chroma가 더 안정적 |
+| **Qdrant** | Rust 기반, 빠름 | 상대적으로 새로움 | Pinecone 무료 티어 충분 |
 | **pgvector** | PostgreSQL 통합 | 성능 제한 | 별도 벡터 DB 선호 |
 
 ---
@@ -387,8 +383,9 @@ feedback_collector = FeedbackCollector()
 | **백엔드** | FastAPI | Django, Flask | 비동기, 타입 안전 |
 | **AI** | LangGraph | CrewAI, 직접구현 | 멀티 에이전트 오케스트레이션 |
 | **LLM** | OpenAI/Anthropic | Ollama (로컬) | 성능, 안정성 |
-| **벡터 DB** | ChromaDB | Pinecone, Weaviate | 오픈소스, 임베딩 통합 |
-| **세션** | Redis | PostgreSQL | TTL, Pub/Sub |
+| **벡터 DB** | Pinecone | ChromaDB, Weaviate | 관리형, 무료 티어 |
+| **임베딩** | Pinecone Inference | OpenAI Embeddings | 무료, 간편한 통합 |
+| **세션** | In-Memory | Redis, PostgreSQL | 단순함, 개발용 충분 |
 | **배포** | Docker Compose | K8s, Swarm | 단순함, 충분함 |
 
 ---
@@ -408,4 +405,4 @@ feedback_collector = FeedbackCollector()
 ---
 
 *AI Agent Chatbot 프로젝트를 위해 작성됨*
-*최종 업데이트: 2026-02-15*
+*최종 업데이트: 2026-02-16*
