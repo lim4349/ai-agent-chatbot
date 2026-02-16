@@ -1,0 +1,75 @@
+name: Claude Code Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-assistant:
+    name: Claude Code
+    runs-on: ubuntu-latest
+    # Only trigger when comment contains @claude
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "Claude Code[bot]"
+          git config user.email "claude-code[bot]@anthropic.com"
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-base-action@v1
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          prompt: |
+            You are Claude Code, an AI assistant integrated into this GitHub repository.
+
+            A user mentioned @claude in a PR comment. Please help with their request.
+
+            Context:
+            - PR #${{ github.event.issue.number || github.event.pull_request.number }}
+            - Comment: "${{ github.event.comment.body }}"
+            - Author: ${{ github.event.comment.user.login }}
+
+            Common tasks:
+            1. **Code Review**: Review the PR changes and provide feedback
+            2. **Update CLAUDE.md**: If asked to "update claude.md with lessons", extract learnings and append to CLAUDE.md
+            3. **Fix Issues**: If asked to fix something, create a commit with the fix
+            4. **Answer Questions**: Provide detailed answers about the codebase
+
+            For CLAUDE.md updates, use this format:
+            ```markdown
+            ### YYYY-MM-DD
+
+            **[PR Title]** (#PR_NUMBER)
+            - Lesson 1
+            - Lesson 2
+            ```
+
+            Always commit changes with: "claude: [description] [skip ci]"
+          allowed_tools: "Read,Edit,Write,Bash,Glob,Grep"
+
+      - name: Push changes
+        if: success()
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git push
+          fi
