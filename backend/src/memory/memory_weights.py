@@ -148,9 +148,7 @@ class MemoryWeightSystem:
         content_lower = content.lower()
         return any(marker in content_lower for marker in emphasis_markers)
 
-    async def update_message_weight(
-        self, session_id: str, message_id: str, weight: float
-    ) -> None:
+    async def update_message_weight(self, session_id: str, message_id: str, weight: float) -> None:
         """Update the weight of a specific message.
 
         Args:
@@ -185,9 +183,7 @@ class MemoryWeightSystem:
         except Exception as e:
             logger.error("weight_update_failed", error=str(e), session_id=session_id)
 
-    async def get_weighted_messages(
-        self, session_id: str, min_weight: float = 0.5
-    ) -> list[dict]:
+    async def get_weighted_messages(self, session_id: str, min_weight: float = 0.5) -> list[dict]:
         """Get messages filtered by minimum weight.
 
         Args:

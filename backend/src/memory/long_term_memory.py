@@ -57,9 +57,7 @@ class LongTermMemory:
                     settings=Settings(anonymized_telemetry=False),
                 )
             else:
-                self._chroma_client = chromadb.Client(
-                    settings=Settings(anonymized_telemetry=False)
-                )
+                self._chroma_client = chromadb.Client(settings=Settings(anonymized_telemetry=False))
 
             # Get or create collections
             self._user_collection = self._chroma_client.get_or_create_collection(
@@ -153,12 +151,14 @@ class LongTermMemory:
                 doc_id = self._generate_id(user_id, anonymized_fact, timestamp)
                 self._fact_collection.add(
                     documents=[anonymized_fact],
-                    metadatas=[{
-                        "user_id": user_id,
-                        "category": category,
-                        "confidence": confidence,
-                        "timestamp": timestamp,
-                    }],
+                    metadatas=[
+                        {
+                            "user_id": user_id,
+                            "category": category,
+                            "confidence": confidence,
+                            "timestamp": timestamp,
+                        }
+                    ],
                     ids=[doc_id],
                 )
             except Exception as e:
@@ -221,16 +221,16 @@ class LongTermMemory:
                         profile["facts"][category] = []
 
                     # Check if already in profile from memory
-                    existing = any(
-                        f["fact"] == doc for f in profile["facts"][category]
-                    )
+                    existing = any(f["fact"] == doc for f in profile["facts"][category])
                     if not existing:
-                        profile["facts"][category].append({
-                            "fact": doc,
-                            "category": category,
-                            "confidence": metadata.get("confidence", 1.0),
-                            "timestamp": metadata.get("timestamp"),
-                        })
+                        profile["facts"][category].append(
+                            {
+                                "fact": doc,
+                                "category": category,
+                                "confidence": metadata.get("confidence", 1.0),
+                                "timestamp": metadata.get("timestamp"),
+                            }
+                        )
             except Exception as e:
                 logger.error("failed_to_query_facts", error=str(e))
 
@@ -271,18 +271,23 @@ class LongTermMemory:
         # Store in ChromaDB if available
         if self._user_collection:
             try:
-                profile_text = json.dumps({
-                    k: v for k, v in self._user_profiles[user_id].items()
-                    if k not in ("created_at", "updated_at")
-                })
+                profile_text = json.dumps(
+                    {
+                        k: v
+                        for k, v in self._user_profiles[user_id].items()
+                        if k not in ("created_at", "updated_at")
+                    }
+                )
                 doc_id = self._generate_id(user_id)
 
                 self._user_collection.upsert(
                     documents=[profile_text],
-                    metadatas=[{
-                        "user_id": user_id,
-                        "updated_at": self._user_profiles[user_id]["updated_at"],
-                    }],
+                    metadatas=[
+                        {
+                            "user_id": user_id,
+                            "updated_at": self._user_profiles[user_id]["updated_at"],
+                        }
+                    ],
                     ids=[doc_id],
                 )
             except Exception as e:
@@ -336,12 +341,14 @@ class LongTermMemory:
                 doc_id = self._generate_id(topic, summary, timestamp)
                 self._topic_collection.add(
                     documents=[summary],
-                    metadatas=[{
-                        "topic": topic,
-                        "session_id": session_id,
-                        "timestamp": timestamp,
-                        **(metadata or {}),
-                    }],
+                    metadatas=[
+                        {
+                            "topic": topic,
+                            "session_id": session_id,
+                            "timestamp": timestamp,
+                            **(metadata or {}),
+                        }
+                    ],
                     ids=[doc_id],
                 )
             except Exception as e:
@@ -384,7 +391,8 @@ class LongTermMemory:
                         "session_id": metadata.get("session_id"),
                         "timestamp": metadata.get("timestamp"),
                         "metadata": {
-                            k: v for k, v in metadata.items()
+                            k: v
+                            for k, v in metadata.items()
                             if k not in ("topic", "session_id", "timestamp")
                         },
                     }
@@ -455,12 +463,14 @@ class LongTermMemory:
             facts = []
             for i, doc in enumerate(results.get("documents", [[]])[0]):
                 metadata = results["metadatas"][0][i]
-                facts.append({
-                    "fact": doc,
-                    "category": metadata.get("category", "general"),
-                    "confidence": metadata.get("confidence", 1.0),
-                    "timestamp": metadata.get("timestamp"),
-                })
+                facts.append(
+                    {
+                        "fact": doc,
+                        "category": metadata.get("category", "general"),
+                        "confidence": metadata.get("confidence", 1.0),
+                        "timestamp": metadata.get("timestamp"),
+                    }
+                )
             return facts
         except Exception as e:
             logger.error("similarity_search_failed", error=str(e))
@@ -499,12 +509,14 @@ class LongTermMemory:
             topics = []
             for i, doc in enumerate(results.get("documents", [[]])[0]):
                 metadata = results["metadatas"][0][i]
-                topics.append({
-                    "topic": metadata.get("topic", "unknown"),
-                    "summary": doc,
-                    "session_id": metadata.get("session_id"),
-                    "timestamp": metadata.get("timestamp"),
-                })
+                topics.append(
+                    {
+                        "topic": metadata.get("topic", "unknown"),
+                        "summary": doc,
+                        "session_id": metadata.get("session_id"),
+                        "timestamp": metadata.get("timestamp"),
+                    }
+                )
             return topics
         except Exception as e:
             logger.error("topic_search_failed", error=str(e))

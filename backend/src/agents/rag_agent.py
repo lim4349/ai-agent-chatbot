@@ -93,10 +93,12 @@ Guidelines:
                 history = await self.memory.get_messages(session_id)
                 messages.extend(history)
 
-            messages.append({
-                "role": "user",
-                "content": f"Context:\n{context}\n\nQuestion: {query}",
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Context:\n{context}\n\nQuestion: {query}",
+                }
+            )
 
             response = await self.llm.generate(messages)
             tool_results = [{"tool": "retriever", "query": query, "results": docs}]
@@ -105,9 +107,7 @@ Guidelines:
         if self.memory:
             last_msg = state["messages"][-1]
             await self.memory.add_message(session_id, message_to_dict(last_msg))
-            await self.memory.add_message(
-                session_id, {"role": "assistant", "content": response}
-            )
+            await self.memory.add_message(session_id, {"role": "assistant", "content": response})
 
         return {
             **state,

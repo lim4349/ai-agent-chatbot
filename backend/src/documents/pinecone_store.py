@@ -145,10 +145,12 @@ class PineconeVectorStore:
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
 
-            vectors.append({
-                "id": chunk_id,
-                "metadata": metadata,
-            })
+            vectors.append(
+                {
+                    "id": chunk_id,
+                    "metadata": metadata,
+                }
+            )
 
         # Generate embeddings
         logger.info(
@@ -167,7 +169,7 @@ class PineconeVectorStore:
         batch_size = 100
         try:
             for i in range(0, len(vectors), batch_size):
-                batch = vectors[i:i + batch_size]
+                batch = vectors[i : i + batch_size]
                 self._index.upsert(
                     vectors=batch,
                     namespace=self.namespace,
@@ -331,9 +333,7 @@ class PineconeVectorStore:
 
             # Aggregate stats
             chunk_count = len(results.matches)
-            total_tokens = sum(
-                m.get("token_count", 0) for m in metadatas if isinstance(m, dict)
-            )
+            total_tokens = sum(m.get("token_count", 0) for m in metadatas if isinstance(m, dict))
 
             # Get common metadata from first chunk
             first_meta = metadatas[0] if metadatas else {}

@@ -114,7 +114,9 @@ def build_graph(container):
 
     logger.info(
         "graph_built",
-        nodes=["supervisor", "chat", "code"] + (["rag"] if rag else []) + (["web_search"] if web_search else []),
+        nodes=["supervisor", "chat", "code"]
+        + (["rag"] if rag else [])
+        + (["web_search"] if web_search else []),
     )
 
     return graph.compile(checkpointer=checkpointer)

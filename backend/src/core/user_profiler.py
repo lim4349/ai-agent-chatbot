@@ -120,23 +120,25 @@ Respond with valid JSON only."""
         try:
             # Extract profile information
             profile_data = await self.llm.generate_structured(
-                messages=[{
-                    "role": "user",
-                    "content": self._PROFILE_EXTRACTION_PROMPT.format(
-                        conversation=conversation
-                    ),
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self._PROFILE_EXTRACTION_PROMPT.format(
+                            conversation=conversation
+                        ),
+                    }
+                ],
                 output_schema=dict,
             )
 
             # Extract specific facts
             facts_data = await self.llm.generate_structured(
-                messages=[{
-                    "role": "user",
-                    "content": self._FACT_EXTRACTION_PROMPT.format(
-                        conversation=conversation
-                    ),
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self._FACT_EXTRACTION_PROMPT.format(conversation=conversation),
+                    }
+                ],
                 output_schema=dict,
             )
 
@@ -145,9 +147,7 @@ Respond with valid JSON only."""
 
             if profile_data:
                 profile.interests = profile_data.get("interests", [])
-                profile.technical_level = profile_data.get(
-                    "technical_level", "intermediate"
-                )
+                profile.technical_level = profile_data.get("technical_level", "intermediate")
                 profile.preferred_response_style = profile_data.get(
                     "preferred_response_style", "balanced"
                 )
@@ -320,22 +320,16 @@ Respond with valid JSON only."""
         context_parts = []
 
         if profile.technical_level != "intermediate":
-            context_parts.append(
-                f"User technical level: {profile.technical_level}"
-            )
+            context_parts.append(f"User technical level: {profile.technical_level}")
 
         if profile.preferred_response_style != "balanced":
-            context_parts.append(
-                f"Preferred response style: {profile.preferred_response_style}"
-            )
+            context_parts.append(f"Preferred response style: {profile.preferred_response_style}")
 
         if profile.interests:
             context_parts.append(f"User interests: {', '.join(profile.interests[:5])}")
 
         if profile.expertise_areas:
-            context_parts.append(
-                f"Expertise areas: {', '.join(profile.expertise_areas[:3])}"
-            )
+            context_parts.append(f"Expertise areas: {', '.join(profile.expertise_areas[:3])}")
 
         if not context_parts:
             return ""

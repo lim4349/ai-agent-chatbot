@@ -56,7 +56,11 @@ class OllamaProvider:
         except Exception as e:
             logger.warning("ollama_structured_output_fallback", error=str(e))
             # Fallback: use JSON mode with explicit instructions
-            schema = output_schema.model_json_schema() if hasattr(output_schema, "model_json_schema") else {}
+            schema = (
+                output_schema.model_json_schema()
+                if hasattr(output_schema, "model_json_schema")
+                else {}
+            )
             json_prompt = f"""You must respond with valid JSON matching this schema:
 {json.dumps(schema, indent=2)}
 
@@ -78,4 +82,6 @@ Respond ONLY with the JSON object, no additional text."""
                 return output_schema(**parsed).model_dump()
             except json.JSONDecodeError as parse_error:
                 logger.error("ollama_json_parse_failed", error=str(parse_error))
-                raise ValueError(f"Failed to parse structured output: {parse_error}") from parse_error
+                raise ValueError(
+                    f"Failed to parse structured output: {parse_error}"
+                ) from parse_error

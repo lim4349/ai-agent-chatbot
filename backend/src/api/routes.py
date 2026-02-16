@@ -3,6 +3,8 @@
 import json
 import time
 from datetime import datetime
+from typing import Annotated
+from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -21,7 +23,11 @@ from src.api.schemas import (
     DocumentUploadResponse,
     FileUploadResponse,
     HealthResponse,
+    SessionCreate,
+    SessionListResponse,
+    SessionResponse,
 )
+from src.auth import User, get_current_user
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import log_request
@@ -34,11 +40,14 @@ from src.core.validators import (
     validate_json_size,
 )
 from src.documents.models import Document
-from src.documents.store import DocumentVectorStore
+from src.documents.pinecone_store import PineconeVectorStore
 from src.graph.state import create_initial_state
 from src.tools.registry import ToolRegistry
 
 router = APIRouter()
+
+# In-memory session storage (TODO: Replace with Supabase DB)
+_sessions: dict[str, dict] = {}
 
 
 def get_message_content(msg) -> str:
@@ -77,7 +86,7 @@ async def chat(
         )
         raise HTTPException(
             status_code=400,
-            detail="Your request contains potentially malicious content and cannot be processed."
+            detail="Your request contains potentially malicious content and cannot be processed.",
         )
 
     # Security: Sanitize input for LLM
@@ -159,9 +168,14 @@ async def chat_stream(
             status="blocked",
             error=f"Prompt injection detected: {injection['type']}",
         )
+
         # Return error as SSE event
         async def error_generator():
-            yield {"event": "error", "data": json.dumps({"error": "Request contains potentially malicious content"})}
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": "Request contains potentially malicious content"}),
+            }
+
         return EventSourceResponse(error_generator())
 
     # Security: Sanitize input for LLM
@@ -285,9 +299,7 @@ async def upload_document(
         )
 
     try:
-        await retriever.add_documents(
-            [{"content": request.content, "metadata": request.metadata}]
-        )
+        await retriever.add_documents([{"content": request.content, "metadata": request.metadata}])
         return DocumentUploadResponse(
             status="indexed",
             message="Document successfully added to knowledge base",
@@ -308,6 +320,122 @@ async def clear_session(
         return {"status": "cleared", "session_id": session_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# === Session Management Endpoints ===
+
+
+@router.post("/sessions", response_model=SessionResponse)
+async def create_session(
+    request: SessionCreate,
+    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+) -> SessionResponse:
+    """Create a new session for the authenticated user."""
+    session_id = str(uuid4())
+    now = datetime.utcnow()
+
+    session = {
+        "id": session_id,
+        "user_id": user.id,
+        "title": request.title,
+        "created_at": now,
+        "updated_at": now,
+        "metadata": request.metadata,
+    }
+
+    # Store in memory (TODO: Replace with Supabase DB)
+    _sessions[session_id] = session
+
+    return SessionResponse(
+        id=session_id,
+        user_id=user.id,
+        title=request.title,
+        created_at=now,
+        updated_at=now,
+        metadata=request.metadata,
+    )
+
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def list_sessions(
+    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+) -> SessionListResponse:
+    """List all sessions for the authenticated user."""
+    user_sessions = [
+        SessionResponse(
+            id=s["id"],
+            user_id=s["user_id"],
+            title=s["title"],
+            created_at=s["created_at"],
+            updated_at=s["updated_at"],
+            metadata=s.get("metadata", {}),
+        )
+        for s in _sessions.values()
+        if s["user_id"] == user.id
+    ]
+
+    # Sort by created_at descending
+    user_sessions.sort(key=lambda x: x.created_at, reverse=True)
+
+    return SessionListResponse(sessions=user_sessions)
+
+
+@router.delete("/sessions/{session_id}/full")
+@inject
+async def delete_session(
+    session_id: str,
+    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+):
+    """Delete a session and all its associated documents.
+
+    This will:
+    1. Delete all document vectors from Pinecone for this session
+    2. Remove the session from storage (documents cascade deleted)
+    """
+    # Check if session exists and belongs to user
+    session = _sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session["user_id"] != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this session")
+
+    try:
+        # 1. Delete vectors from Pinecone
+        if vector_store:
+            deleted_count = await vector_store.delete_session_documents(user.id, session_id)
+            log_request(
+                method="DELETE",
+                path=f"/api/v1/sessions/{session_id}/full",
+                session_id=session_id,
+                user_message=f"Deleted {deleted_count} vectors from Pinecone",
+                duration_ms=0,
+                status="success",
+            )
+
+        # 2. Delete session from storage (TODO: Replace with Supabase cascade delete)
+        del _sessions[session_id]
+
+        return {
+            "status": "deleted",
+            "session_id": session_id,
+            "message": "Session and associated documents deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_request(
+            method="DELETE",
+            path=f"/api/v1/sessions/{session_id}/full",
+            session_id=session_id,
+            user_message="Failed to delete session",
+            duration_ms=0,
+            status="error",
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to delete session: {e}") from e
 
 
 # === Logs Endpoints ===
@@ -347,11 +475,13 @@ async def list_log_files():
     if LOG_DIR.exists():
         for f in LOG_DIR.glob("*.log"):
             stat = f.stat()
-            log_files.append({
-                "name": f.name,
-                "size_bytes": stat.st_size,
-                "modified": f.stat().st_mtime,
-            })
+            log_files.append(
+                {
+                    "name": f.name,
+                    "size_bytes": stat.st_size,
+                    "modified": f.stat().st_mtime,
+                }
+            )
 
     return {
         "log_dir": str(LOG_DIR),
@@ -397,7 +527,9 @@ async def clear_logs(
 async def upload_file(
     file: UploadFile = File(...),  # noqa: B008
     metadata: str = Form(default="{}"),  # JSON string  # noqa: B008
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    session_id: str = Form(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+    doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     parser: DocumentParser = Depends(Provide[DIContainer.document_parser]),  # noqa: B008
     chunker: DocumentChunker = Depends(Provide[DIContainer.document_chunker]),  # noqa: B008
 ) -> FileUploadResponse:
@@ -405,13 +537,20 @@ async def upload_file(
 
     Supports PDF, DOCX, TXT, MD, CSV, and JSON files.
     The file is parsed, chunked, and stored in the vector database.
+
+    Requires authentication and a valid session_id.
     """
     # Check if document store is available
     if not doc_store:
         raise HTTPException(
             status_code=400,
-            detail="Document store is not configured. Set up ChromaDB first.",
+            detail="Document store is not configured. Set up Pinecone first.",
         )
+
+    # Verify session exists and belongs to user
+    session = _sessions.get(session_id)
+    if not session or session["user_id"] != user.id:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
 
     # Validate metadata JSON size first (prevent DoS)
     is_valid, error = validate_json_size(metadata, max_size_kb=10)
@@ -496,8 +635,8 @@ async def upload_file(
             metadata=meta_dict,
         )
 
-        # Store in vector database
-        await doc_store.add_document(doc)
+        # Store in vector database with user/session isolation
+        await doc_store.add_document(doc, user_id=user.id, session_id=session_id)
 
         return FileUploadResponse(
             document_id=doc.id,
@@ -519,6 +658,7 @@ async def upload_file(
 def _get_file_extension(filename: str) -> str:
     """Get file extension from filename."""
     import os
+
     _, ext = os.path.splitext(filename.lower())
     return ext.lstrip(".")
 
@@ -526,18 +666,19 @@ def _get_file_extension(filename: str) -> str:
 @router.get("/documents", response_model=DocumentListResponse)
 @inject
 async def list_documents(
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+    doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentListResponse:
-    """List all uploaded documents."""
+    """List all uploaded documents for the authenticated user."""
     if not doc_store:
         return DocumentListResponse(documents=[])
 
     try:
-        doc_ids = await doc_store.list_documents()
+        doc_ids = await doc_store.list_documents(user_id=user.id)
 
         documents = []
         for doc_id in doc_ids:
-            stats = await doc_store.get_document_stats(doc_id)
+            stats = await doc_store.get_document_stats(doc_id, user_id=user.id)
             if stats:
                 documents.append(
                     DocumentInfo(
@@ -559,9 +700,13 @@ async def list_documents(
 @inject
 async def delete_document(
     document_id: str,
-    doc_store: DocumentVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+    doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentDeleteResponse:
-    """Delete a document and all its chunks."""
+    """Delete a document and all its chunks.
+
+    Verifies that the user owns the document before deletion.
+    """
     if not doc_store:
         raise HTTPException(
             status_code=400,
@@ -569,9 +714,15 @@ async def delete_document(
         )
 
     try:
-        success = await doc_store.delete_document(document_id)
-        if not success:
+        # Check if document exists and belongs to user
+        stats = await doc_store.get_document_stats(document_id, user_id=user.id)
+        if not stats:
             raise HTTPException(status_code=404, detail="Document not found")
+
+        # Delete with user isolation
+        deleted_count = await doc_store.delete_document(document_id, user_id=user.id)
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Document not found or not authorized")
 
         return DocumentDeleteResponse(
             document_id=document_id,

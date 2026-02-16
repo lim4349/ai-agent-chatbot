@@ -110,7 +110,9 @@ class AppConfig(BaseSettings):
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
 
-    model_config = SettingsConfigDict(env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 @lru_cache
