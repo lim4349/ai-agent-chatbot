@@ -5,8 +5,6 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  pull_request:
-    types: [opened, synchronize]
 
 permissions:
   contents: write
@@ -19,24 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request')
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
 
     steps:
-      - name: Get PR info
-        id: pr-info
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
-          HEAD_REF=$(gh pr view $PR_NUMBER --json headRefName -q '.headRefName')
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
-
-      - name: Checkout PR branch
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -45,9 +31,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=${{ steps.pr-info.outputs.pr_number }}
-          COMMENT="${{ github.event.comment.body }}"
+          # Get PR number from issue_comment or pull_request_review_comment
+          if [ "${{ github.event_name }}" == "issue_comment" ]; then
+            PR_NUMBER=${{ github.event.issue.number }}
+          else
+            PR_NUMBER=${{ github.event.pull_request.number }}
+          fi
 
+          COMMENT="${{ github.event.comment.body }}"
           REQUEST="${COMMENT//@claude/}"
           REQUEST="${REQUEST#"${REQUEST%%[![:space:]]*}"}"
 
@@ -62,8 +53,10 @@ jobs:
             echo "REQEOF"
           } >> $GITHUB_OUTPUT
 
+          # Get PR diff
           gh pr diff $PR_NUMBER > pr_diff.txt 2>/dev/null || echo "Could not fetch diff"
 
+          # Get PR title
           PR_TITLE=$(gh pr view $PR_NUMBER --json title -q '.title')
           echo "pr_title<<TITLEEOF" >> $GITHUB_OUTPUT
           echo "$PR_TITLE" >> $GITHUB_OUTPUT
