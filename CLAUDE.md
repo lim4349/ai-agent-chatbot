@@ -130,6 +130,47 @@ feature/* → dev → main
 - `dev`: 개발 브랜치
 - `feature/*`: 기능 브랜치
 
+### 5. ⚠️ 필수 규칙
+
+**Git Push 전 로컬 테스트 필수**:
+```bash
+# 백엔드 (가상환경에서)
+cd backend
+source .venv/bin/activate
+ruff check src/                    # 린트 체크
+python -c "from src.xxx import yyy" # import 테스트
+
+# 프론트엔드
+cd frontend
+npm run build                      # 빌드 테스트
+```
+
+**PR Review 피드백은 CLAUDE.md에 추가**:
+- 새로운 에러 패턴 발견 시 이 문서에 기록
+- 코드 컨벤션/패턴 학습 내용 추가
+
+---
+
+## 학습한 내용 (Lessons Learned)
+
+### 2026-02-16
+
+1. **Protocol 반환 타입 일치**
+   - 구현체의 반환 타입을 변경하면 Protocol도 함께 수정해야 함
+   - `dict` → `dict | None` 변경 시 `protocols.py`도 업데이트
+
+2. **validate_file_upload 반환값**
+   - 반환하는 metadata에는 `detected_type` 키 사용 (not `extension`)
+   - `file_metadata.get("detected_type")`로 접근
+
+3. **asyncio.to_thread 사용**
+   - 동기 SDK 호출은 이벤트 루프 차단 가능
+   - Pinecone SDK: `await asyncio.to_thread(client.inference.embed, ...)`
+
+4. **문서 업로드 UX**
+   - 상태 확인 후 모달 닫기: `uploadStatus === 'completed'` 체크
+   - 에러 시 모달 유지 필요
+
 ---
 
 ## 핵심 패턴
