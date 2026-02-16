@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Bot, User, Copy, Check } from 'lucide-react';
 import type { Message } from '@/types';
@@ -15,12 +15,24 @@ interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
   previousAgent?: string;
+  onHeightChange?: (height: number) => void;
 }
 
-export function MessageBubble({ message, isStreaming, previousAgent }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, previousAgent, onHeightChange }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const { t } = useTranslation();
+  const elementRef = useRef<HTMLDivElement>(null);
+
+  // Measure height and report to parent for react-window
+  useEffect(() => {
+    if (elementRef.current && onHeightChange) {
+      const height = elementRef.current.offsetHeight;
+      if (height > 0) {
+        onHeightChange(height);
+      }
+    }
+  }, [elementRef, message.content, onHeightChange]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -30,6 +42,7 @@ export function MessageBubble({ message, isStreaming, previousAgent }: MessageBu
 
   return (
     <div
+      ref={elementRef}
       className={cn(
         'group relative flex gap-3 px-4 py-3 transition-colors hover:bg-muted/20',
         isUser ? 'flex-row-reverse' : 'flex-row'

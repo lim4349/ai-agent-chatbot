@@ -6,7 +6,7 @@ from dependency_injector.wiring import Provide, inject
 from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Summarizer, TopicMemory, UserProfiler
 from src.graph.state import AgentState
@@ -43,12 +43,12 @@ class ChatAgent(BaseAgent):
     @inject
     def __init__(
         self,
-        llm: LLMProvider = Provide[Container.llm],
-        memory: MemoryStore = Provide[Container.memory],
-        long_term_memory: LongTermMemory | None = Provide[Container.long_term_memory],
-        user_profiler: UserProfiler | None = Provide[Container.user_profiler],
-        topic_memory: TopicMemory | None = Provide[Container.topic_memory],
-        summarizer: Summarizer | None = Provide[Container.summarizer],
+        llm: LLMProvider = Provide[DIContainer.llm],
+        memory: MemoryStore = Provide[DIContainer.memory],
+        long_term_memory: LongTermMemory | None = Provide[DIContainer.long_term_memory],
+        user_profiler: UserProfiler | None = Provide[DIContainer.user_profiler],
+        topic_memory: TopicMemory | None = Provide[DIContainer.topic_memory],
+        summarizer: Summarizer | None = Provide[DIContainer.summarizer],
     ):
         super().__init__(llm)
         self.memory = memory

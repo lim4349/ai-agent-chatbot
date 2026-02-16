@@ -30,6 +30,7 @@ dependencies = [
     # Memory & Storage
     "redis>=5.0",
     "pinecone>=6.0",  # Vector DB for RAG
+    "supabase>=2.0",  # Session storage (optional)
 
     # Tools
     "tavily-python>=0.5",

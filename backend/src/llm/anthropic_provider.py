@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from langchain_anthropic import ChatAnthropic
 
 from src.core.config import LLMConfig
+from src.core.di_container import container
 from src.llm.factory import LLMFactory
 
 
@@ -27,10 +28,29 @@ class AnthropicProvider:
         if config.base_url:
             client_kwargs["anthropic_api_url"] = config.base_url
         self.client = ChatAnthropic(**client_kwargs)
+        self._cache = container.llm_cache()
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
+        # Check cache first
+        cached = await self._cache.get(
+            messages=messages,
+            model=self.config.model,
+            temperature=self.config.temperature,
+        )
+        if cached is not None:
+            return cached
+
         response = await self.client.ainvoke(messages, **kwargs)
+
+        # Cache the response
+        await self._cache.set(
+            messages=messages,
+            model=self.config.model,
+            temperature=self.config.temperature,
+            response=response.content,
+        )
+
         return response.content
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:

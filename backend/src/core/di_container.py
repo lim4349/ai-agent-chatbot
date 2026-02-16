@@ -63,18 +63,19 @@ def _create_retriever(vector_store, config):
 
 
 def _create_long_term_memory(config):
-    """Create long-term memory."""
+    """Create long-term memory with Supabase or in-memory fallback."""
     from src.memory.long_term_memory import LongTermMemory
 
     if config.memory.backend == "in_memory" and not config.debug:
         return None
 
-    persist_dir = None
-    if config.memory.backend == "redis":
-        persist_dir = "/data/chroma_db"
+    # Use Supabase for session storage as long-term memory backend
+    supabase_url = config.session.supabase_url
+    supabase_key = config.session.supabase_key
 
     return LongTermMemory(
-        persist_directory=persist_dir,
+        supabase_url=supabase_url,
+        supabase_key=supabase_key,
         anonymize=not config.debug,
     )
 
@@ -162,6 +163,48 @@ def _create_graph(container):
     from src.graph.builder import build_graph
 
     return build_graph(container)
+
+
+def _create_llm_cache(config):
+    """Create LLM cache."""
+    from src.core.llm_cache import LLMCache
+
+    if not config.llm.cache_enabled:
+        return LLMCache(
+            redis_url=config.memory.redis_url,
+            ttl_seconds=config.llm.cache_ttl_seconds,
+            enabled=False,
+        )
+
+    return LLMCache(
+        redis_url=config.memory.redis_url,
+        ttl_seconds=config.llm.cache_ttl_seconds,
+        enabled=config.llm.cache_enabled,
+    )
+
+
+def _create_session_store(config):
+    """Create session store with graceful fallback.
+
+    Returns SupabaseSessionStore if configured, otherwise InMemorySessionStore.
+    """
+    from src.session.store import InMemorySessionStore, SupabaseSessionStore
+
+    if (
+        config.session.resolved_backend == "supabase"
+        and config.session.supabase_url
+        and config.session.supabase_key
+    ):
+        store = SupabaseSessionStore(
+            supabase_url=config.session.supabase_url,
+            supabase_key=config.session.supabase_key,
+            table_name=config.session.sessions_table,
+        )
+        if store.is_available:
+            return store
+
+    # Fallback to in-memory
+    return InMemorySessionStore()
 
 
 def _create_graph_factory():
@@ -266,6 +309,18 @@ class DIContainer(containers.DeclarativeContainer):
 
     # Graph - built lazily with container reference
     graph = providers.Singleton(_create_graph_factory)
+
+    # LLM Cache
+    llm_cache = providers.Singleton(
+        _create_llm_cache,
+        config=config,
+    )
+
+    # Session Store
+    session_store = providers.Singleton(
+        _create_session_store,
+        config=config,
+    )
 
 
 # Global container instance

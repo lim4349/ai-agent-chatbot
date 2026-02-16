@@ -8,7 +8,7 @@ from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, Field
 
 from src.agents.base import BaseAgent
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, MemoryTool
 from src.graph.state import AgentState
@@ -81,10 +81,10 @@ class SupervisorAgent(BaseAgent):
     @inject
     def __init__(
         self,
-        llm: LLMProvider = Provide[Container.llm],
+        llm: LLMProvider = Provide[DIContainer.llm],
         available_agents: set[str] | None = None,
-        memory: MemoryStore = Provide[Container.memory],
-        memory_tool: MemoryTool | None = Provide[Container.memory_tool],
+        memory: MemoryStore = Provide[DIContainer.memory],
+        memory_tool: MemoryTool | None = Provide[DIContainer.memory_tool],
     ):
         """Initialize supervisor with LLM and available agents.
 

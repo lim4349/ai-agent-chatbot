@@ -1,5 +1,7 @@
 """Document retriever tool wrapper."""
 
+from typing import Any
+
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -11,10 +13,10 @@ class RetrieverTool:
     name = "retriever"
     description = "Retrieve relevant documents from the knowledge base"
 
-    def __init__(self, retriever):
+    def __init__(self, retriever: Any) -> None:
         self.retriever = retriever
 
-    async def execute(self, query: str, top_k: int = 3) -> list[dict]:
+    async def execute(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         """Retrieve relevant documents.
 
         Args:

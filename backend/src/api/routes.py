@@ -1,7 +1,6 @@
 """API routes for the chatbot."""
 
 import json
-import threading
 import time
 from datetime import datetime
 from typing import Annotated
@@ -29,11 +28,18 @@ from src.api.schemas import (
     SessionResponse,
 )
 from src.auth import User, get_current_user
+from src.auth.dependencies import CurrentUser
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import log_request
 from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
-from src.core.protocols import DocumentChunker, DocumentParser, DocumentRetriever, MemoryStore
+from src.core.protocols import (
+    DocumentChunker,
+    DocumentParser,
+    DocumentRetriever,
+    MemoryStore,
+    SessionStore,
+)
 from src.core.validators import (
     ValidationError,
     sanitize_metadata,
@@ -46,11 +52,6 @@ from src.graph.state import create_initial_state
 from src.tools.registry import ToolRegistry
 
 router = APIRouter()
-
-# In-memory session storage (TODO: Replace with Supabase DB)
-# Use threading.Lock for thread-safe access as temporary DoS mitigation
-_sessions: dict[str, dict] = {}
-_sessions_lock = threading.Lock()
 
 
 def get_message_content(msg) -> str:
@@ -66,6 +67,7 @@ def get_message_content(msg) -> str:
 @inject
 async def chat(
     request: ChatRequest,
+    user: CurrentUser,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
@@ -153,6 +155,7 @@ async def chat(
 @inject
 async def chat_stream(
     request: ChatRequest,
+    user: CurrentUser,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
@@ -293,7 +296,7 @@ async def upload_document(
 ) -> DocumentUploadResponse:
     """Upload a document for RAG.
 
-    Requires a configured retriever (ChromaDB).
+    Requires a configured retriever (Pinecone).
     """
     if not retriever:
         raise HTTPException(
@@ -329,58 +332,52 @@ async def clear_session(
 
 
 @router.post("/sessions", response_model=SessionResponse)
+@inject
 async def create_session(
     request: SessionCreate,
     user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> SessionResponse:
     """Create a new session for the authenticated user."""
     session_id = str(uuid4())
-    now = datetime.utcnow()
 
-    session = {
-        "id": session_id,
-        "user_id": user.id,
-        "title": request.title,
-        "created_at": now,
-        "updated_at": now,
-        "metadata": request.metadata,
-    }
-
-    # Store in memory (TODO: Replace with Supabase DB)
-    with _sessions_lock:
-        _sessions[session_id] = session
-
-    return SessionResponse(
-        id=session_id,
+    session = await session_store.create(
+        session_id=session_id,
         user_id=user.id,
         title=request.title,
-        created_at=now,
-        updated_at=now,
         metadata=request.metadata,
+    )
+
+    return SessionResponse(
+        id=session.id,
+        user_id=session.user_id,
+        title=session.title,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        metadata=session.metadata,
     )
 
 
 @router.get("/sessions", response_model=SessionListResponse)
+@inject
 async def list_sessions(
     user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> SessionListResponse:
     """List all sessions for the authenticated user."""
-    with _sessions_lock:
-        user_sessions = [
-            SessionResponse(
-                id=s["id"],
-                user_id=s["user_id"],
-                title=s["title"],
-                created_at=s["created_at"],
-                updated_at=s["updated_at"],
-                metadata=s.get("metadata", {}),
-            )
-            for s in _sessions.values()
-            if s["user_id"] == user.id
-        ]
+    sessions = await session_store.list_by_user(user.id)
 
-    # Sort by created_at descending
-    user_sessions.sort(key=lambda x: x.created_at, reverse=True)
+    user_sessions = [
+        SessionResponse(
+            id=s.id,
+            user_id=s.user_id,
+            title=s.title,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            metadata=s.metadata,
+        )
+        for s in sessions
+    ]
 
     return SessionListResponse(sessions=user_sessions)
 
@@ -390,6 +387,7 @@ async def list_sessions(
 async def delete_session(
     session_id: str,
     user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ):
     """Delete a session and all its associated documents.
@@ -399,13 +397,12 @@ async def delete_session(
     2. Remove the session from storage (documents cascade deleted)
     """
     # Check if session exists and belongs to user
-    with _sessions_lock:
-        session = _sessions.get(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+    session = await session_store.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
 
-        if session["user_id"] != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this session")
+    if session.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this session")
 
     try:
         # 1. Delete vectors from Pinecone
@@ -420,9 +417,8 @@ async def delete_session(
                 status="success",
             )
 
-        # 2. Delete session from storage (TODO: Replace with Supabase cascade delete)
-        with _sessions_lock:
-            _sessions.pop(session_id, None)
+        # 2. Delete session from storage
+        await session_store.delete(session_id)
 
         return {
             "status": "deleted",
@@ -536,6 +532,7 @@ async def upload_file(
     metadata: str = Form(default="{}"),  # JSON string  # noqa: B008
     session_id: str = Form(...),  # noqa: B008
     user: User = Depends(get_current_user),  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     parser: DocumentParser = Depends(Provide[DIContainer.document_parser]),  # noqa: B008
     chunker: DocumentChunker = Depends(Provide[DIContainer.document_chunker]),  # noqa: B008
@@ -555,12 +552,11 @@ async def upload_file(
         )
 
     # Verify session exists and belongs to user
-    with _sessions_lock:
-        session = _sessions.get(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session["user_id"] != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized to access this session")
+    session = await session_store.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     # Validate metadata JSON size first (prevent DoS)
     is_valid, error = validate_json_size(metadata, max_size_kb=10)

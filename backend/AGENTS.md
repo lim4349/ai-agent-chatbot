@@ -19,8 +19,9 @@ FastAPI 기반의 AI 챗봇 백엔드. LangGraph 멀티 에이전트 아키텍�
 | **AI/LLM** | LangGraph | 0.2+ | 멀티 에이전트 오케스트레이션 |
 | **LLM Integration** | LangChain | 0.3+ | OpenAI/Anthropic/Ollama 통합 |
 | **Validation** | Pydantic | 2.0+ | 데이터 검증 및 설정 관리 |
-| **Vector DB** | ChromaDB | 0.5+ | RAG 및 장기 메모리 저장소 |
-| **Session Store** | Redis | 5.0+ | 분산 세션 메모리 (선택) |
+| **Vector DB** | Pinecone | - | RAG 문서 검색 |
+| **Session Store** | Redis | 5.0+ | 분산 세션 메모리 |
+| **Auth/DB** | Supabase | 2.0+ | 인증 + 세션 DB + 장기 메모리 |
 | **Logging** | structlog | 24.0+ | 구조화된 JSON 로깅 |
 | **Testing** | pytest | 8.0+ | 비동기 테스트 지원 |
 | **Linting** | ruff | 0.7+ | 고성능 Python 린터 |
@@ -60,7 +61,7 @@ backend/
 │   │   ├── parser.py        # PDF/DOCX/TXT 파싱
 │   │   ├── chunker.py       # 구조 인식 청킹
 │   │   ├── embeddings.py    # OpenAI 임베딩 생성
-│   │   ├── store.py         # ChromaDB 벡터 저장소
+│   │   ├── pinecone_store.py   # Pinecone 벡터 저장소
 │   │   ├── retriever_impl.py    # DocumentRetriever 구현
 │   │   └── factory.py       # DocumentProcessorFactory
 │   │
@@ -78,9 +79,9 @@ backend/
 │   │
 │   ├── memory/              # 메모리 관리
 │   │   ├── base.py          # MemoryStore Protocol
-│   │   ├── in_memory_store.py
-│   │   ├── redis_store.py
-│   │   ├── long_term_memory.py  # ChromaDB 기반 장기 메모리
+│   │   ├── in_memory_store.py   # 개발용 인메모리
+│   │   ├── redis_store.py       # 프로덕션 Redis
+│   │   ├── long_term_memory.py  # Supabase 기반 장기 메모리
 │   │   └── factory.py       # MemoryStoreFactory
 │   │
 │   ├── tools/               # 에이전트 도구
@@ -518,4 +519,4 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 ---
 
 *Backend AGENTS.md*
-*마지막 업데이트: 2026-02-15*
+*마지막 업데이트: 2026-02-17*
