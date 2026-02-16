@@ -2,8 +2,8 @@ name: Cleanup Vercel Deployments
 
 on:
   schedule:
-    # Run daily at 00:00 UTC
-    - cron: '0 0 * * *'
+    # Run daily at 00:00 KST (15:00 UTC)
+    - cron: '0 15 * * *'
   workflow_dispatch: # Manual trigger
 
 permissions:
@@ -19,20 +19,25 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: prj_kZdPkl54vpyF1Ve0nBzoYOnmEh46
         run: |
-          # Get all deployments
+          # Get all deployments sorted by creation time (newest first)
           DEPLOYMENTS=$(curl -s "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&limit=100" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r ".deployments | sort_by(.created) | reverse")
+            -H "Authorization: Bearer $VERCEL_TOKEN")
 
-          # Get the latest production deployment ID
-          LATEST=$(echo "$DEPLOYMENTS" | jq -r '.[0].uid')
-          TOTAL=$(echo "$DEPLOYMENTS" | jq 'length')
-
+          TOTAL=$(echo "$DEPLOYMENTS" | jq '.deployments | length')
           echo "Total deployments: $TOTAL"
+
+          if [ "$TOTAL" -le 1 ]; then
+            echo "Only 1 or 0 deployments, nothing to clean up."
+            exit 0
+          fi
+
+          # Get the latest deployment ID (first in the list - already sorted by Vercel)
+          LATEST=$(echo "$DEPLOYMENTS" | jq -r '.deployments[0].uid')
           echo "Keeping latest: $LATEST"
 
           # Delete all except the latest
-          echo "$DEPLOYMENTS" | jq -r '.[1:][].uid' | while read dep; do
-            if [ -n "$dep" ]; then
+          echo "$DEPLOYMENTS" | jq -r '.deployments[1:][].uid' | while read dep; do
+            if [ -n "$dep" ] && [ "$dep" != "null" ]; then
               echo "Deleting $dep..."
               curl -s -X DELETE "https://api.vercel.com/v13/deployments/$dep" \
                 -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r '.state // .error.message // "done"'
