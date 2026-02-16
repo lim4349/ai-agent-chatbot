@@ -146,6 +146,7 @@ npm test
 - ❌ dev에 직접 commit/push 금지
 - ❌ main에 직접 commit/push 금지
 - ❌ feat 브랜치 없이 작업 금지
+- ❌ PR 생성 후 사용자 승인 없이 merge 금지 (반드시 사용자의 최종 승인 후 merge 진행)
 
 **올바른 예시**:
 ```bash

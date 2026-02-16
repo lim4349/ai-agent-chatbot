@@ -21,9 +21,20 @@ jobs:
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
 
     steps:
-      - name: Checkout repository
+      - name: Get PR info
+        id: pr-info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          HEAD_REF=$(gh pr view $PR_NUMBER --json headRefName -q '.headRefName')
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -32,7 +43,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          PR_NUMBER=${{ steps.pr-info.outputs.pr_number }}
           COMMENT="${{ github.event.comment.body }}"
 
           # Remove @claude from comment to get the actual request
@@ -124,9 +135,18 @@ jobs:
           fi
           echo "$content" > response.md
 
-          # Check if we should update CLAUDE.md
-          if echo "$REQUEST" | grep -qi "update.*claude.md\|lessons\|learn"; then
+          # Update CLAUDE.md only when explicitly requested
+          # Usage: @claude update claude.md OR @claude 이 내용을 기억해
+          if echo "$REQUEST" | grep -qi "update.*claude.md\|기억\|learn\|save\|저장"; then
             echo "should_update_claude_md=true" >> $GITHUB_OUTPUT
+            # Prepare content for CLAUDE.md
+            DATE=$(date +%Y-%m-%d)
+            cat > claude_md_update.txt << UPDATEEOF
+
+### $DATE (PR #$PR_NUMBER)
+
+$content
+UPDATEEOF
           else
             echo "should_update_claude_md=false" >> $GITHUB_OUTPUT
           fi
@@ -153,10 +173,22 @@ jobs:
           git config user.name "Claude Code[bot]"
           git config user.email "claude-code[bot]@anthropic.com"
 
-          # Append to CLAUDE.md
-          echo "" >> CLAUDE.md
-          cat response.md >> CLAUDE.md
+          # Check if Lessons Learned section exists in CLAUDE.md
+          if grep -q "## 학습한 내용" CLAUDE.md; then
+            # Append to existing section
+            cat claude_md_update.txt >> CLAUDE.md
+          else
+            # Create new section
+            cat >> CLAUDE.md << EOF
+
+---
+
+## 학습한 내용 (Lessons Learned)
+
+$(cat claude_md_update.txt)
+EOF
+          fi
 
           git add CLAUDE.md
-          git commit -m "claude: Add lessons learned from PR [skip ci]"
+          git commit -m "docs: Add Claude review insights to CLAUDE.md [skip ci]"
           git push
