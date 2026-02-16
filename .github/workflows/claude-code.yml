@@ -124,9 +124,9 @@ jobs:
           fi
           echo "$content" > response.md
 
-          # Always prepare CLAUDE.md update with lessons learned
-          # Extract lessons learned section from response
-          if echo "$content" | grep -qi "개선\|제안\|lesson\|learn\|주의\|팁\|tip"; then
+          # Update CLAUDE.md only when explicitly requested
+          # Usage: @claude update claude.md OR @claude 이 내용을 기억해
+          if echo "$REQUEST" | grep -qi "update.*claude.md\|기억\|learn\|save\|저장"; then
             echo "should_update_claude_md=true" >> $GITHUB_OUTPUT
             # Prepare content for CLAUDE.md
             DATE=$(date +%Y-%m-%d)
