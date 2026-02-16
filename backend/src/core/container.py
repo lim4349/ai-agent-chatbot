@@ -83,11 +83,22 @@ class Container:
 
     @cached_property
     def embedding_generator(self):
-        """Get embedding generator instance."""
-        embedding_generator_cls = _get_embedding_generator()
-        return embedding_generator_cls(
-            model=self.config.rag.embedding_model,
-            api_key=self.config.llm.openai_api_key,
+        """Get embedding generator instance based on provider configuration."""
+        from src.documents.embeddings import create_embedding_generator
+
+        provider = self.config.rag.embedding_provider
+        model = self.config.rag.embedding_model
+
+        # Determine API key based on provider
+        if provider == "pinecone":
+            api_key = self.config.rag.pinecone_api_key
+        else:
+            api_key = self.config.llm.openai_api_key
+
+        return create_embedding_generator(
+            provider=provider,
+            model=model,
+            api_key=api_key,
         )
 
     @cached_property

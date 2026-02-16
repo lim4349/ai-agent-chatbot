@@ -283,8 +283,9 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
 
             for attempt in range(MAX_RETRIES):
                 try:
-                    # Use Pinecone Inference API
-                    response = client.inference.embed(
+                    # Use asyncio.to_thread to avoid blocking event loop
+                    response = await asyncio.to_thread(
+                        client.inference.embed,
                         model=self.model,
                         inputs=batch,
                         parameters={"input_type": "passage", "truncate": "END"}
@@ -340,7 +341,9 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
 
         for attempt in range(MAX_RETRIES):
             try:
-                response = client.inference.embed(
+                # Use asyncio.to_thread to avoid blocking event loop
+                response = await asyncio.to_thread(
+                    client.inference.embed,
                     model=self.model,
                     inputs=[query],
                     parameters={"input_type": "query", "truncate": "END"}
