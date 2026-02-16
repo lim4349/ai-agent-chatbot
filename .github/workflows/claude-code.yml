@@ -13,9 +13,9 @@ permissions:
 
 jobs:
   claude-assistant:
-    name: Claude Code
+    name: Claude Code (GLM-5)
     runs-on: ubuntu-latest
-    # Only trigger when comment contains @claude
+    # Trigger on @claude mention
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
@@ -27,49 +27,112 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure Git
+      - name: Get PR context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMENT="${{ github.event.comment.body }}"
+
+          # Remove @claude from comment to get the actual request
+          REQUEST="${COMMENT//@claude/}"
+          REQUEST="${REQUEST#"${REQUEST%%[![:space:]]*}"}"  # trim leading whitespace
+
+          # If empty, default to "review this PR"
+          if [ -z "$REQUEST" ]; then
+            REQUEST="review this PR and suggest improvements"
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "request=$REQUEST" >> $GITHUB_OUTPUT
+
+          # Get PR diff
+          gh pr diff $PR_NUMBER > pr_diff.txt 2>/dev/null || echo "Could not fetch diff"
+
+          # Get PR info
+          PR_TITLE=$(gh pr view $PR_NUMBER --json title -q '.title')
+          echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT
+
+      - name: Run GLM-5 Assistant
+        id: glm
+        env:
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+          PR_TITLE: ${{ steps.context.outputs.pr_title }}
+          REQUEST: ${{ steps.context.outputs.request }}
+        run: |
+          # Read diff (limit size)
+          DIFF=$(cat pr_diff.txt 2>/dev/null | head -300 | cut -c1-6000)
+
+          # Determine action based on request
+          if echo "$REQUEST" | grep -qi "update.*claude.md\|lessons\|learn"; then
+            PROMPT="다음 PR에서 배운 점을 CLAUDE.md에 추가할 수 있는 형식으로 정리해주세요.\n\nPR 제목: $PR_TITLE\n\n코드 변경사항:\n\`\`\`diff\n$DIFF\n\`\`\`\n\n출력 형식:\n\`\`\`markdown\n### YYYY-MM-DD\n\n**$PR_TITLE** (#$PR_NUMBER)\n- 배운 점 1\n- 배운 점 2\n- 주의사항\n\`\`\`"
+          else
+            PROMPT="다음 요청을 처리해주세요: $REQUEST\n\nPR 제목: $PR_TITLE\n\n코드 변경사항:\n\`\`\`diff\n$DIFF\n\`\`\`\n\n한국어로 답변하고, 구체적인 개선 제안을 포함해주세요."
+          fi
+
+          # Create JSON payload
+          payload=$(cat <<JSONEOF
+          {
+            "model": "glm-5",
+            "max_tokens": 4000,
+            "messages": [
+              {
+                "role": "user",
+                "content": "$PROMPT"
+              }
+            ]
+          }
+          JSONEOF
+          )
+
+          # Call GLM API
+          response=$(curl -s -X POST "https://api.z.ai/api/anthropic/v1/messages" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GLM_API_KEY" \
+            -d "$payload" 2>&1)
+
+          echo "API Response:"
+          echo "$response"
+
+          # Extract content
+          content=$(echo "$response" | jq -r '.content[0].text // "Error: No response"')
+          echo "$content" > response.md
+
+          # Check if we should update CLAUDE.md
+          if echo "$REQUEST" | grep -qi "update.*claude.md\|lessons\|learn"; then
+            echo "should_update_claude_md=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_update_claude_md=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post response
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        run: |
+          echo "## 🤖 Claude (GLM-5)" > comment.md
+          echo "" >> comment.md
+          cat response.md >> comment.md
+          echo "" >> comment.md
+          echo "---" >> comment.md
+          echo "*Triggered by \`@claude\` • Powered by GLM-5*" >> comment.md
+
+          gh pr comment $PR_NUMBER --body-file comment.md
+
+      - name: Update CLAUDE.md if requested
+        if: steps.glm.outputs.should_update_claude_md == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "Claude Code[bot]"
           git config user.email "claude-code[bot]@anthropic.com"
 
-      - name: Run Claude Code
-        uses: anthropics/claude-code-base-action@v1
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        with:
-          prompt: |
-            You are Claude Code, an AI assistant integrated into this GitHub repository.
+          # Append to CLAUDE.md
+          echo "" >> CLAUDE.md
+          cat response.md >> CLAUDE.md
 
-            A user mentioned @claude in a PR comment. Please help with their request.
-
-            Context:
-            - PR #${{ github.event.issue.number || github.event.pull_request.number }}
-            - Comment: "${{ github.event.comment.body }}"
-            - Author: ${{ github.event.comment.user.login }}
-
-            Common tasks:
-            1. **Code Review**: Review the PR changes and provide feedback
-            2. **Update CLAUDE.md**: If asked to "update claude.md with lessons", extract learnings and append to CLAUDE.md
-            3. **Fix Issues**: If asked to fix something, create a commit with the fix
-            4. **Answer Questions**: Provide detailed answers about the codebase
-
-            For CLAUDE.md updates, use this format:
-            ```markdown
-            ### YYYY-MM-DD
-
-            **[PR Title]** (#PR_NUMBER)
-            - Lesson 1
-            - Lesson 2
-            ```
-
-            Always commit changes with: "claude: [description] [skip ci]"
-          allowed_tools: "Read,Edit,Write,Bash,Glob,Grep"
-
-      - name: Push changes
-        if: success()
-        run: |
-          if git diff --quiet; then
-            echo "No changes to commit"
-          else
-            git push
-          fi
+          git add CLAUDE.md
+          git commit -m "claude: Add lessons learned from PR [skip ci]"
+          git push
