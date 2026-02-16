@@ -549,8 +549,10 @@ async def upload_file(
 
     # Verify session exists and belongs to user
     session = _sessions.get(session_id)
-    if not session or session["user_id"] != user.id:
-        raise HTTPException(status_code=400, detail="Invalid session_id")
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["user_id"] != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     # Validate metadata JSON size first (prevent DoS)
     is_valid, error = validate_json_size(metadata, max_size_kb=10)
