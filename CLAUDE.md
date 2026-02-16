@@ -120,15 +120,51 @@ cd frontend
 npm test
 ```
 
-### 4. Git Workflow
+### 4. Git Workflow (필수 준수)
 
 ```
 feature/* → dev → main
 ```
 
+**브랜치 전략**:
 - `main`: 프로덕션 브랜치 (자동 배포)
-- `dev`: 개발 브랜치
-- `feature/*`: 기능 브랜치
+- `dev`: 개발 통합 브랜치
+- `feature/*`: 기능 개발 브랜치
+- `fix/*`: 버그 수정 브랜치
+- `docs/*`: 문서 수정 브랜치
+
+**⚠️ 필수 프로세스**:
+```
+1. feature/xxx 브랜치 생성
+2. 작업 완료 후 feature/xxx → dev PR 생성
+3. dev에서 테스트 & 리뷰 통과 후 merge
+4. dev → main PR 생성
+5. main merge 시 자동 배포
+```
+
+**금지 사항**:
+- ❌ dev에 직접 commit/push 금지
+- ❌ main에 직접 commit/push 금지
+- ❌ feature 브랜치 없이 작업 금지
+
+**올바른 예시**:
+```bash
+# 1. feature 브랜치 생성
+git checkout dev
+git pull origin dev
+git checkout -b feature/pinecone-embedding
+
+# 2. 작업 & 커밋
+git add .
+git commit -m "feat: Add Pinecone embedding support"
+
+# 3. 푸시 & PR (→ dev)
+git push origin feature/pinecone-embedding
+gh pr create --base dev --head feature/pinecone-embedding
+
+# 4. dev merge 후 main PR
+gh pr create --base main --head dev
+```
 
 ### 5. ⚠️ 필수 규칙
 
