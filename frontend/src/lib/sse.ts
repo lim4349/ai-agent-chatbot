@@ -54,10 +54,11 @@ export function streamChat(
             if (line.startsWith('event:')) {
               eventType = line.substring(6).trim();
             } else if (line.startsWith('data:')) {
-              // Don't trim - preserve spaces in token data
-              // SSE format is "data: value" - remove only the first space after colon
+              // SSE format is "data: value" - the spec says to remove exactly one space after colon
+              // But we need to preserve the actual data content including leading spaces
               const raw = line.substring(5);
-              eventData = raw.startsWith(' ') ? raw.substring(1) : raw;
+              // Only remove the single delimiter space, preserve any leading spaces in data
+              eventData = raw.length > 0 && raw[0] === ' ' ? raw.substring(1) : raw;
             }
           }
 
