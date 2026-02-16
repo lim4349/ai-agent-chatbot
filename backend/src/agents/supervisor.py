@@ -249,6 +249,11 @@ Consider the context of the conversation when making your decision."""
             output_schema=route_decision,
         )
 
+        # Handle None response from LLM (fallback to chat)
+        if not decision:
+            logger.warning("supervisor_llm_returned_none", session_id=session_id)
+            decision = {"selected_agent": "chat", "reasoning": "LLM response was empty, defaulting to chat"}
+
         # Store the routing exchange in memory if available
         if self.memory:
             last_msg = state["messages"][-1]
