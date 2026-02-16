@@ -42,8 +42,17 @@ def _create_vector_store(config, embedding_generator):
     return PineconeVectorStore(
         api_key=config.rag.pinecone_api_key,
         index_name=config.rag.pinecone_index_name,
-        namespace=config.rag.pinecone_namespace,
         embedding_generator=embedding_generator,
+    )
+
+
+def _create_supabase_client(config):
+    """Create Supabase auth client."""
+    from src.auth.supabase_client import SupabaseAuthClient
+
+    return SupabaseAuthClient(
+        supabase_url=config.supabase.url,
+        service_key=config.supabase.service_key,
     )
 
 
@@ -171,6 +180,12 @@ class DIContainer(containers.DeclarativeContainer):
 
     # Configuration provider
     config = providers.Singleton(get_config)
+
+    # Supabase Auth Client
+    supabase_client = providers.Singleton(
+        _create_supabase_client,
+        config=config,
+    )
 
     # LLM Provider
     llm = providers.Singleton(

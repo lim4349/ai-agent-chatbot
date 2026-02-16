@@ -94,6 +94,15 @@ class MCPConfig(BaseSettings):
             return []
 
 
+class SupabaseConfig(BaseSettings):
+    """Supabase authentication configuration."""
+
+    url: str | None = None
+    service_key: str | None = None
+
+    model_config = SettingsConfigDict(env_prefix="SUPABASE_")
+
+
 class AppConfig(BaseSettings):
     """Top-level application configuration."""
 
@@ -109,6 +118,7 @@ class AppConfig(BaseSettings):
     rag: RAGConfig = Field(default_factory=RAGConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
+    supabase: SupabaseConfig = Field(default_factory=SupabaseConfig)
 
     model_config = SettingsConfigDict(env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore")
 
