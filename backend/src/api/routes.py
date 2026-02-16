@@ -28,7 +28,6 @@ from src.api.schemas import (
     SessionResponse,
 )
 from src.auth import User, get_current_user
-from src.auth.dependencies import CurrentUser
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import log_request
