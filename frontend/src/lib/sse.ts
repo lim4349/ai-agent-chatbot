@@ -1,6 +1,16 @@
 import type { ChatRequest, SSECallbacks } from '@/types';
 import { API_BASE_URL, API_ENDPOINTS } from './constants';
 
+/**
+ * Fix spacing issues in streaming text
+ * Some LLMs (like GLM) may generate tokens without proper spacing after sentence endings
+ */
+function fixTokenSpacing(text: string): string {
+  // Add space after sentence-ending punctuation if followed by a letter
+  // Matches: period, exclamation, question mark (Korean/English) followed by a letter without space
+  return text.replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2');
+}
+
 export function streamChat(
   request: ChatRequest,
   callbacks: SSECallbacks

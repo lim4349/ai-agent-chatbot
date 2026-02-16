@@ -11,6 +11,17 @@ import DOMPurify from 'dompurify';
 import 'highlight.js/styles/github-dark.css';
 
 /**
+ * Fix spacing issues in LLM-generated text
+ * Some models (like GLM) may generate tokens without proper spacing after sentence endings
+ */
+function fixSentenceSpacing(text: string): string {
+  if (!text) return text;
+  // Add space after sentence-ending punctuation if followed by a letter
+  // Handles both English (.!?) and Korean (。！？) punctuation
+  return text.replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2');
+}
+
+/**
  * DOMPurify configuration for XSS protection
  * Allows safe HTML tags and attributes while blocking malicious content
  */
@@ -336,6 +347,9 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   // Only apply markdown formatting after streaming is complete
   // This avoids expensive re-renders on every token
 
+  // Fix spacing issues from LLM tokenization
+  const fixedContent = fixSentenceSpacing(content);
+
   if (isStreaming) {
     return (
       <div
@@ -345,7 +359,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           className
         )}
       >
-        <p className="mb-4 last:mb-0 leading-[1.8] whitespace-pre-wrap">{content}</p>
+        <p className="mb-4 last:mb-0 leading-[1.8] whitespace-pre-wrap">{fixedContent}</p>
       </div>
     );
   }
@@ -359,7 +373,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
         className
       )}
     >
-      <FinalizedBlock content={content} />
+      <FinalizedBlock content={fixedContent} />
     </div>
   );
 }
