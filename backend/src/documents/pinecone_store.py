@@ -337,7 +337,7 @@ class PineconeVectorStore:
         try:
             # First, query to get document count
             results = self._index.query(
-                vector=[0.0] * 1536,
+                vector=[0.0] * 1024,
                 top_k=1000,
                 namespace=namespace,
                 filter={"session_id": {"$eq": session_id}},
@@ -393,7 +393,7 @@ class PineconeVectorStore:
             # Query with filter to get all chunks
             # Use dummy vector to query
             results = self._index.query(
-                vector=[0.0] * 1536,  # Dummy vector
+                vector=[0.0] * 1024,  # Dummy vector
                 top_k=1000,
                 namespace=namespace,
                 filter={"document_id": {"$eq": doc_id}},
@@ -456,7 +456,7 @@ class PineconeVectorStore:
             # List all vectors with metadata
             # Note: Pinecone doesn't have a direct list_all, we need to query
             results = self._index.query(
-                vector=[0.0] * 1536,
+                vector=[0.0] * 1024,
                 top_k=1000,
                 namespace=namespace,
                 include_metadata=True,

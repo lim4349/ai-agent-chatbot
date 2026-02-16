@@ -6,7 +6,7 @@ from dependency_injector.wiring import Provide, inject
 from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
-from src.core.container import Container
+from src.core.di_container import DIContainer
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
 
@@ -32,9 +32,9 @@ class CodeAgent(BaseAgent):
     @inject
     def __init__(
         self,
-        llm: LLMProvider = Provide[Container.llm],
+        llm: LLMProvider = Provide[DIContainer.llm],
         code_executor: Tool | None = None,
-        memory: MemoryStore = Provide[Container.memory],
+        memory: MemoryStore = Provide[DIContainer.memory],
     ):
         super().__init__(llm, memory=memory)
         self.code_executor = code_executor

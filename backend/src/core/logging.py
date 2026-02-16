@@ -144,7 +144,7 @@ class CleanFileHandler(logging.Handler):
         self.max_days = max_days
 
     @override
-    def emit(self, record):
+    def emit(self, record: Any) -> None:
         try:
             msg = self.format(record)
             # Strip ANSI codes for clean file output
@@ -160,7 +160,7 @@ class CleanFileHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-    def _rotate(self):
+    def _rotate(self) -> None:
         """Rotate log file with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         rotated = self.filepath.with_suffix(f".{timestamp}.log")
@@ -170,7 +170,7 @@ class CleanFileHandler(logging.Handler):
         # Cleanup old logs
         self._cleanup_old_logs()
 
-    def _cleanup_old_logs(self):
+    def _cleanup_old_logs(self) -> None:
         """Delete log files older than max_days."""
         cutoff = datetime.now() - timedelta(days=self.max_days)
 
@@ -273,17 +273,17 @@ def setup_logging(
     ]
 
     if json_format:
-        processors = shared_processors + [
+        processors_list = shared_processors + [
             structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(),
         ]
     else:
-        processors = shared_processors + [
+        processors_list = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True),
         ]
 
     structlog.configure(
-        processors=processors,
+        processors=processors_list,
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -291,7 +291,7 @@ def setup_logging(
     )
 
 
-def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str | None = None) -> Any:
     """Get a configured logger instance."""
     return structlog.get_logger(name)
 

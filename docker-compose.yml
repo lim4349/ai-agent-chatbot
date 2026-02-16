@@ -10,13 +10,9 @@ services:
       - ./backend/.env
     depends_on:
       - redis
-      - chromadb
     volumes:
       - ./backend/src:/app/src
       - ./backend/logs:/app/logs
-    environment:
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
     networks:
       - ai-agent-network
 
@@ -49,27 +45,6 @@ services:
       timeout: 3s
       retries: 3
 
-  # ChromaDB vector database for RAG
-  chromadb:
-    image: chromadb/chroma:latest
-    ports:
-      - "8001:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    environment:
-      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
-      - CHROMA_SERVER_AUTH_CREDENTIALS_FILE=/chroma/auth.txt
-      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_TOKEN:-admin-token}
-      - ANONYMIZED_TELEMETRY=False
-    networks:
-      - ai-agent-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
   # Ollama for local LLM (optional)
   ollama:
     image: ollama/ollama:latest
@@ -92,5 +67,4 @@ networks:
 
 volumes:
   redis_data:
-  chroma_data:
   ollama_data:

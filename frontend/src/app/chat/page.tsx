@@ -6,6 +6,7 @@ import { Header } from '@/components/header/header';
 import { Sidebar } from '@/components/sidebar/sidebar';
 import { ChatContainer } from '@/components/chat/chat-container';
 import { CombinedDocumentUpload } from '@/components/documents/combined-document-upload';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
@@ -74,7 +75,9 @@ export default function ChatPage() {
           </div>
 
           {/* Chat Container */}
-          <ChatContainer />
+          <ErrorBoundary>
+            <ChatContainer />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

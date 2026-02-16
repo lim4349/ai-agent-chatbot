@@ -320,7 +320,7 @@ def validate_session_id(session_id: str) -> tuple[bool, str | None]:
 
 
 @lru_cache(maxsize=128)
-def _get_magic_detector():
+def _get_magic_detector() -> Any:
     """Get magic number detector with caching.
 
     Returns:

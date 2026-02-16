@@ -1,6 +1,7 @@
 """Request and response schemas for the API."""
 
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -23,13 +24,13 @@ class DocumentUploadRequest(BaseModel):
     """Document upload request for RAG."""
 
     content: str = Field(..., min_length=1, description="Document content")
-    metadata: dict = Field(default_factory=dict, description="Document metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Session or document metadata")
 
 
 class FileUploadRequest(BaseModel):
     """File upload request for RAG with binary file content."""
 
-    metadata: dict = Field(default_factory=dict, description="Document metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Session or document metadata")
 
 
 # --- Response Models ---
@@ -42,7 +43,7 @@ class ChatResponse(BaseModel):
     session_id: str = Field(..., description="Session ID")
     agent_used: str = Field(..., description="Agent that processed the request")
     route_reasoning: str | None = Field(default=None, description="Supervisor routing reasoning")
-    tool_results: list[dict] = Field(default_factory=list, description="Tool execution results")
+    tool_results: list[dict[str, Any]] = Field(default_factory=list, description="Tool execution results")
     created_at: datetime = Field(default_factory=datetime.now, description="Response timestamp")
 
 

@@ -440,6 +440,120 @@ const handleClick = useCallback(() => {
 
 ---
 
+## UI/UX 디자인 가이드라인
+
+### 1. 컬러 선택
+
+**AI에게 색깔을 직접 지정하지 마세요.** 대신 조화로운 팔레트를 사용합니다.
+
+```
+❌ 잘못된 예: "파란색 버튼", "#3B82F6 사용"
+✅ 올바른 예: Coolors.co에서 생성한 팔레트 사용
+```
+
+**추천 도구**: [Coolors.co](https://coolors.co/)
+
+### 2. 컬러 제한
+
+**딱 2색만 사용하세요.** 메인 컬러 1개 + 서브 컬러 1개, 나머지는 흰색/검정/회색으로 채웁니다.
+
+```
+메인 컬러: 브랜드/강조용 (버튼, 링크, 하이라이트)
+서브 컬러: 보조 강조용 (호버, 배지, 아이콘)
+나머지: white, black, gray 계열
+```
+
+### 3. Stitch 사용법
+
+AI에게 디자인을 맡길 때 Stitch 도구를 활용합니다:
+
+```
+1. Coolors에서 팔레트 생성
+2. 메인/서브 컬러 코드 정확히 복사
+3. 레퍼런스 사이트 묘사는 영문으로 구체적으로 작성
+4. Stitch에 컬러 코드 + 영문 설명 입력
+```
+
+**영문 프롬프트 작성 팁**: Claude를 통해 레퍼런스 사이트 묘사를 영문으로 추출하면 더 효과적입니다.
+
+### 4. MCP로 디자인 금지
+
+**AI 코딩 도구에서 MCP를 통한 디자인 직접 조작은 피하세요.**
+
+```
+❌ MCP로 디자인 조작
+   - 토큰 소모가 큼
+   - 디자인 일관성 저해
+   - 반복 작업 시 품질 저하
+
+✅ Skills 활용
+   - 디자인 가이드라인 문서화
+   - 일관된 코드 생성
+   - 토큰 절약
+```
+
+### 5. Skills 활용
+
+웹 디자인 가이드라인을 미리 문서화하면 AI가 이를 참고하여 일관된 코드를 생성합니다.
+
+**문서화 항목**:
+- 컬러 팔레트 (메인, 서브, 중립색)
+- 여백 (spacing scale)
+- 폰트 사이즈 (typography scale)
+- 컴포넌트 스타일 (버튼, 카드, 입력필드)
+
+### 6. UI 라이브러리
+
+**Next.js 프로젝트에서는 MUI 대신 shadcn/ui를 사용합니다.**
+
+```
+❌ MUI (Material UI)
+   - 번들 사이즈가 큼
+   - 커스터마이징이 복잡함
+   - Next.js App Router와 호환성 이슈
+
+✅ shadcn/ui
+   - 가벼움 (사용하는 컴포넌트만)
+   - Tailwind CSS 기반으로 커스터마이징 용이
+   - Next.js와 완벽 호환
+   - Radix UI 기반으로 접근성 우수
+```
+
+### 7. 디자인 가이드라인 예시
+
+```css
+/* globals.css 또는 tailwind.config.ts */
+
+:root {
+  /* 메인 컬러 (Coolors에서 가져온 팔레트) */
+  --primary: #2563EB;      /* 메인 블루 */
+  --secondary: #10B981;    /* 서브 그린 */
+
+  /* 중립색 */
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --border: #E2E8F0;
+
+  /* 타이포그래피 스케일 */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+
+  /* 여백 스케일 */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+}
+```
+
+---
+
 ## 배포
 
 ### Vercel (무료)
@@ -475,4 +589,4 @@ NEXT_PUBLIC_APP_NAME=AI Agent Chatbot
 ---
 
 *Frontend AGENTS.md*
-*마지막 업데이트: 2026-02-15*
+*마지막 업데이트: 2026-02-17*

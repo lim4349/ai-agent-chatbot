@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import Field
@@ -27,6 +28,10 @@ class LLMConfig(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 
+    # Cache configuration
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 3600
+
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
 
@@ -51,15 +56,10 @@ class RAGConfig(BaseSettings):
     top_k: int = 3
     chunking_strategy: str = "auto"
 
-    # Pinecone settings (ChromaDB deprecated)
+    # Pinecone settings
     pinecone_api_key: str | None = None
     pinecone_index_name: str = "documents"
     pinecone_namespace: str = "default"
-
-    # Deprecated: ChromaDB connection settings (use Pinecone instead)
-    chroma_host: str | None = None
-    chroma_port: int = 8000
-    chroma_token: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="RAG_")
 
@@ -83,7 +83,7 @@ class MCPConfig(BaseSettings):
     health_check_enabled: bool = True
 
     @property
-    def servers(self) -> list[dict]:
+    def servers(self) -> list[dict[str, Any]]:
         """Parse servers from JSON string."""
         import json
 
@@ -94,6 +94,32 @@ class MCPConfig(BaseSettings):
             return []
 
 
+class SessionConfig(BaseSettings):
+    """Session storage configuration.
+
+    Note: Long-term memory uses the same Supabase configuration as sessions.
+    Uses SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.
+    Auto-detects Supabase if URL and KEY are set.
+    """
+
+    backend: str | None = None  # Auto-detect if None
+    supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
+    supabase_key: str | None = Field(default=None, alias="SUPABASE_SERVICE_KEY")
+    sessions_table: str = "sessions"
+
+    model_config = SettingsConfigDict(populate_by_name=True)
+
+    @property
+    def resolved_backend(self) -> str:
+        """Resolve backend: auto-detect Supabase if configured."""
+        if self.backend:
+            return self.backend
+        # Auto-detect: use Supabase if both URL and KEY are set
+        if self.supabase_url and self.supabase_key:
+            return "supabase"
+        return "in_memory"
+
+
 class AppConfig(BaseSettings):
     """Top-level application configuration."""
 
@@ -102,13 +128,14 @@ class AppConfig(BaseSettings):
     log_level: str = "INFO"
     host: str = "0.0.0.0"
     port: int = 8000
-    cors_origins: list = Field(default_factory=lambda: ["*"])
+    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
+    session: SessionConfig = Field(default_factory=SessionConfig)
 
     model_config = SettingsConfigDict(
         env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore"
