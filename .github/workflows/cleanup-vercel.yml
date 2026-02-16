@@ -1,0 +1,42 @@
+name: Cleanup Vercel Deployments
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete old deployments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old Vercel deployments
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: prj_kZdPkl54vpyF1Ve0nBzoYOnmEh46
+        run: |
+          # Get all deployments
+          DEPLOYMENTS=$(curl -s "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&limit=100" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r ".deployments | sort_by(.created) | reverse")
+
+          # Get the latest production deployment ID
+          LATEST=$(echo "$DEPLOYMENTS" | jq -r '.[0].uid')
+          TOTAL=$(echo "$DEPLOYMENTS" | jq 'length')
+
+          echo "Total deployments: $TOTAL"
+          echo "Keeping latest: $LATEST"
+
+          # Delete all except the latest
+          echo "$DEPLOYMENTS" | jq -r '.[1:][].uid' | while read dep; do
+            if [ -n "$dep" ]; then
+              echo "Deleting $dep..."
+              curl -s -X DELETE "https://api.vercel.com/v13/deployments/$dep" \
+                -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r '.state // .error.message // "done"'
+            fi
+          done
+
+          echo "Cleanup complete!"
