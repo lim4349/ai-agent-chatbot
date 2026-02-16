@@ -67,25 +67,48 @@ jobs:
 
           # Determine action based on request
           if echo "$REQUEST" | grep -qi "update.*claude.md\|lessons\|learn"; then
-            PROMPT="다음 PR에서 배운 점을 CLAUDE.md에 추가할 수 있는 형식으로 정리해주세요.\n\nPR 제목: $PR_TITLE\n\n코드 변경사항:\n\`\`\`diff\n$DIFF\n\`\`\`\n\n출력 형식:\n\`\`\`markdown\n### YYYY-MM-DD\n\n**$PR_TITLE** (#$PR_NUMBER)\n- 배운 점 1\n- 배운 점 2\n- 주의사항\n\`\`\`"
+            PROMPT="다음 PR에서 배운 점을 CLAUDE.md에 추가할 수 있는 형식으로 정리해주세요.
+
+PR 제목: $PR_TITLE
+
+코드 변경사항:
+\`\`\`diff
+$DIFF
+\`\`\`
+
+출력 형식:
+\`\`\`markdown
+### YYYY-MM-DD
+
+**$PR_TITLE** (#$PR_NUMBER)
+- 배운 점 1
+- 배운 점 2
+- 주의사항
+\`\`\`"
           else
-            PROMPT="다음 요청을 처리해주세요: $REQUEST\n\nPR 제목: $PR_TITLE\n\n코드 변경사항:\n\`\`\`diff\n$DIFF\n\`\`\`\n\n한국어로 답변하고, 구체적인 개선 제안을 포함해주세요."
+            PROMPT="다음 요청을 처리해주세요: $REQUEST
+
+PR 제목: $PR_TITLE
+
+코드 변경사항:
+\`\`\`diff
+$DIFF
+\`\`\`
+
+한국어로 답변하고, 구체적인 개선 제안을 포함해주세요."
           fi
 
-          # Create JSON payload
-          payload=$(cat <<JSONEOF
-          {
-            "model": "glm-5",
-            "max_tokens": 4000,
-            "messages": [
+          # Create JSON payload using jq for proper escaping
+          payload=$(echo "$PROMPT" | jq -Rs '{
+            model: "glm-5",
+            max_tokens: 4000,
+            messages: [
               {
-                "role": "user",
-                "content": "$PROMPT"
+                role: "user",
+                content: .
               }
             ]
-          }
-          JSONEOF
-          )
+          }')
 
           # Call GLM API
           response=$(curl -s -X POST "https://api.z.ai/api/anthropic/v1/messages" \
