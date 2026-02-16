@@ -338,3 +338,52 @@ llm = LLMFactory.create(config)  # 자동 매핑
 ---
 
 *마지막 업데이트: 2026-02-16*
+
+PR 제목과 변경사항을 바탕으로 `CLAUDE.md`를 업데이트해야 합니다.
+
+변경사항을 분석해보면 두 가지 주요 내용이 있습니다:
+1. **Workflow 개선**: `CLAUDE.md` 업데이트 로직 자동화
+2. **새로운 규칙 추가**: PR 생성 후 즉시 merge 금지
+
+현재 `CLAUDE.md` diff에는 이미 규칙이 추가되어 있으므로, 이 내용을 규칙 섹션에 반영하면 됩니다.
+
+```markdown
+## 학습한 내용 (Lessons Learned)
+
+---
+
+### 2025-01-14 (PR #해당PR번호)
+
+**새로운 규칙 추가**: PR 생성 후 즉시 merge 금지
+
+- Claude는 PR을 생성한 후 사용자의 승인(approve) 없이 merge해서는 안 됩니다.
+- 워크플로우:
+  1. `feat/` 브랜치에서 작업
+  2. PR 생성
+  3. **사용자 승인 대기** (필수)
+  4. 승인 후 merge
+
+**Workflow 개선사항**:
+- `CLAUDE.md` 업데이트 트리거 키워드 확장: `update claude.md`, `기억`, `learn`, `save`, `저장`
+- "학습한 내용 (Lessons Learned)" 섹션에 자동으로 추가되도록 개선
+- 커밋 메시지 형식 통일: `docs: Add Claude review insights to CLAUDE.md [skip ci]`
+```
+
+---
+
+**구체적인 개선 제안**:
+
+1. **Workflow 키워드 일관성**: 현재 `기억|learn|save|저장` 패턴이 있는데, 한글/영어 혼용입니다. 문서화에 명확한 사용법을 추가하면 좋습니다:
+   - `@claude update claude.md` 또는 `@claude 이 내용을 기억해`
+
+2. **중복 방지 로직**: 같은 내용이 여러 번 추가되는 것을 방지하기 위해 해시나 ID 기반 체크를 추가하는 것을 고려해보세요.
+
+3. **규칙 섹션 구조화**: 금지 사항을 더 명확하게 그룹화:
+   ```markdown
+   ### 브랜치 및 PR 규칙
+   - ❌ dev/main에 직접 commit/push 금지
+   - ❌ feat 브랜치 없이 작업 금지
+   - ❌ PR 생성 후 즉시 merge 금지 (사용자 승인 필수)
+   ```
+
+이 PR을 승인하시겠습니까?
