@@ -468,7 +468,9 @@ async def upload_file(
         raise HTTPException(status_code=400, detail=f"Failed to process file: {e}") from e
 
     # Get validated file type
-    file_type = file_metadata["extension"]
+    file_type = file_metadata.get("detected_type") or file_metadata.get("extension")
+    if not file_type:
+        raise HTTPException(status_code=400, detail="Could not determine file type")
 
     try:
         # Parse document
@@ -503,6 +505,7 @@ async def upload_file(
             file_type=file_type,
             chunks_created=len(chunks),
             total_tokens=doc.total_tokens,
+            upload_time=doc.upload_time,
             status="success",
             message=f"Successfully processed {filename} ({len(chunks)} chunks)",
         )

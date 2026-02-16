@@ -91,6 +91,7 @@ class FileUploadResponse(BaseModel):
     file_type: str = Field(..., description="Detected file type (pdf, docx, txt, md, csv, json)")
     chunks_created: int = Field(..., description="Number of chunks created from the document")
     total_tokens: int = Field(..., description="Estimated total tokens in the document")
+    upload_time: datetime = Field(..., description="Upload timestamp")
     status: str = Field(..., description="Upload and processing status")
     message: str = Field(..., description="Status message")
 

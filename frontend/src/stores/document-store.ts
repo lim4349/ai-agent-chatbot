@@ -86,7 +86,7 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
         id: response.document_id,
         filename: response.filename,
         file_type: response.file_type,
-        upload_time: new Date().toISOString(),
+        upload_time: response.upload_time,
         chunk_count: response.chunks_created,
         total_tokens: response.total_tokens,
       };

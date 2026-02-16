@@ -13,7 +13,7 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 - RAG 파이프라인 (Pinecone + Pinecone Inference Embeddings)
 - 실시간 스트리밍 응답 (SSE)
 - 구조 기반 문서 청킹
-- 메모리 관리 (Redis + 요약)
+- 영구 세션 메모리 (Upstash Redis)
 
 ---
 
@@ -27,7 +27,7 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 | **LLM** | OpenAI / Anthropic / GLM | GPT-4o / Claude / GLM-4 |
 | **Vector DB** | Pinecone | - |
 | **Embedding** | Pinecone Inference (multilingual-e5-large) | - |
-| **Session** | Redis | 7.x |
+| **Session** | Upstash Redis (프로덕션) / In-Memory (로컬) | - |
 | **배포** | Render + Vercel | - |
 
 ---
@@ -120,15 +120,92 @@ cd frontend
 npm test
 ```
 
-### 4. Git Workflow
+### 4. Git Workflow (필수 준수)
 
 ```
-feature/* → dev → main
+{feature|fix|docs}/* → dev → main
 ```
 
+**브랜치 전략**:
 - `main`: 프로덕션 브랜치 (자동 배포)
-- `dev`: 개발 브랜치
-- `feature/*`: 기능 브랜치
+- `dev`: 개발 통합 브랜치
+- `feature/*`: 기능 개발 브랜치
+- `fix/*`: 버그 수정 브랜치
+- `docs/*`: 문서 수정 브랜치
+
+**⚠️ 필수 프로세스**:
+```
+1. feature/xxx 브랜치 생성
+2. 작업 완료 후 feature/xxx → dev PR 생성
+3. dev에서 테스트 & 리뷰 통과 후 merge
+4. dev → main PR 생성
+5. main merge 시 자동 배포
+```
+
+**금지 사항**:
+- ❌ dev에 직접 commit/push 금지
+- ❌ main에 직접 commit/push 금지
+- ❌ feature 브랜치 없이 작업 금지
+
+**올바른 예시**:
+```bash
+# 1. feature 브랜치 생성
+git checkout dev
+git pull origin dev
+git checkout -b feature/pinecone-embedding
+
+# 2. 작업 & 커밋
+git add .
+git commit -m "feat: Add Pinecone embedding support"
+
+# 3. 푸시 & PR (→ dev)
+git push origin feature/pinecone-embedding
+gh pr create --base dev --head feature/pinecone-embedding
+
+# 4. dev merge 후 main PR
+gh pr create --base main --head dev
+```
+
+### 5. ⚠️ 필수 규칙
+
+**Git Push 전 로컬 테스트 필수**:
+```bash
+# 백엔드 (가상환경에서)
+cd backend
+source .venv/bin/activate
+ruff check src/                    # 린트 체크
+python -c "from src.xxx import yyy" # import 테스트
+
+# 프론트엔드
+cd frontend
+npm run build                      # 빌드 테스트
+```
+
+**PR Review 피드백은 CLAUDE.md에 추가**:
+- 새로운 에러 패턴 발견 시 이 문서에 기록
+- 코드 컨벤션/패턴 학습 내용 추가
+
+---
+
+## 학습한 내용 (Lessons Learned)
+
+### 2026-02-16
+
+1. **Protocol 반환 타입 일치**
+   - 구현체의 반환 타입을 변경하면 Protocol도 함께 수정해야 함
+   - `dict` → `dict | None` 변경 시 `protocols.py`도 업데이트
+
+2. **validate_file_upload 반환값**
+   - 반환하는 metadata에는 `detected_type` 키 사용 (not `extension`)
+   - `file_metadata.get("detected_type")`로 접근
+
+3. **asyncio.to_thread 사용**
+   - 동기 SDK 호출은 이벤트 루프 차단 가능
+   - Pinecone SDK: `await asyncio.to_thread(client.inference.embed, ...)`
+
+4. **문서 업로드 UX**
+   - 상태 확인 후 모달 닫기: `uploadStatus === 'completed'` 체크
+   - 에러 시 모달 유지 필요
 
 ---
 

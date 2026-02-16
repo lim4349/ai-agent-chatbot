@@ -1,0 +1,69 @@
+name: Update CLAUDE.md from Claude Review
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-claude-md:
+    # Only run on approved reviews from Claude
+    if: github.event.review.user.login == 'claude-code[bot]' || contains(github.event.review.user.login, 'claude')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract review insights
+        id: extract
+        env:
+          REVIEW_BODY: ${{ github.event.review.body }}
+        run: |
+          # Get current date
+          DATE=$(date +%Y-%m-%d)
+
+          # Create insights section
+          INSIGHTS=""
+
+          # Check if Lessons Learned section exists
+          if grep -q "## 학습한 내용" CLAUDE.md; then
+            # Check if today's date exists
+            if grep -q "### $DATE" CLAUDE.md; then
+              # Append to existing date section
+              INSIGHTS="\n\n$REVIEW_BODY"
+              sed -i "s/### $DATE/### $DATE$INSIGHTS/" CLAUDE.md
+            else
+              # Add new date section
+              INSIGHTS="\n\n### $DATE\n\n$REVIEW_BODY"
+              sed -i "s/## 학습한 내용/## 학습한 내용 (Lessons Learned)$INSIGHTS/" CLAUDE.md
+            fi
+          else
+            # Create new Lessons Learned section
+            cat >> CLAUDE.md << EOF
+
+---
+
+## 학습한 내용 (Lessons Learned)
+
+### $DATE
+
+$REVIEW_BODY
+EOF
+          fi
+
+          echo "updated=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push
+        if: steps.extract.outputs.updated == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add CLAUDE.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "docs: Auto-add Claude review insights to CLAUDE.md"
+          git push

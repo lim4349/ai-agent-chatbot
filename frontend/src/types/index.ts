@@ -62,6 +62,7 @@ export interface FileUploadResponse {
   file_type: string;
   chunks_created: number;
   total_tokens: number;
+  upload_time: string;
   status: string;
   message: string;
 }
