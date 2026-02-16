@@ -17,7 +17,6 @@ jobs:
   claude-assistant:
     name: Claude Code (GLM-5)
     runs-on: ubuntu-latest
-    # Trigger on @claude mention in comments or PR open/sync
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -49,27 +48,22 @@ jobs:
           PR_NUMBER=${{ steps.pr-info.outputs.pr_number }}
           COMMENT="${{ github.event.comment.body }}"
 
-          # Remove @claude from comment to get the actual request
           REQUEST="${COMMENT//@claude/}"
-          REQUEST="${REQUEST#"${REQUEST%%[![:space:]]*}"}"  # trim leading whitespace
+          REQUEST="${REQUEST#"${REQUEST%%[![:space:]]*}"}"
 
-          # If empty, default to "review this PR"
           if [ -z "$REQUEST" ]; then
             REQUEST="review this PR and suggest improvements"
           fi
 
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          # Handle multiline request with heredoc delimiter
           {
             echo "request<<REQEOF"
             echo "$REQUEST"
             echo "REQEOF"
           } >> $GITHUB_OUTPUT
 
-          # Get PR diff
           gh pr diff $PR_NUMBER > pr_diff.txt 2>/dev/null || echo "Could not fetch diff"
 
-          # Get PR info
           PR_TITLE=$(gh pr view $PR_NUMBER --json title -q '.title')
           echo "pr_title<<TITLEEOF" >> $GITHUB_OUTPUT
           echo "$PR_TITLE" >> $GITHUB_OUTPUT
@@ -83,73 +77,45 @@ jobs:
           PR_TITLE: ${{ steps.context.outputs.pr_title }}
           REQUEST: ${{ steps.context.outputs.request }}
         run: |
-          # Read diff (limit size)
           DIFF=$(cat pr_diff.txt 2>/dev/null | head -300 | cut -c1-6000)
 
-          # Write prompt to file to avoid shell escaping issues
-          cat > prompt.txt << 'PROMPTEOF'
-          다음 요청을 처리해주세요: REQUEST_PLACEHOLDER
+          echo "다음 요청을 처리해주세요: $REQUEST" > prompt.txt
+          echo "" >> prompt.txt
+          echo "PR 제목: $PR_TITLE" >> prompt.txt
+          echo "" >> prompt.txt
+          echo "코드 변경사항:" >> prompt.txt
+          echo '```diff' >> prompt.txt
+          echo "$DIFF" >> prompt.txt
+          echo '```' >> prompt.txt
+          echo "" >> prompt.txt
+          echo "한국어로 답변하고, 구체적인 개선 제안을 포함해주세요." >> prompt.txt
 
-          PR 제목: TITLE_PLACEHOLDER
+          payload=$(jq -Rs '{model: "glm-5", max_tokens: 4000, messages: [{role: "user", content: .}]}' prompt.txt)
 
-          코드 변경사항:
-          ```diff
-          DIFF_PLACEHOLDER
-          ```
-
-          한국어로 답변하고, 구체적인 개선 제안을 포함해주세요.
-          PROMPTEOF
-
-          # Replace placeholders (using | as delimiter to avoid conflicts with diff content)
-          sed -i "s|REQUEST_PLACEHOLDER|${REQUEST}|g" prompt.txt
-          sed -i "s|TITLE_PLACEHOLDER|${PR_TITLE}|g" prompt.txt
-          # For DIFF, need to handle special characters - use awk instead
-          awk -v diff="$DIFF" '{gsub(/DIFF_PLACEHOLDER/, diff); print}' prompt.txt > prompt_tmp.txt && mv prompt_tmp.txt prompt.txt
-
-          # Create JSON payload using jq reading from file
-          payload=$(jq -Rs '{
-            model: "glm-5",
-            max_tokens: 4000,
-            messages: [
-              {
-                role: "user",
-                content: .
-              }
-            ]
-          }' prompt.txt)
-
-          # Call GLM API
           response=$(curl -s -X POST "https://api.z.ai/api/anthropic/v1/messages" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $GLM_API_KEY" \
             -d "$payload" 2>&1)
 
-          echo "API Response:"
-          echo "$response"
+          echo "API Response: $response"
 
-          # Extract content with error handling
           if echo "$response" | jq -e '.content[0].text' > /dev/null 2>&1; then
             content=$(echo "$response" | jq -r '.content[0].text')
           elif echo "$response" | jq -e '.error' > /dev/null 2>&1; then
             error_msg=$(echo "$response" | jq -r '.error.message // .error.type // "Unknown error"')
-            content="❌ API Error: $error_msg"
+            content="API Error: $error_msg"
           else
-            content="❌ Error: Unexpected response format"
+            content="Error: Unexpected response format"
           fi
           echo "$content" > response.md
 
-          # Update CLAUDE.md only when explicitly requested
-          # Usage: @claude update claude.md OR @claude 이 내용을 기억해
           if echo "$REQUEST" | grep -qi "update.*claude.md\|기억\|learn\|save\|저장"; then
             echo "should_update_claude_md=true" >> $GITHUB_OUTPUT
-            # Prepare content for CLAUDE.md
             DATE=$(date +%Y-%m-%d)
-            cat > claude_md_update.txt << UPDATEEOF
-
-### $DATE (PR #$PR_NUMBER)
-
-$content
-UPDATEEOF
+            echo "" > claude_md_update.txt
+            echo "### $DATE (PR #$PR_NUMBER)" >> claude_md_update.txt
+            echo "" >> claude_md_update.txt
+            echo "$content" >> claude_md_update.txt
           else
             echo "should_update_claude_md=false" >> $GITHUB_OUTPUT
           fi
@@ -159,12 +125,12 @@ UPDATEEOF
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.context.outputs.pr_number }}
         run: |
-          echo "## 🤖 Claude (GLM-5)" > comment.md
+          echo "## Claude (GLM-5)" > comment.md
           echo "" >> comment.md
           cat response.md >> comment.md
           echo "" >> comment.md
           echo "---" >> comment.md
-          echo "*Triggered by \`@claude\` • Powered by GLM-5*" >> comment.md
+          echo "*Triggered by @claude*" >> comment.md
 
           gh pr comment $PR_NUMBER --body-file comment.md
 
@@ -176,20 +142,14 @@ UPDATEEOF
           git config user.name "Claude Code[bot]"
           git config user.email "claude-code[bot]@anthropic.com"
 
-          # Check if Lessons Learned section exists in CLAUDE.md
           if grep -q "## 학습한 내용" CLAUDE.md; then
-            # Append to existing section
             cat claude_md_update.txt >> CLAUDE.md
           else
-            # Create new section
-            cat >> CLAUDE.md << EOF
-
----
-
-## 학습한 내용 (Lessons Learned)
-
-$(cat claude_md_update.txt)
-EOF
+            echo "" >> CLAUDE.md
+            echo "---" >> CLAUDE.md
+            echo "" >> CLAUDE.md
+            echo "## 학습한 내용 (Lessons Learned)" >> CLAUDE.md
+            cat claude_md_update.txt >> CLAUDE.md
           fi
 
           git add CLAUDE.md
