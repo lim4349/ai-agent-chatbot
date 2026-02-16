@@ -107,7 +107,9 @@ class MCPClient:
 
         except Exception as e:
             logger.error("mcp_list_tools_failed", server=self.name, error=str(e))
-            raise RuntimeError(f"Failed to discover tools from MCP server '{self.name}': {e}") from e
+            raise RuntimeError(
+                f"Failed to discover tools from MCP server '{self.name}': {e}"
+            ) from e
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Execute a tool on the MCP server.
@@ -161,9 +163,7 @@ class MCPClient:
 
             # Concatenate all text content parts
             text_parts = [
-                part.get("text", "")
-                for part in content_parts
-                if part.get("type") == "text"
+                part.get("text", "") for part in content_parts if part.get("type") == "text"
             ]
             result_text = "\n".join(text_parts)
 

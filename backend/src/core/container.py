@@ -26,6 +26,7 @@ def _get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
         from src.documents.embeddings import EmbeddingGenerator
+
         _embedding_generator = EmbeddingGenerator
     return _embedding_generator
 
@@ -34,6 +35,7 @@ def _get_document_vector_store():
     global _document_vector_store
     if _document_vector_store is None:
         from src.documents.store import DocumentVectorStore
+
         _document_vector_store = DocumentVectorStore
     return _document_vector_store
 

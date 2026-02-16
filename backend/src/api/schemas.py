@@ -118,3 +118,30 @@ class DocumentDeleteResponse(BaseModel):
 
     document_id: str = Field(..., description="Deleted document identifier")
     status: str = Field(..., description="Deletion status")
+
+
+# --- Session Models ---
+
+
+class SessionCreate(BaseModel):
+    """Session creation request."""
+
+    title: str = Field(default="New Chat", max_length=100, description="Session title")
+    metadata: dict = Field(default_factory=dict, description="Session metadata")
+
+
+class SessionResponse(BaseModel):
+    """Session response."""
+
+    id: str = Field(..., description="Session identifier")
+    user_id: str = Field(..., description="Owner user ID")
+    title: str = Field(..., description="Session title")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    metadata: dict = Field(default_factory=dict, description="Session metadata")
+
+
+class SessionListResponse(BaseModel):
+    """List of sessions."""
+
+    sessions: list[SessionResponse] = Field(..., description="List of sessions")

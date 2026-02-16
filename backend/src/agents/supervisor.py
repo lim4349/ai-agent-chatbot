@@ -40,6 +40,7 @@ def create_route_decision_model(available_agents: set[str]):
 
     class SupervisorRoutingDecision(BaseModel):
         """Supervisor's decision for routing user queries to specialist agents."""
+
         selected_agent: agent_literal = Field(
             description="The name of the agent to route the query to"
         )
@@ -227,9 +228,7 @@ Consider the context of the conversation when making your decision."""
 
         # Check for ambiguous references and enrich context
         current_messages = [message_to_dict(msg) for msg in state["messages"]]
-        enriched_context = await self._get_memory_enriched_context(
-            session_id, current_messages
-        )
+        enriched_context = await self._get_memory_enriched_context(session_id, current_messages)
         if enriched_context:
             messages.extend(enriched_context)
             logger.info(
@@ -252,7 +251,10 @@ Consider the context of the conversation when making your decision."""
         # Handle None response from LLM (fallback to chat)
         if not decision:
             logger.warning("supervisor_llm_returned_none", session_id=session_id)
-            decision = {"selected_agent": "chat", "reasoning": "LLM response was empty, defaulting to chat"}
+            decision = {
+                "selected_agent": "chat",
+                "reasoning": "LLM response was empty, defaulting to chat",
+            }
 
         # Safe access with defaults
         selected_agent = decision.get("selected_agent", "chat")

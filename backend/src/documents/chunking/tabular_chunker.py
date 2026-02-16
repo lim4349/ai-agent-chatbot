@@ -71,9 +71,7 @@ class TabularDocumentChunker(BaseChunker):
 
         # Estimate tokens per row (average)
         avg_row_tokens = (
-            sum(self._estimate_tokens(row) for row in rows) // len(rows)
-            if rows
-            else 100
+            sum(self._estimate_tokens(row) for row in rows) // len(rows) if rows else 100
         )
 
         rows_per_chunk = max(1, available_tokens // avg_row_tokens)
@@ -141,9 +139,7 @@ class TabularDocumentChunker(BaseChunker):
                 # Start new chunk with overlap
                 overlap_sentences = self._get_overlap_sentences(current_sentences)
                 current_sentences = overlap_sentences + [sentence]
-                current_tokens = sum(
-                    self._estimate_tokens(s) for s in current_sentences
-                )
+                current_tokens = sum(self._estimate_tokens(s) for s in current_sentences)
             else:
                 current_sentences.append(sentence)
                 current_tokens += sentence_tokens

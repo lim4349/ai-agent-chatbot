@@ -90,7 +90,9 @@ class SimpleDocumentParser:
             return "\n\n".join(text_parts)
         except ImportError as err:
             logger.error("PyPDF2 not installed")
-            raise RuntimeError("PDF parsing requires PyPDF2. Install with: pip install PyPDF2") from err
+            raise RuntimeError(
+                "PDF parsing requires PyPDF2. Install with: pip install PyPDF2"
+            ) from err
         except Exception as e:
             logger.error("pdf_parse_failed", error=str(e))
             raise
@@ -105,7 +107,9 @@ class SimpleDocumentParser:
             return "\n\n".join(paragraphs)
         except ImportError as err:
             logger.error("python-docx not installed")
-            raise RuntimeError("DOCX parsing requires python-docx. Install with: pip install python-docx") from err
+            raise RuntimeError(
+                "DOCX parsing requires python-docx. Install with: pip install python-docx"
+            ) from err
         except Exception as e:
             logger.error("docx_parse_failed", error=str(e))
             raise
@@ -190,13 +194,15 @@ class SimpleChunker:
             # If adding this paragraph exceeds chunk size, save current chunk
             if current_size + para_size > self.chunk_size and current_chunk:
                 chunk_text = "\n\n".join(current_chunk)
-                chunks.append({
-                    "content": chunk_text,
-                    "metadata": {
-                        **metadata,
-                        "chunk_index": len(chunks),
-                    },
-                })
+                chunks.append(
+                    {
+                        "content": chunk_text,
+                        "metadata": {
+                            **metadata,
+                            "chunk_index": len(chunks),
+                        },
+                    }
+                )
                 # Keep overlap paragraphs
                 overlap_start = max(0, len(current_chunk) - 1)
                 current_chunk = current_chunk[overlap_start:] + [para]
@@ -208,13 +214,15 @@ class SimpleChunker:
         # Don't forget the last chunk
         if current_chunk:
             chunk_text = "\n\n".join(current_chunk)
-            chunks.append({
-                "content": chunk_text,
-                "metadata": {
-                    **metadata,
-                    "chunk_index": len(chunks),
-                },
-            })
+            chunks.append(
+                {
+                    "content": chunk_text,
+                    "metadata": {
+                        **metadata,
+                        "chunk_index": len(chunks),
+                    },
+                }
+            )
 
         return chunks
 

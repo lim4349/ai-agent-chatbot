@@ -130,9 +130,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
         import hashlib
         import uuid
 
-        doc_id = hashlib.sha256(
-            f"{filename}_{uuid.uuid4().hex}".encode()
-        ).hexdigest()[:16]
+        doc_id = hashlib.sha256(f"{filename}_{uuid.uuid4().hex}".encode()).hexdigest()[:16]
 
         # Create Document object
         document = Document(

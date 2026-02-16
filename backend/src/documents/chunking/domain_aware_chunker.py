@@ -102,9 +102,7 @@ class DomainAwareChunker(DocumentChunker):
         # Additional content-based detection for ambiguous cases
         if strategy == "default" and sections:
             # Check if content is mostly tabular
-            table_ratio = sum(
-                1 for s in sections if s.section_type == "table"
-            ) / len(sections)
+            table_ratio = sum(1 for s in sections if s.section_type == "table") / len(sections)
 
             if table_ratio > 0.5:
                 logger.debug(

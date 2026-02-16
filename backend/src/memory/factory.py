@@ -18,9 +18,11 @@ class MemoryStoreFactory:
             class RedisStore(MemoryStore):
                 ...
         """
+
         def decorator(store_cls: type) -> type:
             cls._registry[backend] = store_cls
             return store_cls
+
         return decorator
 
     @classmethod
@@ -39,8 +41,7 @@ class MemoryStoreFactory:
         store_cls = cls._registry.get(config.backend)
         if store_cls is None:
             raise ValueError(
-                f"Unknown memory backend: {config.backend}. "
-                f"Available: {list(cls._registry.keys())}"
+                f"Unknown memory backend: {config.backend}. Available: {list(cls._registry.keys())}"
             )
 
         # Create instance based on backend type

@@ -98,11 +98,18 @@ class PineconeVectorStore:
             logger.error("pinecone_init_failed", error=str(e))
             raise
 
-    async def add_document(self, document: Document) -> str:
+    async def add_document(
+        self,
+        document: Document,
+        user_id: str | None = None,
+        session_id: str | None = None,
+    ) -> str:
         """Add a document with all its chunks to the vector store.
 
         Args:
             document: Document object with chunks to store
+            user_id: User ID for document isolation
+            session_id: Session ID for document isolation
 
         Returns:
             Document ID
@@ -118,13 +125,16 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             raise RuntimeError("Pinecone not initialized")
 
+        # Use user-specific namespace for isolation
+        namespace = f"user_{user_id}" if user_id else self.namespace
+
         # Prepare data for Pinecone
         vectors = []
 
         for chunk in document.chunks:
             chunk_id = f"{document.id}_{chunk.id}"
 
-            # Build metadata
+            # Build metadata with user/session isolation
             metadata = {
                 "document_id": document.id,
                 "chunk_id": chunk.id,
@@ -142,13 +152,21 @@ class PineconeVectorStore:
                 # Pinecone requires string values for metadata filtering
                 "text": chunk.content,  # Store text in metadata
             }
+            # Add user/session isolation metadata
+            if user_id:
+                metadata["user_id"] = user_id
+            if session_id:
+                metadata["session_id"] = session_id
+
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
 
-            vectors.append({
-                "id": chunk_id,
-                "metadata": metadata,
-            })
+            vectors.append(
+                {
+                    "id": chunk_id,
+                    "metadata": metadata,
+                }
+            )
 
         # Generate embeddings
         logger.info(
@@ -167,16 +185,18 @@ class PineconeVectorStore:
         batch_size = 100
         try:
             for i in range(0, len(vectors), batch_size):
-                batch = vectors[i:i + batch_size]
+                batch = vectors[i : i + batch_size]
                 self._index.upsert(
                     vectors=batch,
-                    namespace=self.namespace,
+                    namespace=namespace,
                 )
 
             logger.info(
                 "document_added_to_store",
                 document_id=document.id,
                 chunk_count=len(vectors),
+                user_id=user_id,
+                session_id=session_id,
             )
         except Exception as e:
             logger.error("failed_to_add_document", error=str(e), document_id=document.id)
@@ -272,37 +292,92 @@ class PineconeVectorStore:
 
         return pinecone_filter if pinecone_filter else None
 
-    async def delete_document(self, doc_id: str) -> bool:
+    async def delete_document(self, doc_id: str, user_id: str | None = None) -> None:
         """Delete all chunks for a document.
 
         Args:
             doc_id: Document ID to delete
+            user_id: User ID for ownership verification
+
+        Raises:
+            RuntimeError: If Pinecone is not initialized
+            Exception: If deletion fails
+        """
+        if not self._index:
+            raise RuntimeError("Pinecone not initialized")
+
+        # Use user-specific namespace
+        namespace = f"user_{user_id}" if user_id else self.namespace
+
+        # Delete by filter
+        self._index.delete(
+            filter={"document_id": {"$eq": doc_id}},
+            namespace=namespace,
+        )
+
+        logger.info("document_deleted", document_id=doc_id, user_id=user_id)
+
+    async def delete_session_documents(self, user_id: str, session_id: str) -> int:
+        """Delete all documents for a session.
+
+        Args:
+            user_id: User ID
+            session_id: Session ID
 
         Returns:
-            True if deleted successfully
+            Number of documents deleted
         """
         if not self._index:
             logger.error("pinecone_not_initialized")
-            return False
+            return 0
+
+        # Use user-specific namespace
+        namespace = f"user_{user_id}"
 
         try:
-            # Delete by filter
-            self._index.delete(
-                filter={"document_id": {"$eq": doc_id}},
-                namespace=self.namespace,
+            # First, query to get document count
+            results = self._index.query(
+                vector=[0.0] * 1536,
+                top_k=1000,
+                namespace=namespace,
+                filter={"session_id": {"$eq": session_id}},
+                include_metadata=True,
             )
 
-            logger.info("document_deleted", document_id=doc_id)
-            return True
-        except Exception as e:
-            logger.error("failed_to_delete_document", error=str(e), document_id=doc_id)
-            return False
+            doc_ids = set()
+            for match in results.matches:
+                if match.metadata and "document_id" in match.metadata:
+                    doc_ids.add(match.metadata["document_id"])
 
-    async def get_document_stats(self, doc_id: str) -> DocumentStats | None:
+            # Delete by session_id filter
+            self._index.delete(
+                filter={"session_id": {"$eq": session_id}},
+                namespace=namespace,
+            )
+
+            logger.info(
+                "session_documents_deleted",
+                session_id=session_id,
+                user_id=user_id,
+                document_count=len(doc_ids),
+            )
+            return len(doc_ids)
+        except Exception as e:
+            logger.error(
+                "failed_to_delete_session_documents",
+                error=str(e),
+                session_id=session_id,
+            )
+            return 0
+
+    async def get_document_stats(
+        self, doc_id: str, user_id: str | None = None
+    ) -> DocumentStats | None:
         """Get statistics for a document.
 
         Args:
             doc_id: Document ID
+            user_id: User ID for ownership verification
 
         Returns:
             DocumentStats object or None if not found
@@ -311,13 +386,16 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             return None
 
+        # Use user-specific namespace
+        namespace = f"user_{user_id}" if user_id else self.namespace
+
         try:
             # Query with filter to get all chunks
             # Use dummy vector to query
             results = self._index.query(
                 vector=[0.0] * 1536,  # Dummy vector
                 top_k=1000,
-                namespace=self.namespace,
+                namespace=namespace,
                 filter={"document_id": {"$eq": doc_id}},
                 include_metadata=True,
             )
@@ -331,9 +409,7 @@ class PineconeVectorStore:
 
             # Aggregate stats
             chunk_count = len(results.matches)
-            total_tokens = sum(
-                m.get("token_count", 0) for m in metadatas if isinstance(m, dict)
-            )
+            total_tokens = sum(m.get("token_count", 0) for m in metadatas if isinstance(m, dict))
 
             # Get common metadata from first chunk
             first_meta = metadatas[0] if metadatas else {}
@@ -360,8 +436,11 @@ class PineconeVectorStore:
             logger.error("failed_to_get_document_stats", error=str(e), document_id=doc_id)
             return None
 
-    async def list_documents(self) -> list[str]:
+    async def list_documents(self, user_id: str | None = None) -> list[str]:
         """List all unique document IDs in the store.
+
+        Args:
+            user_id: User ID for filtering
 
         Returns:
             List of document IDs
@@ -370,13 +449,16 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             return []
 
+        # Use user-specific namespace
+        namespace = f"user_{user_id}" if user_id else self.namespace
+
         try:
             # List all vectors with metadata
             # Note: Pinecone doesn't have a direct list_all, we need to query
             results = self._index.query(
                 vector=[0.0] * 1536,
                 top_k=1000,
-                namespace=self.namespace,
+                namespace=namespace,
                 include_metadata=True,
             )
 
@@ -387,7 +469,7 @@ class PineconeVectorStore:
 
             return sorted(doc_ids)
         except Exception as e:
-            logger.error("failed_to_list_documents", error=str(e))
+            logger.error("failed_to_list_documents", error=str(e), user_id=user_id)
             return []
 
     async def clear(self) -> bool:

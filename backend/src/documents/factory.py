@@ -15,6 +15,7 @@ class DocumentProcessorFactory:
             DocumentParser implementation
         """
         from src.documents.parser import DocumentParser
+
         return DocumentParser()
 
     @staticmethod

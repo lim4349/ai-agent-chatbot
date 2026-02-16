@@ -281,18 +281,14 @@ Guidelines:
 
         # Get the last user message and check for memory commands
         last_msg = state["messages"][-1]
-        last_content = (
-            last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
-        )
+        last_content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
 
         # Check for memory commands
         command_type, command_data = self._parse_memory_command(last_content)
 
         if command_type != "none":
             # Handle memory command
-            response = await self._handle_memory_command(
-                session_id, command_type, command_data
-            )
+            response = await self._handle_memory_command(session_id, command_type, command_data)
 
             # Store the command and response
             if self.memory:
@@ -344,9 +340,7 @@ Guidelines:
         if self.memory:
             last_msg = state["messages"][-1]
             await self.memory.add_message(session_id, message_to_dict(last_msg))
-            await self.memory.add_message(
-                session_id, {"role": "assistant", "content": response}
-            )
+            await self.memory.add_message(session_id, {"role": "assistant", "content": response})
 
         # Extract and save user facts
         if user_id and self.user_profiler:

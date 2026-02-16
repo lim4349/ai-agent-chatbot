@@ -190,7 +190,9 @@ class SummarizationStrategy(ContextStrategy):
 
         # Generate or retrieve summary
         summary = await self._get_or_create_summary(
-            to_summarize, store, session_id,
+            to_summarize,
+            store,
+            session_id,
         )
 
         # Build result
@@ -270,13 +272,9 @@ class SummarizationStrategy(ContextStrategy):
             return ""
 
         # Extract key information
-        user_messages = [
-            msg.get("content", "") for msg in messages
-            if msg.get("role") == "user"
-        ]
+        user_messages = [msg.get("content", "") for msg in messages if msg.get("role") == "user"]
         assistant_messages = [
-            msg.get("content", "") for msg in messages
-            if msg.get("role") == "assistant"
+            msg.get("content", "") for msg in messages if msg.get("role") == "assistant"
         ]
 
         # Create a concise summary
@@ -294,9 +292,12 @@ class SummarizationStrategy(ContextStrategy):
         if assistant_messages:
             # Count key actions/tools used
             tool_mentions = sum(
-                1 for msg in assistant_messages
-                if any(indicator in msg.lower() for indicator in
-                       ["tool", "function", "search", "calculated", "found"])
+                1
+                for msg in assistant_messages
+                if any(
+                    indicator in msg.lower()
+                    for indicator in ["tool", "function", "search", "calculated", "found"]
+                )
             )
             if tool_mentions > 0:
                 parts.append(f"Used tools {tool_mentions} times")
@@ -354,7 +355,9 @@ class HybridStrategy(ContextStrategy):
 
         # Get or create summary of old messages
         summary = await self._get_or_create_summary(
-            old_messages, store, session_id,
+            old_messages,
+            store,
+            session_id,
         )
 
         # Build result
@@ -484,7 +487,9 @@ class HybridStrategy(ContextStrategy):
             if len(topics) == 1:
                 parts.append(f"Discussed: {topics[0]}...")
             else:
-                parts.append(f"Topics: {', '.join(t[:40] + '...' if len(t) > 40 else t for t in topics[:2])}")
+                parts.append(
+                    f"Topics: {', '.join(t[:40] + '...' if len(t) > 40 else t for t in topics[:2])}"
+                )
 
         if key_points:
             parts.append(f"({'; '.join(key_points)})")

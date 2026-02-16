@@ -24,14 +24,16 @@ async def lifespan(app: FastAPI):
     setup_logging(log_level=config.log_level, json_format=not config.debug)
 
     # Wire DI container
-    di_container.wire(modules=[
-        "src.api.routes",
-        "src.agents.supervisor",
-        "src.agents.chat_agent",
-        "src.agents.code_agent",
-        "src.agents.rag_agent",
-        "src.agents.web_search_agent",
-    ])
+    di_container.wire(
+        modules=[
+            "src.api.routes",
+            "src.agents.supervisor",
+            "src.agents.chat_agent",
+            "src.agents.code_agent",
+            "src.agents.rag_agent",
+            "src.agents.web_search_agent",
+        ]
+    )
 
     # Log startup
     logger.info(

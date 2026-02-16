@@ -20,6 +20,7 @@ def count_tokens(text: str, encoding_name: str = "cl100k_base") -> int:
     """
     try:
         import tiktoken
+
         encoding = tiktoken.get_encoding(encoding_name)
         return len(encoding.encode(text))
     except ImportError:
@@ -106,7 +107,10 @@ class StructureAwareChunker:
         if section.section_type == "code":
             return [self._create_chunk(section.content, section, source)]
 
-        if section.section_type == "table" and self._estimate_tokens(section.content) <= self.max_tokens:
+        if (
+            section.section_type == "table"
+            and self._estimate_tokens(section.content) <= self.max_tokens
+        ):
             # Try to keep tables together if they fit
             return [self._create_chunk(section.content, section, source)]
 
@@ -159,9 +163,7 @@ class StructureAwareChunker:
                 # Start new chunk with overlap
                 overlap_sentences = self._get_overlap_sentences(current_chunk)
                 current_chunk = overlap_sentences + [sentence]
-                current_tokens = sum(
-                    self._estimate_tokens(s) for s in current_chunk
-                )
+                current_tokens = sum(self._estimate_tokens(s) for s in current_chunk)
             else:
                 current_chunk.append(sentence)
                 current_tokens += sentence_tokens
@@ -198,9 +200,7 @@ class StructureAwareChunker:
                     self.overlap_tokens // 2,  # Approximate words in overlap
                 )
                 current_words = current_words[-overlap_word_count:] + [word]
-                current_tokens = sum(
-                    self._estimate_tokens(w + " ") for w in current_words
-                )
+                current_tokens = sum(self._estimate_tokens(w + " ") for w in current_words)
             else:
                 current_words.append(word)
                 current_tokens += word_tokens
@@ -215,7 +215,7 @@ class StructureAwareChunker:
         """Split text into sentences."""
         # Simple sentence splitting on period, question mark, exclamation
         # followed by space or end of string
-        pattern = r'(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])\s*$'
+        pattern = r"(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])\s*$"
         sentences = re.split(pattern, text.strip())
         return [s.strip() for s in sentences if s.strip()]
 

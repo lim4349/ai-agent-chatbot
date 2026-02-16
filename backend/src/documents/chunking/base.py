@@ -124,7 +124,7 @@ class BaseChunker(ABC):
         """Split text into sentences."""
         # Simple sentence splitting on period, question mark, exclamation
         # followed by space or end of string
-        pattern = r'(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])\s*$'
+        pattern = r"(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])\s*$"
         sentences = re.split(pattern, text.strip())
         return [s.strip() for s in sentences if s.strip()]
 

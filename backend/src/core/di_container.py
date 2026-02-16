@@ -6,15 +6,18 @@ from src.core.config import get_config
 
 # --- Factory Functions (defined before class to avoid NameError) ---
 
+
 def _create_llm(config):
     """Create LLM provider."""
     from src.llm.factory import LLMFactory
+
     return LLMFactory.create(config)
 
 
 def _create_memory(config):
     """Create memory store."""
     from src.memory.factory import MemoryStoreFactory
+
     return MemoryStoreFactory.create(config)
 
 
@@ -100,6 +103,7 @@ def _create_tool_registry(config, retriever):
 def _create_summarizer(config, llm, memory):
     """Create summarizer."""
     from src.core.auto_summarize import SummarizationManager
+
     return SummarizationManager(llm=llm, memory_store=memory)
 
 
@@ -130,6 +134,7 @@ def _create_topic_memory(config, long_term_memory):
 def _create_memory_tool(memory, embedding_generator):
     """Create memory tool."""
     from src.tools.memory_tool import MemoryTool
+
     if not memory or not embedding_generator:
         return None
     return MemoryTool(
@@ -141,18 +146,21 @@ def _create_memory_tool(memory, embedding_generator):
 def _create_document_parser():
     """Create document parser."""
     from src.documents.factory import DocumentProcessorFactory
+
     return DocumentProcessorFactory.create_parser()
 
 
 def _create_document_chunker(config):
     """Create document chunker."""
     from src.documents.factory import DocumentProcessorFactory
+
     return DocumentProcessorFactory.create_chunker(config)
 
 
 def _create_graph(container):
     """Create compiled LangGraph instance."""
     from src.graph.builder import build_graph
+
     return build_graph(container)
 
 
@@ -163,6 +171,7 @@ def _create_graph_factory():
     """
     # Import container here to avoid circular import during module load
     from src.core import di_container
+
     return _create_graph(di_container.container)
 
 

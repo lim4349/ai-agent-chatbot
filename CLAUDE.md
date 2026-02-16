@@ -168,6 +168,17 @@ gh pr create --base main --head dev
 
 ### 5. ⚠️ 필수 규칙
 
+**모든 작업 전 git pull 필수**:
+```bash
+# 원격 변경사항 최신화
+git fetch origin
+git checkout dev && git pull origin dev
+# 또는 현재 브랜치에서
+git pull
+```
+- 로컬/원격 브랜치 모두 항상 최신 상태 유지
+- 작업 시작 전 반드시 pull로 동기화
+
 **Git Push 전 로컬 테스트 필수**:
 ```bash
 # 백엔드 (가상환경에서)

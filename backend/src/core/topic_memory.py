@@ -83,12 +83,12 @@ Summary:"""
 
         try:
             result = await self.llm.generate_structured(
-                messages=[{
-                    "role": "user",
-                    "content": self._TOPIC_EXTRACTION_PROMPT.format(
-                        conversation=conversation
-                    ),
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self._TOPIC_EXTRACTION_PROMPT.format(conversation=conversation),
+                    }
+                ],
                 output_schema=dict,
             )
 
@@ -227,13 +227,15 @@ Summary:"""
 
         try:
             summary = await self.llm.generate(
-                messages=[{
-                    "role": "user",
-                    "content": self._SUMMARY_GENERATION_PROMPT.format(
-                        topic=topic,
-                        conversation=conversation,
-                    ),
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self._SUMMARY_GENERATION_PROMPT.format(
+                            topic=topic,
+                            conversation=conversation,
+                        ),
+                    }
+                ],
             )
 
             return summary.strip()
@@ -371,9 +373,7 @@ Summary:"""
         # Get context for top topic
         top_topic = current_topics[0].get("topic")
         if top_topic:
-            topic_context = await self.get_context_for_topic(
-                top_topic, session_id
-            )
+            topic_context = await self.get_context_for_topic(top_topic, session_id)
             if topic_context:
                 context_parts.append(topic_context)
 
