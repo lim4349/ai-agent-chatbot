@@ -72,6 +72,7 @@ Repository → Settings → Secrets and variables → Actions → New repository
 | `VERCEL_ORG_ID` | team_xxxxxxxx | Vercel 조직 ID |
 | `VERCEL_PROJECT_ID` | prj_xxxxxxxx | Vercel 프로젝트 ID |
 | `PINECONE_API_KEY` | xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx | Pinecone API 키 |
+| `UPSTASH_REDIS_URL` | rediss://default:xxx@xxx.upstash.io:6379 | Upstash Redis URL |
 
 ---
 
@@ -105,6 +106,18 @@ Repository → Settings → Secrets and variables → Actions → New repository
    - **Dimensions**: 1024 (multilingual-e5-large)
    - **Metric**: cosine
 3. API Key 발급 및 Render Environment Variables에 추가
+
+#### Upstash Redis 설정 (세션 메모리)
+1. [Upstash 콘솔](https://upstash.com)에서 계정 생성
+2. 새 Redis 데이터베이스 생성:
+   - **Name**: ai-agent-session
+   - **Region**: 가까운 리전 선택
+3. 연결 정보 복사:
+   - Dashboard에서 "Rediss URL" 복사
+   - 형식: `rediss://default:<password>@<endpoint>.upstash.io:6379`
+4. Render Environment Variables에 추가:
+   - `MEMORY_BACKEND` = `redis`
+   - `MEMORY_REDIS_URL` = (복사한 URL)
 
 ---
 
@@ -151,7 +164,8 @@ vercel --prod
 | `PINECONE_API_KEY` | xxx-xxx-xxx | Pinecone API 키 |
 | `PINECONE_INDEX_NAME` | ai-agent-index | Pinecone 인덱스 이름 |
 | `EMBEDDING_PROVIDER` | pinecone | 임베딩 제공자 (pinecone/openai) |
-| `MEMORY_BACKEND` | in_memory | 메모리 백엔드 (in_memory/pinecone) |
+| `MEMORY_BACKEND` | redis | 메모리 백엔드 (in_memory/redis) |
+| `MEMORY_REDIS_URL` | rediss://default:xxx@... | Upstash Redis URL |
 
 ### Vercel (Frontend)
 
