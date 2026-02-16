@@ -124,9 +124,18 @@ jobs:
           fi
           echo "$content" > response.md
 
-          # Check if we should update CLAUDE.md
-          if echo "$REQUEST" | grep -qi "update.*claude.md\|lessons\|learn"; then
+          # Always prepare CLAUDE.md update with lessons learned
+          # Extract lessons learned section from response
+          if echo "$content" | grep -qi "개선\|제안\|lesson\|learn\|주의\|팁\|tip"; then
             echo "should_update_claude_md=true" >> $GITHUB_OUTPUT
+            # Prepare content for CLAUDE.md
+            DATE=$(date +%Y-%m-%d)
+            cat > claude_md_update.txt << UPDATEEOF
+
+### $DATE (PR #$PR_NUMBER)
+
+$content
+UPDATEEOF
           else
             echo "should_update_claude_md=false" >> $GITHUB_OUTPUT
           fi
@@ -153,10 +162,22 @@ jobs:
           git config user.name "Claude Code[bot]"
           git config user.email "claude-code[bot]@anthropic.com"
 
-          # Append to CLAUDE.md
-          echo "" >> CLAUDE.md
-          cat response.md >> CLAUDE.md
+          # Check if Lessons Learned section exists in CLAUDE.md
+          if grep -q "## 학습한 내용" CLAUDE.md; then
+            # Append to existing section
+            cat claude_md_update.txt >> CLAUDE.md
+          else
+            # Create new section
+            cat >> CLAUDE.md << EOF
+
+---
+
+## 학습한 내용 (Lessons Learned)
+
+$(cat claude_md_update.txt)
+EOF
+          fi
 
           git add CLAUDE.md
-          git commit -m "claude: Add lessons learned from PR [skip ci]"
+          git commit -m "docs: Add Claude review insights to CLAUDE.md [skip ci]"
           git push
