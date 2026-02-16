@@ -40,12 +40,24 @@ export function CombinedDocumentUpload() {
     setMessage(null);
     try {
       await uploadFile(file);
-      setMessage({ type: 'success', text: `Successfully uploaded ${file.name}` });
-      setTimeout(() => {
-        setOpen(false);
-        resetUploadStatus();
-        setMessage(null);
-      }, 1500);
+
+      // Only close modal if upload was successful
+      // Check uploadStatus from store after uploadFile completes
+      const { uploadStatus, uploadError } = useDocumentStore.getState();
+
+      if (uploadStatus === 'completed') {
+        setMessage({ type: 'success', text: `Successfully uploaded ${file.name}` });
+        setTimeout(() => {
+          setOpen(false);
+          resetUploadStatus();
+          setMessage(null);
+        }, 1500);
+      } else if (uploadStatus === 'error') {
+        setMessage({
+          type: 'error',
+          text: uploadError || 'Upload failed',
+        });
+      }
     } catch (error) {
       setMessage({
         type: 'error',
