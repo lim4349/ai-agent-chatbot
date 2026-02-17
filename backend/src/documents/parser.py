@@ -414,7 +414,7 @@ class DocumentParser:
                             section_type="paragraph",
                         )
                     )
-                elif isinstance(value, (dict, list)):
+                elif isinstance(value, dict | list):
                     self._extract_json_text(value, sections, new_prefix)
         elif isinstance(data, list):
             for i, item in enumerate(data):
@@ -427,5 +427,5 @@ class DocumentParser:
                             section_type="paragraph",
                         )
                     )
-                elif isinstance(item, (dict, list)):
+                elif isinstance(item, dict | list):
                     self._extract_json_text(item, sections, new_prefix)

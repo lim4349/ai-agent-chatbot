@@ -7,13 +7,27 @@ import { SessionItem } from './session-item';
 import { NewSessionButton } from './new-session-button';
 import { useTranslation } from '@/lib/i18n';
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const sessions = useChatStore((state) => state.sessions);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const createSession = useChatStore((state) => state.createSession);
   const switchSession = useChatStore((state) => state.switchSession);
   const deleteSession = useChatStore((state) => state.deleteSession);
   const { t } = useTranslation();
+
+  const handleSessionSelect = (sessionId: string) => {
+    switchSession(sessionId);
+    onClose?.();
+  };
+
+  const handleNewSession = () => {
+    createSession();
+    onClose?.();
+  };
 
   return (
     <div className="flex flex-col h-full bg-card border-r border-border">
@@ -24,7 +38,7 @@ export function Sidebar() {
 
       {/* New Chat Button */}
       <div className="px-4 pb-4">
-        <NewSessionButton onClick={createSession} />
+        <NewSessionButton onClick={handleNewSession} />
       </div>
 
       <Separator />
@@ -37,7 +51,7 @@ export function Sidebar() {
               key={session.id}
               session={session}
               isActive={session.id === activeSessionId}
-              onSelect={() => switchSession(session.id)}
+              onSelect={() => handleSessionSelect(session.id)}
               onDelete={() => deleteSession(session.id)}
             />
           ))}

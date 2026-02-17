@@ -24,13 +24,17 @@ class DocumentUploadRequest(BaseModel):
     """Document upload request for RAG."""
 
     content: str = Field(..., min_length=1, description="Document content")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Session or document metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Session or document metadata"
+    )
 
 
 class FileUploadRequest(BaseModel):
     """File upload request for RAG with binary file content."""
 
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Session or document metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Session or document metadata"
+    )
 
 
 # --- Response Models ---
@@ -43,7 +47,9 @@ class ChatResponse(BaseModel):
     session_id: str = Field(..., description="Session ID")
     agent_used: str = Field(..., description="Agent that processed the request")
     route_reasoning: str | None = Field(default=None, description="Supervisor routing reasoning")
-    tool_results: list[dict[str, Any]] = Field(default_factory=list, description="Tool execution results")
+    tool_results: list[dict[str, Any]] = Field(
+        default_factory=list, description="Tool execution results"
+    )
     created_at: datetime = Field(default_factory=datetime.now, description="Response timestamp")
 
 

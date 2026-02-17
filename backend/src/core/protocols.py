@@ -211,7 +211,9 @@ class Summarizer(Protocol):
 class UserProfiler(Protocol):
     """User profiling interface for extracting user preferences."""
 
-    async def extract_profile(self, session_id: str, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
+    async def extract_profile(
+        self, session_id: str, messages: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
         """Extract user profile from conversation.
 
         Args:
