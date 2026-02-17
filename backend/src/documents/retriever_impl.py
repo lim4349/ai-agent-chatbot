@@ -11,6 +11,11 @@ from src.documents.pinecone_store import PineconeVectorStore
 
 logger = get_logger(__name__)
 
+# Minimum relevance score threshold to filter low-quality matches
+MIN_RELEVANCE_SCORE = 0.5
+# Score threshold for low-confidence warning
+LOW_CONFIDENCE_THRESHOLD = 0.7
+
 
 class PineconeDocumentRetriever(DocumentRetriever):
     """Document retriever implementation using Pinecone vector store."""
@@ -62,9 +67,18 @@ class PineconeDocumentRetriever(DocumentRetriever):
             filters=filters if filters else None,
         )
 
-        # Format results for RAGAgent
+        # Format results for RAGAgent with confidence filtering
         formatted_results = []
         for result in results:
+            # Skip low-relevance results (anti-hallucination)
+            if result.score < MIN_RELEVANCE_SCORE:
+                logger.debug(
+                    "skipping_low_relevance_result",
+                    score=result.score,
+                    threshold=MIN_RELEVANCE_SCORE,
+                )
+                continue
+
             formatted_result = {
                 "content": result.chunk_content,
                 "metadata": {
@@ -78,10 +92,16 @@ class PineconeDocumentRetriever(DocumentRetriever):
                     "document_id": result.document_id,
                 },
                 "score": result.score,
+                # Flag low-confidence results for RAGAgent to handle
+                "low_confidence": result.score < LOW_CONFIDENCE_THRESHOLD,
             }
             formatted_results.append(formatted_result)
 
-        logger.info("retrieval_completed", results_count=len(formatted_results))
+        logger.info(
+            "retrieval_completed",
+            results_count=len(formatted_results),
+            filtered_count=len(results) - len(formatted_results),
+        )
         return formatted_results
 
     async def add_documents(self, documents: list[dict]) -> None:

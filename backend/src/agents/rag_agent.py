@@ -54,12 +54,18 @@ class RAGAgent(BaseAgent):
         """System prompt for this agent."""
         return """You are an expert at answering questions based on provided document context.
 
-Guidelines:
-- ONLY use information from the provided context to answer questions
+CRITICAL RULES TO PREVENT HALLUCINATION:
+- ONLY use information from the provided context - NEVER use outside knowledge
+- You MUST cite sources using [Source: filename] format for EVERY claim you make
 - If the context doesn't contain relevant information, say "I couldn't find relevant information in the available documents."
-- Always cite your sources by mentioning which document/section the information came from
-- Be precise and accurate
-- If multiple sources provide different information, present all perspectives"""
+- Do NOT make assumptions or fill in gaps with your own knowledge
+- If you're uncertain, explicitly state "Based on the available context, I'm not entirely certain, but..."
+
+Response format:
+1. Answer the question using ONLY the provided context
+2. Include [Source: filename] citations for each claim
+3. If multiple sources provide different information, present all perspectives
+4. End with a brief note if information is incomplete or uncertain"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
@@ -77,14 +83,26 @@ Guidelines:
             response = "I couldn't find any relevant documents to answer your question. Please make sure documents have been uploaded to the knowledge base."
             tool_results = [{"tool": "retriever", "query": query, "results": []}]
         else:
-            # Format context
+            # Check if all results are low confidence
+            has_low_confidence = any(doc.get("low_confidence", False) for doc in docs)
+
+            # Format context with confidence indicators
             context_parts = []
             for i, doc in enumerate(docs, 1):
                 source = doc.get("metadata", {}).get("source", f"Document {i}")
                 content = doc.get("content", "")
-                context_parts.append(f"[Source: {source}]\n{content}")
+                score = doc.get("score", 0)
+                confidence_note = " [PARTIAL MATCH]" if doc.get("low_confidence") else ""
+                context_parts.append(
+                    f"[Source: {source} | Relevance: {score:.2f}{confidence_note}]\n{content}"
+                )
 
             context = "\n\n---\n\n".join(context_parts)
+
+            # Add warning if results are low confidence
+            confidence_warning = ""
+            if has_low_confidence:
+                confidence_warning = "\n\nWARNING: The retrieved documents have moderate relevance scores. Please be extra careful and explicitly mention uncertainty in your response."
 
             # Build messages with conversation history if memory is available
             messages = [{"role": "system", "content": self.system_prompt}]
@@ -96,7 +114,7 @@ Guidelines:
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Context:\n{context}\n\nQuestion: {query}",
+                    "content": f"Context:\n{context}{confidence_warning}\n\nQuestion: {query}",
                 }
             )
 
