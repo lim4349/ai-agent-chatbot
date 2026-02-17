@@ -218,8 +218,9 @@ async def chat_stream(
                 if kind == "on_chat_model_stream":
                     # Skip supervisor's structured output tokens (routing decision)
                     # Only stream tokens from actual response agents (chat, code, rag, web_search)
-                    tags = event.get("tags", [])
-                    if "supervisor" in tags:
+                    metadata = event.get("metadata", {})
+                    langgraph_node = metadata.get("langgraph_node", "")
+                    if langgraph_node == "supervisor":
                         continue
 
                     chunk = event.get("data", {}).get("chunk")
