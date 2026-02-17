@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Trash2, MessageSquare } from 'lucide-react';
 import type { Session } from '@/types';
 
@@ -30,10 +29,9 @@ export function SessionItem({
     >
       <MessageSquare className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
       <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="flex-shrink-0 h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+      <button
+        type="button"
+        className="flex-shrink-0 p-2 rounded-md text-red-500 hover:text-red-600 hover:bg-red-500/20 transition-colors"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
@@ -41,7 +39,7 @@ export function SessionItem({
         aria-label="Delete session"
       >
         <Trash2 className="w-4 h-4" />
-      </Button>
+      </button>
     </div>
   );
 }
