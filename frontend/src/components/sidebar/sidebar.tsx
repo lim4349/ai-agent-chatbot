@@ -24,8 +24,8 @@ export function Sidebar({ onClose }: SidebarProps) {
     onClose?.();
   };
 
-  const handleNewSession = () => {
-    createSession();
+  const handleNewSession = async () => {
+    await createSession();
     onClose?.();
   };
 
@@ -52,7 +52,9 @@ export function Sidebar({ onClose }: SidebarProps) {
               session={session}
               isActive={session.id === activeSessionId}
               onSelect={() => handleSessionSelect(session.id)}
-              onDelete={() => deleteSession(session.id)}
+              onDelete={async () => {
+                await deleteSession(session.id);
+              }}
             />
           ))}
 

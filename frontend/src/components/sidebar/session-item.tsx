@@ -32,14 +32,15 @@ export function SessionItem({
       <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
       <Button
         variant="ghost"
-        size="icon-xs"
-        className="flex-shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+        size="icon"
+        className="flex-shrink-0 opacity-0 group-hover:opacity-100 h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
+        aria-label="Delete session"
       >
-        <Trash2 className="w-3.5 h-3.5" />
+        <Trash2 className="w-4 h-4" />
       </Button>
     </div>
   );

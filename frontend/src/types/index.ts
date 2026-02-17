@@ -80,6 +80,20 @@ export interface DocumentListResponse {
   documents: DocumentInfo[];
 }
 
+// Session API Types
+export interface SessionResponse {
+  id: string;
+  user_id: string;
+  title: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionListResponse {
+  sessions: SessionResponse[];
+}
+
 // Frontend-only types
 
 export interface Message {
