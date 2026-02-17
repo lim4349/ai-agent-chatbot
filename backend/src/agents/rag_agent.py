@@ -67,9 +67,9 @@ Guidelines:
         session_id = state.get("metadata", {}).get("session_id", "default")
         query = get_message_content(state["messages"][-1])
 
-        # Retrieve relevant documents
+        # Retrieve relevant documents (filtered by session)
         try:
-            docs = await self.retriever.retrieve(query, top_k=3)
+            docs = await self.retriever.retrieve(query, top_k=3, session_id=session_id)
         except Exception:
             docs = []
 

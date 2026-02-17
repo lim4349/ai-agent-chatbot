@@ -36,22 +36,30 @@ class PineconeDocumentRetriever(DocumentRetriever):
         self,
         query: str,
         top_k: int = 3,
+        session_id: str | None = None,
     ) -> list[dict]:
         """Retrieve relevant document chunks.
 
         Args:
             query: Search query text
             top_k: Number of results to return
+            session_id: Optional session ID for filtering documents
 
         Returns:
             List of document chunks with content, metadata, and score
             Format: [{"content": str, "metadata": dict, "score": float}]
         """
-        logger.info("retrieving_documents", query=query[:50], top_k=top_k)
+        logger.info("retrieving_documents", query=query[:50], top_k=top_k, session_id=session_id)
+
+        # Build filters for session isolation
+        filters = {}
+        if session_id:
+            filters["session_id"] = session_id
 
         results = await self.vector_store.search(
             query=query,
             top_k=top_k,
+            filters=filters if filters else None,
         )
 
         # Format results for RAGAgent
