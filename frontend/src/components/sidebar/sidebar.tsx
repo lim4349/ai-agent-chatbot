@@ -30,44 +30,46 @@ export function Sidebar({ onClose }: SidebarProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-r border-border">
+    <div className="flex flex-col h-full overflow-hidden bg-card border-r border-border">
       {/* Header */}
-      <div className="p-4">
+      <div className="flex-shrink-0 p-4">
         <h2 className="text-lg font-semibold">{t('sidebar.title')}</h2>
       </div>
 
       {/* New Chat Button */}
-      <div className="px-4 pb-4">
+      <div className="flex-shrink-0 px-4 pb-4">
         <NewSessionButton onClick={handleNewSession} />
       </div>
 
-      <Separator />
+      <Separator className="flex-shrink-0" />
 
       {/* Session List */}
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {sessions.map((session) => (
-            <SessionItem
-              key={session.id}
-              session={session}
-              isActive={session.id === activeSessionId}
-              onSelect={() => handleSessionSelect(session.id)}
-              onDelete={async () => {
-                await deleteSession(session.id);
-              }}
-            />
-          ))}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-2 space-y-1">
+            {sessions.map((session) => (
+              <SessionItem
+                key={session.id}
+                session={session}
+                isActive={session.id === activeSessionId}
+                onSelect={() => handleSessionSelect(session.id)}
+                onDelete={async () => {
+                  await deleteSession(session.id);
+                }}
+              />
+            ))}
 
-          {sessions.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              {t('sidebar.empty')}
-            </p>
-          )}
-        </div>
-      </ScrollArea>
+            {sessions.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t('sidebar.empty')}
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border">
+      <div className="flex-shrink-0 p-4 border-t border-border">
         <p className="text-xs text-muted-foreground text-center">
           {t('sidebar.count', sessions.length)}
         </p>
