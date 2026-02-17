@@ -1,15 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useChatStore, useActiveSession } from '@/stores/chat-store';
 import { Header } from '@/components/header/header';
 import { Sidebar } from '@/components/sidebar/sidebar';
 import { ChatContainer } from '@/components/chat/chat-container';
 import { CombinedDocumentUpload } from '@/components/documents/combined-document-upload';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -21,6 +19,9 @@ export default function ChatPage() {
   const createSession = useChatStore((state) => state.createSession);
   const activeSession = useActiveSession();
 
+  // Mobile sidebar state (separate from desktop sidebar)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   // Create initial session only after hydration is complete
   useEffect(() => {
     if (hasHydrated && sessions.length === 0) {
@@ -28,9 +29,20 @@ export default function ChatPage() {
     }
   }, [hasHydrated, sessions.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle menu click - different behavior for mobile vs desktop
+  const handleMenuClick = () => {
+    if (window.innerWidth < 768) {
+      // Mobile: toggle Sheet
+      setMobileSidebarOpen(true);
+    } else {
+      // Desktop: toggle sidebar visibility
+      toggleSidebar();
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <Header onMenuClick={toggleSidebar} />
+      <Header onMenuClick={handleMenuClick} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop Sidebar */}
@@ -46,23 +58,11 @@ export default function ChatPage() {
         </div>
 
         {/* Mobile Sidebar (Sheet) */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden fixed bottom-4 left-4 z-50"
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-          </SheetTrigger>
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
           <SheetContent side="left" className="p-0 w-64">
-            <Sidebar />
+            <Sidebar onClose={() => setMobileSidebarOpen(false)} />
           </SheetContent>
         </Sheet>
-
-        {/* Invisible overlay fix for context menu */}
-        <div className="hidden md:hidden" onClick={(e) => e.stopPropagation()} />
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">

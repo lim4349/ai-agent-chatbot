@@ -21,7 +21,6 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
   const listRef = useListRef(null);
   const dynamicRowHeight = useDynamicRowHeight({
     defaultRowHeight: 100,
-    key: messages.length,
   });
   const { t } = useTranslation();
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -60,7 +59,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     const nearBottom = distanceFromBottom < threshold;
 
     setIsNearBottom(nearBottom);
-    setShowScrollButton(!nearBottom && isStreaming);
+    setShowScrollButton(!nearBottom);
 
     // Detect user-initiated scroll
     isUserScrolling.current = true;
