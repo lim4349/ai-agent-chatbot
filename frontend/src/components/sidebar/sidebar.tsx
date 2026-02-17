@@ -1,7 +1,6 @@
 'use client';
 
 import { useChatStore } from '@/stores/chat-store';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { SessionItem } from './session-item';
 import { NewSessionButton } from './new-session-button';
@@ -44,28 +43,26 @@ export function Sidebar({ onClose }: SidebarProps) {
       <Separator className="flex-shrink-0" />
 
       {/* Session List */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="p-2 space-y-1">
-            {sessions.map((session) => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                onSelect={() => handleSessionSelect(session.id)}
-                onDelete={async () => {
-                  await deleteSession(session.id);
-                }}
-              />
-            ))}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="p-2 space-y-1">
+          {sessions.map((session) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              isActive={session.id === activeSessionId}
+              onSelect={() => handleSessionSelect(session.id)}
+              onDelete={async () => {
+                await deleteSession(session.id);
+              }}
+            />
+          ))}
 
-            {sessions.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t('sidebar.empty')}
-              </p>
-            )}
-          </div>
-        </ScrollArea>
+          {sessions.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {t('sidebar.empty')}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
