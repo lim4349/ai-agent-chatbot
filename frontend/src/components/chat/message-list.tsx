@@ -90,19 +90,19 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     const hasNewMessage = messages.length > lastMessageCount.current;
     lastMessageCount.current = messages.length;
 
-    if (hasNewMessage && isNearBottom) {
+    if (hasNewMessage && isNearBottom && viewportRef.current) {
       // Scroll to bottom after a short delay to allow the list to render
       setTimeout(() => {
-        if (listRef.current) {
-          listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
+        if (viewportRef.current) {
+          viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
         }
       }, 100);
     }
-  }, [messages.length, isNearBottom, listRef]);
+  }, [messages.length, isNearBottom]);
 
   // Streaming scroll - only if user is near bottom and not actively scrolling
   useEffect(() => {
-    if (!isStreaming || !isNearBottom) return;
+    if (!isStreaming || !isNearBottom || !viewportRef.current) return;
 
     let rafId: number;
     let lastScrollTime = Date.now();
@@ -110,10 +110,8 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     const checkAndScroll = () => {
       const now = Date.now();
       // Only scroll every 100ms max, and only if user isn't actively scrolling
-      if (now - lastScrollTime > 100 && !isUserScrolling.current && isNearBottom) {
-        if (listRef.current) {
-          listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
-        }
+      if (now - lastScrollTime > 100 && !isUserScrolling.current && isNearBottom && viewportRef.current) {
+        viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
         lastScrollTime = now;
       }
       rafId = requestAnimationFrame(checkAndScroll);
@@ -121,7 +119,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
 
     rafId = requestAnimationFrame(checkAndScroll);
     return () => cancelAnimationFrame(rafId);
-  }, [isStreaming, isNearBottom, messages.length, listRef]);
+  }, [isStreaming, isNearBottom]);
 
   // Render individual message row
   type RowProps = {
@@ -210,8 +208,8 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
       <button
         onClick={() => {
           setIsNearBottom(true);
-          if (listRef.current) {
-            listRef.current.scrollToRow({ index: messages.length - 1, align: 'end' });
+          if (viewportRef.current) {
+            viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
           }
         }}
         className={cn(
