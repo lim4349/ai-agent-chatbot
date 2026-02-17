@@ -98,8 +98,14 @@ class DocumentRetriever(Protocol):
         self,
         query: str,
         top_k: int = 3,
+        session_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve relevant document chunks.
+
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+            session_id: Optional session ID for filtering documents
 
         Returns: [{"content": str, "metadata": dict, "score": float}]
         """

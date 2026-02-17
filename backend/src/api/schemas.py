@@ -136,6 +136,9 @@ class SessionCreate(BaseModel):
     title: str = Field(default="New Chat", max_length=100, description="Session title")
     device_id: str = Field(..., description="Device identifier for guest mode")
     metadata: dict = Field(default_factory=dict, description="Session metadata")
+    session_id: str | None = Field(
+        default=None, description="Optional session ID (for lazy sync from frontend)"
+    )
 
 
 class SessionResponse(BaseModel):

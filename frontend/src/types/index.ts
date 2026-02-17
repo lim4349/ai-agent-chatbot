@@ -117,6 +117,10 @@ export interface Session {
   title: string;
   messages: Message[];
   createdAt: Date;
+  // Track if session exists in backend (Supabase)
+  // true = local only, not yet synced to backend
+  // false/undefined = exists in backend
+  isLocalOnly?: boolean;
 }
 
 export type AgentType = 'chat' | 'code' | 'rag' | 'web_search' | 'supervisor';

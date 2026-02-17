@@ -362,7 +362,8 @@ async def create_session(
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> SessionResponse:
     """Create a new session for guest user (identified by device_id)."""
-    session_id = str(uuid4())
+    # Use provided session_id (lazy sync) or generate new one
+    session_id = request.session_id if request.session_id else str(uuid4())
     user_id = request.device_id  # Use device_id as user_id for guest mode
 
     session = await session_store.create(
