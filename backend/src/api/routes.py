@@ -216,6 +216,12 @@ async def chat_stream(
                 kind = event.get("event")
 
                 if kind == "on_chat_model_stream":
+                    # Skip supervisor's structured output tokens (routing decision)
+                    # Only stream tokens from actual response agents (chat, code, rag, web_search)
+                    tags = event.get("tags", [])
+                    if "supervisor" in tags:
+                        continue
+
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         yield {"event": "token", "data": chunk.content}
