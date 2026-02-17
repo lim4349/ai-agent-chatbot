@@ -31,7 +31,7 @@ export function SessionItem({
       <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
       <button
         type="button"
-        className="flex-shrink-0 p-2 rounded-md opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all"
+        className="flex-shrink-0 p-2 rounded-md text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
