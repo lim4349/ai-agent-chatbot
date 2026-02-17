@@ -15,12 +15,15 @@ class OpenAIProvider:
 
     def __init__(self, config: LLMConfig):
         self.config = config
-        self.client = ChatOpenAI(
-            model=config.model,
-            api_key=config.openai_api_key,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-        )
+        client_kwargs = {
+            "model": config.model,
+            "api_key": config.openai_api_key,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+        }
+        if config.base_url:
+            client_kwargs["openai_api_base"] = config.base_url
+        self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
