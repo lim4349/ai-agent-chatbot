@@ -18,7 +18,10 @@ function fixSentenceSpacing(text: string): string {
   if (!text) return text;
   // Add space after sentence-ending punctuation if followed by a letter
   // Handles both English (.!?) and Korean (。！？) punctuation
-  return text.replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2');
+  return text
+    .replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2')
+    // Add space after emoji followed by Korean/English text
+    .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2');
 }
 
 /**

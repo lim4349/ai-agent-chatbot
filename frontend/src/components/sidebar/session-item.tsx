@@ -33,7 +33,7 @@ export function SessionItem({
       <Button
         variant="ghost"
         size="icon"
-        className="flex-shrink-0 h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/10"
+        className="flex-shrink-0 h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-500/10"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
