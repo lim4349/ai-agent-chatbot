@@ -66,12 +66,13 @@ def _create_long_term_memory(config):
     """Create long-term memory with Supabase or in-memory fallback."""
     from src.memory.long_term_memory import LongTermMemory
 
-    if config.memory.backend == "in_memory" and not config.debug:
-        return None
-
     # Use Supabase for session storage as long-term memory backend
     supabase_url = config.session.supabase_url
     supabase_key = config.session.supabase_key
+
+    # Only create if Supabase is configured
+    if not supabase_url or not supabase_key:
+        return None
 
     return LongTermMemory(
         supabase_url=supabase_url,
