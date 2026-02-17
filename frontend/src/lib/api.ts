@@ -164,10 +164,14 @@ export const api = {
   },
 
   // Session
-  async createSession(title: string = 'New Chat', deviceId: string): Promise<SessionResponse> {
+  async createSession(
+    title: string = 'New Chat',
+    deviceId: string,
+    sessionId?: string
+  ): Promise<SessionResponse> {
     return fetchApi<SessionResponse>(API_ENDPOINTS.sessions, {
       method: 'POST',
-      body: JSON.stringify({ title, device_id: deviceId }),
+      body: JSON.stringify({ title, device_id: deviceId, session_id: sessionId }),
     });
   },
 

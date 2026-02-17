@@ -73,39 +73,21 @@ export const useChatStore = create<ChatStore>()(
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
       createSession: async () => {
-        try {
-          // Call backend API to create session in Supabase with device_id
-          const deviceId = getDeviceId();
-          const response = await api.createSession('New Chat', deviceId);
-          const id = response.id;
-          const newSession: Session = {
-            id,
-            title: response.title,
-            messages: [],
-            createdAt: new Date(response.created_at),
-          };
-          set((state) => ({
-            sessions: [newSession, ...state.sessions],
-            activeSessionId: id,
-          }));
-          return id;
-        } catch (error) {
-          console.error('Failed to create session in backend, using local fallback:', error);
-          // Fallback to local creation if API fails
-          const id = uuidv4();
-          const now = new Date().toISOString();
-          const newSession: Session = {
-            id,
-            title: 'New Chat',
-            messages: [],
-            createdAt: now as unknown as Date,
-          };
-          set((state) => ({
-            sessions: [newSession, ...state.sessions],
-            activeSessionId: id,
-          }));
-          return id;
-        }
+        // Create session locally only - will be synced to backend on first message
+        const id = uuidv4();
+        const now = new Date();
+        const newSession: Session = {
+          id,
+          title: 'New Chat',
+          messages: [],
+          createdAt: now,
+          isLocalOnly: true, // Mark as local-only until first message
+        };
+        set((state) => ({
+          sessions: [newSession, ...state.sessions],
+          activeSessionId: id,
+        }));
+        return id;
       },
 
       switchSession: (id) => {
@@ -134,7 +116,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       sendMessage: (content) => {
-        const { activeSessionId, isStreaming, showCommandFeedback } = get();
+        const { activeSessionId, isStreaming, showCommandFeedback, sessions } = get();
         if (isStreaming || !activeSessionId) return;
 
         // Parse memory commands for instant feedback
@@ -144,6 +126,26 @@ export const useChatStore = create<ChatStore>()(
         }
 
         const sessionId = activeSessionId;
+        const currentSession = sessions.find((s) => s.id === sessionId);
+
+        // Sync local-only session to backend on first message
+        if (currentSession?.isLocalOnly) {
+          const deviceId = getDeviceId();
+          api
+            .createSession(currentSession.title || 'New Chat', deviceId, sessionId)
+            .then(() => {
+              // Mark as synced
+              set((state) => ({
+                sessions: state.sessions.map((s) =>
+                  s.id === sessionId ? { ...s, isLocalOnly: false } : s
+                ),
+              }));
+            })
+            .catch((error) => {
+              console.error('Failed to sync session to backend:', error);
+              // Continue anyway - session works locally
+            });
+        }
         const now = new Date().toISOString();
         const userMessage: Message = {
           id: uuidv4(),
