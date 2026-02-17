@@ -31,12 +31,12 @@ services:
       - key: LLM_PROVIDER
         value: openai
       - key: LLM_MODEL
-        value: gpt-4o-mini
+        value: google/gemini-2.0-flash-001
+      - key: LLM_BASE_URL
+        value: https://openrouter.ai/api/v1
       # Secrets - Set these in Render Dashboard
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
+      - key: LLM_OPENAI_API_KEY
+        sync: false  # OpenRouter API key (sk-or-v1-...)
       - key: TAVILY_API_KEY
         sync: false
       # Memory configuration (Upstash Redis)
