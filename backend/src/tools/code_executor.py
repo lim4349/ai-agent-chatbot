@@ -248,7 +248,7 @@ class RestrictedPythonExecutor:
 
             for node in ast.walk(tree):
                 # Block imports
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                if isinstance(node, ast.Import | ast.ImportFrom):
                     module_names = []
                     if isinstance(node, ast.Import):
                         module_names = [alias.name for alias in node.names]
