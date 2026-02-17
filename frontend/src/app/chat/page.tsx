@@ -25,7 +25,7 @@ export default function ChatPage() {
   // Create initial session only after hydration is complete
   useEffect(() => {
     if (hasHydrated && sessions.length === 0) {
-      createSession();
+      createSession().catch(console.error);
     }
   }, [hasHydrated, sessions.length]); // eslint-disable-line react-hooks/exhaustive-deps
 

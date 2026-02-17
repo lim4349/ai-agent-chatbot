@@ -17,9 +17,9 @@ interface ChatStore {
   _hasHydrated: boolean;
 
   setHasHydrated: (state: boolean) => void;
-  createSession: () => string;
+  createSession: () => Promise<string>;
   switchSession: (id: string) => void;
-  deleteSession: (id: string) => void;
+  deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => void;
   setStreaming: (value: boolean) => void;
   setError: (error: string | null) => void;
@@ -59,27 +59,53 @@ export const useChatStore = create<ChatStore>()(
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
-      createSession: () => {
-        const id = uuidv4();
-        const now = new Date().toISOString();
-        const newSession: Session = {
-          id,
-          title: 'New Chat',
-          messages: [],
-          createdAt: now as unknown as Date,
-        };
-        set((state) => ({
-          sessions: [newSession, ...state.sessions],
-          activeSessionId: id,
-        }));
-        return id;
+      createSession: async () => {
+        try {
+          // Call backend API to create session in Supabase
+          const response = await api.createSession('New Chat');
+          const id = response.id;
+          const newSession: Session = {
+            id,
+            title: response.title,
+            messages: [],
+            createdAt: new Date(response.created_at),
+          };
+          set((state) => ({
+            sessions: [newSession, ...state.sessions],
+            activeSessionId: id,
+          }));
+          return id;
+        } catch (error) {
+          console.error('Failed to create session in backend, using local fallback:', error);
+          // Fallback to local creation if API fails
+          const id = uuidv4();
+          const now = new Date().toISOString();
+          const newSession: Session = {
+            id,
+            title: 'New Chat',
+            messages: [],
+            createdAt: now as unknown as Date,
+          };
+          set((state) => ({
+            sessions: [newSession, ...state.sessions],
+            activeSessionId: id,
+          }));
+          return id;
+        }
       },
 
       switchSession: (id) => {
         set({ activeSessionId: id });
       },
 
-      deleteSession: (id) => {
+      deleteSession: async (id) => {
+        try {
+          // Call backend API to delete session from Supabase and Pinecone
+          await api.deleteSession(id);
+        } catch (error) {
+          console.error('Failed to delete session from backend:', error);
+        }
+        // Always update local state
         set((state) => {
           const sessions = state.sessions.filter((s) => s.id !== id);
           const activeSessionId =

@@ -8,7 +8,9 @@ export const API_ENDPOINTS = {
   health: '/api/v1/health',
   agents: '/api/v1/agents',
   documents: '/api/v1/documents',
-  session: (id: string) => `/api/v1/sessions/${id}/full`,
+  sessions: '/api/v1/sessions',
+  session: (id: string) => `/api/v1/sessions/${id}`,
+  sessionFull: (id: string) => `/api/v1/sessions/${id}/full`,
   logs: '/api/v1/logs',
 } as const;
 
