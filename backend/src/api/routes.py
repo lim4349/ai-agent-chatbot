@@ -63,7 +63,7 @@ def check_rate_limit(session_id: str) -> None:
     if count >= RATE_LIMIT_PER_SESSION:
         raise HTTPException(
             status_code=429,
-            detail=f"세션당 최대 {RATE_LIMIT_PER_SESSION}회 호출 가능합니다. 새 세션을 시작해주세요."
+            detail=f"세션당 최대 {RATE_LIMIT_PER_SESSION}회 호출 가능합니다. 새 세션을 시작해주세요.",
         )
     _rate_limits[session_id] = count + 1
 

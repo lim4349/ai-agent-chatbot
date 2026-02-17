@@ -12,8 +12,10 @@ class TestSupervisorAgent:
     @pytest.mark.asyncio
     async def test_routes_to_chat(self, mock_llm):
         """Test that greetings are routed to chat."""
+
         async def mock_structured(messages, output_schema, **kwargs):
             return {"selected_agent": "chat", "reasoning": "General greeting"}
+
         mock_llm.generate_structured = mock_structured
 
         supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})
@@ -26,8 +28,10 @@ class TestSupervisorAgent:
     @pytest.mark.asyncio
     async def test_routes_to_code(self, mock_llm):
         """Test that code requests are routed to code agent."""
+
         async def mock_structured(messages, output_schema, **kwargs):
             return {"selected_agent": "code", "reasoning": "Code generation request"}
+
         mock_llm.generate_structured = mock_structured
 
         supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})
@@ -39,8 +43,10 @@ class TestSupervisorAgent:
     @pytest.mark.asyncio
     async def test_routes_to_web_search(self, mock_llm):
         """Test that current info requests are routed to web search."""
+
         async def mock_structured(messages, output_schema, **kwargs):
             return {"selected_agent": "web_search", "reasoning": "Current information needed"}
+
         mock_llm.generate_structured = mock_structured
 
         supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})

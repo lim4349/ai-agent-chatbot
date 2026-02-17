@@ -197,10 +197,7 @@ class LongTermMemory:
 
                 # Get facts
                 facts_result = (
-                    self._client.table("user_facts")
-                    .select("*")
-                    .eq("user_id", user_id)
-                    .execute()
+                    self._client.table("user_facts").select("*").eq("user_id", user_id).execute()
                 )
                 for fact_row in facts_result.data:
                     category = fact_row["category"]
@@ -523,10 +520,7 @@ class LongTermMemory:
         query_lower = query.lower()
         for _topic, summaries in self._topic_summaries.items():
             for summary_data in summaries:
-                if (
-                    query_lower in summary_data["summary"].lower()
-                    or query_lower in _topic.lower()
-                ):
+                if query_lower in summary_data["summary"].lower() or query_lower in _topic.lower():
                     results.append(summary_data)
         return results[:top_k]
 
