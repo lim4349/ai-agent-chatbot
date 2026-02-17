@@ -406,6 +406,7 @@ async def delete_session(
     device_id: str,
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    memory: MemoryStore = Depends(Provide[DIContainer.memory]),  # noqa: B008
 ):
     """Delete a session and all its associated documents.
 
@@ -434,7 +435,10 @@ async def delete_session(
                 status="success",
             )
 
-        # 2. Delete session from storage
+        # 2. Clear Redis memory (chat history & summary)
+        await memory.clear(session_id)
+
+        # 3. Delete session from storage
         await session_store.delete(session_id)
 
         return {
