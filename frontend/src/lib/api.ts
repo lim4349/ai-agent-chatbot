@@ -7,6 +7,8 @@ import type {
   DocumentUploadResponse,
   FileUploadResponse,
   DocumentListResponse,
+  SessionResponse,
+  SessionListResponse,
 } from '@/types';
 import { API_BASE_URL, API_ENDPOINTS } from './constants';
 import { tokenManager } from './token-manager';
@@ -195,6 +197,23 @@ export const api = {
   },
 
   // Session
+  async createSession(title: string = 'New Chat'): Promise<SessionResponse> {
+    return fetchApi<SessionResponse>(API_ENDPOINTS.sessions, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    });
+  },
+
+  async listSessions(): Promise<SessionListResponse> {
+    return fetchApi<SessionListResponse>(API_ENDPOINTS.sessions);
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await fetchApi(API_ENDPOINTS.sessionFull(sessionId), {
+      method: 'DELETE',
+    });
+  },
+
   async clearSession(sessionId: string): Promise<void> {
     await fetchApi(API_ENDPOINTS.session(sessionId), {
       method: 'DELETE',
