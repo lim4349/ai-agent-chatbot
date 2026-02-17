@@ -25,6 +25,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Get PR context
         id: context
@@ -131,6 +132,7 @@ jobs:
         if: steps.glm.outputs.should_update_claude_md == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name "Claude Code[bot]"
           git config user.email "claude-code[bot]@anthropic.com"
@@ -147,4 +149,10 @@ jobs:
 
           git add CLAUDE.md
           git commit -m "docs: Add Claude review insights to CLAUDE.md [skip ci]"
-          git push
+
+          # Push to PR head branch
+          if [ -n "$PR_HEAD_REF" ]; then
+            git push origin HEAD:$PR_HEAD_REF
+          else
+            git push
+          fi
