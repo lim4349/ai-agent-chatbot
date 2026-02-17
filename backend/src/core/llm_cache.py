@@ -63,9 +63,7 @@ class LLMCache:
             "model": model,
             "temperature": temperature,
         }
-        key_hash = hashlib.sha256(
-            json.dumps(key_data, sort_keys=True).encode()
-        ).hexdigest()
+        key_hash = hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
         return f"{self._key_prefix}{key_hash}"
 
     async def get(

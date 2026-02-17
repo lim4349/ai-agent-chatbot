@@ -41,8 +41,10 @@ class TestCodeAgent:
     @pytest.mark.asyncio
     async def test_generates_code_response(self, mock_llm):
         """Test that code agent generates a response."""
+
         async def mock_generate(messages, **kwargs):
             return "```python\nprint('Hello')\n```"
+
         mock_llm.generate = mock_generate
 
         agent = CodeAgent(llm=mock_llm)

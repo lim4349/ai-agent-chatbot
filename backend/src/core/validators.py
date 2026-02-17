@@ -600,7 +600,7 @@ def _sanitize_metadata_value(value: Any, depth: int) -> Any:
     if isinstance(value, str):
         return _sanitize_string(value, MAX_METADATA_STRING_LENGTH)
 
-    if isinstance(value, (int, float, bool)):
+    if isinstance(value, int | float | bool):
         return value
 
     if isinstance(value, list):
