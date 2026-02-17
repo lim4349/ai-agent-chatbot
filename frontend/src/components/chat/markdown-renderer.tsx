@@ -245,13 +245,19 @@ const markdownComponents = {
     const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
     const isUnsafe = href && !safeHref;
 
+    // Truncate long URLs for display while keeping full href
+    const displayText = typeof children === 'string' && children.length > 50
+      ? children.slice(0, 47) + '...'
+      : children;
+
     return (
       <a
         href={safeHref || '#'}
         target={safeHref ? '_blank' : undefined}
         rel="noopener noreferrer"
+        title={typeof children === 'string' ? children : undefined}
         className={cn(
-          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors',
+          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors break-all',
           isUnsafe && 'cursor-not-allowed opacity-50'
         )}
         onClick={(e) => {
@@ -260,7 +266,7 @@ const markdownComponents = {
           }
         }}
       >
-        {children}
+        {displayText}
       </a>
     );
   },
