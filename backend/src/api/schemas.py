@@ -134,6 +134,7 @@ class SessionCreate(BaseModel):
     """Session creation request."""
 
     title: str = Field(default="New Chat", max_length=100, description="Session title")
+    device_id: str = Field(..., description="Device identifier for guest mode")
     metadata: dict = Field(default_factory=dict, description="Session metadata")
 
 

@@ -56,29 +56,9 @@ async function fetchApi<T>(
     headers,
   });
 
-  // Handle 401 Unauthorized - token expired or invalid
-  if (response.status === 401 && !isRetry) {
-    // Try to refresh the token
-    const newToken = await tokenManager.refreshToken();
-
-    if (newToken) {
-      // Retry the request with the new token
-      return fetchApi<T>(endpoint, options, true);
-    }
-
-    // Token refresh failed, redirect to login
-    if (typeof window !== 'undefined') {
-      // Clear any invalid tokens
-      tokenManager.clearTokens();
-
-      // Redirect to login page (but avoid redirect loop on login page)
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-    }
-
-    // Throw error after failed refresh
-    throw new ApiError('Session expired. Please login again.', 401);
+  // Handle 401 Unauthorized - skip login redirect in guest mode
+  if (response.status === 401) {
+    throw new ApiError('Unauthorized', 401);
   }
 
   // Handle other error responses
@@ -119,22 +99,9 @@ async function fetchApiUpload<T>(
     headers,
   });
 
-  // Handle 401 Unauthorized
-  if (response.status === 401 && !isRetry) {
-    const newToken = await tokenManager.refreshToken();
-
-    if (newToken) {
-      return fetchApiUpload<T>(endpoint, options, true);
-    }
-
-    if (typeof window !== 'undefined') {
-      tokenManager.clearTokens();
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-    }
-
-    throw new ApiError('Session expired. Please login again.', 401);
+  // Handle 401 Unauthorized - skip login redirect in guest mode
+  if (response.status === 401) {
+    throw new ApiError('Unauthorized', 401);
   }
 
   if (!response.ok) {
@@ -197,19 +164,19 @@ export const api = {
   },
 
   // Session
-  async createSession(title: string = 'New Chat'): Promise<SessionResponse> {
+  async createSession(title: string = 'New Chat', deviceId: string): Promise<SessionResponse> {
     return fetchApi<SessionResponse>(API_ENDPOINTS.sessions, {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, device_id: deviceId }),
     });
   },
 
-  async listSessions(): Promise<SessionListResponse> {
-    return fetchApi<SessionListResponse>(API_ENDPOINTS.sessions);
+  async listSessions(deviceId: string): Promise<SessionListResponse> {
+    return fetchApi<SessionListResponse>(`${API_ENDPOINTS.sessions}?device_id=${encodeURIComponent(deviceId)}`);
   },
 
-  async deleteSession(sessionId: string): Promise<void> {
-    await fetchApi(API_ENDPOINTS.sessionFull(sessionId), {
+  async deleteSession(sessionId: string, deviceId: string): Promise<void> {
+    await fetchApi(`${API_ENDPOINTS.sessionFull(sessionId)}?device_id=${encodeURIComponent(deviceId)}`, {
       method: 'DELETE',
     });
   },

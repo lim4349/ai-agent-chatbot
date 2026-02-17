@@ -3,7 +3,6 @@
 import json
 import time
 from datetime import datetime
-from typing import Annotated
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
@@ -353,15 +352,15 @@ async def clear_session(
 @inject
 async def create_session(
     request: SessionCreate,
-    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> SessionResponse:
-    """Create a new session for the authenticated user."""
+    """Create a new session for guest user (identified by device_id)."""
     session_id = str(uuid4())
+    user_id = request.device_id  # Use device_id as user_id for guest mode
 
     session = await session_store.create(
         session_id=session_id,
-        user_id=user.id,
+        user_id=user_id,
         title=request.title,
         metadata=request.metadata,
     )
@@ -379,11 +378,11 @@ async def create_session(
 @router.get("/sessions", response_model=SessionListResponse)
 @inject
 async def list_sessions(
-    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    device_id: str,
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> SessionListResponse:
-    """List all sessions for the authenticated user."""
-    sessions = await session_store.list_by_user(user.id)
+    """List all sessions for the device (guest mode)."""
+    sessions = await session_store.list_by_user(device_id)
 
     user_sessions = [
         SessionResponse(
@@ -404,7 +403,7 @@ async def list_sessions(
 @inject
 async def delete_session(
     session_id: str,
-    user: Annotated[User, Depends(get_current_user)],  # noqa: B008
+    device_id: str,
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ):
@@ -414,18 +413,18 @@ async def delete_session(
     1. Delete all document vectors from Pinecone for this session
     2. Remove the session from storage (documents cascade deleted)
     """
-    # Check if session exists and belongs to user
+    # Check if session exists and belongs to device
     session = await session_store.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if session.user_id != user.id:
+    if session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this session")
 
     try:
         # 1. Delete vectors from Pinecone
         if vector_store:
-            deleted_count = await vector_store.delete_session_documents(user.id, session_id)
+            deleted_count = await vector_store.delete_session_documents(device_id, session_id)
             log_request(
                 method="DELETE",
                 path=f"/api/v1/sessions/{session_id}/full",

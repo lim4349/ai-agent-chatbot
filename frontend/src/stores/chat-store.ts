@@ -7,6 +7,19 @@ import { api } from '@/lib/api';
 import { parseMemoryCommand, type ParsedMemoryCommand } from '@/lib/memory-commands';
 import { useToastStore } from './toast-store';
 
+// Device ID for guest mode (no login required)
+const DEVICE_ID_KEY = 'device_id';
+
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = `device_${uuidv4()}`;
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+
 interface ChatStore {
   sessions: Session[];
   activeSessionId: string | null;
@@ -61,8 +74,9 @@ export const useChatStore = create<ChatStore>()(
 
       createSession: async () => {
         try {
-          // Call backend API to create session in Supabase
-          const response = await api.createSession('New Chat');
+          // Call backend API to create session in Supabase with device_id
+          const deviceId = getDeviceId();
+          const response = await api.createSession('New Chat', deviceId);
           const id = response.id;
           const newSession: Session = {
             id,
@@ -101,7 +115,8 @@ export const useChatStore = create<ChatStore>()(
       deleteSession: async (id) => {
         try {
           // Call backend API to delete session from Supabase and Pinecone
-          await api.deleteSession(id);
+          const deviceId = getDeviceId();
+          await api.deleteSession(id, deviceId);
         } catch (error) {
           console.error('Failed to delete session from backend:', error);
         }
