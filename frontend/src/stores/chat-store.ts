@@ -119,6 +119,8 @@ export const useChatStore = create<ChatStore>()(
           await api.deleteSession(id, deviceId);
         } catch (error) {
           console.error('Failed to delete session from backend:', error);
+          const { addToast } = useToastStore.getState();
+          addToast('Failed to delete session from server', 'error');
         }
         // Always update local state
         set((state) => {
