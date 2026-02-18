@@ -341,7 +341,7 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 - **적용**:
   - `.env.example`에는 dummy 값만 포함
   - Render/Vercel 대시보드에서 직접 설정
-  - GitHub Secrets: `OPENAI_API_KEY`, `GLM_API_KEY`, `TAVILY_API_KEY`
+  - GitHub Secrets: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`
 
 ### Lint & Code Quality
 

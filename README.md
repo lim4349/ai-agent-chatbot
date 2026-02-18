@@ -2,6 +2,12 @@
 
 LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전문 에이전트를 오케스트레이션하며, Protocol 기반 의존성 주입과 확장 가능한 아키텍처를 적용한 프로젝트.
 
+## 데모
+
+**체험하기**: [https://ai-agent-chatbot-iota.vercel.app/chat](https://ai-agent-chatbot-iota.vercel.app/chat)
+
+> ⚠️ **무료 티어 운영**: 일일 요청 제한 50회. 제한 도달 시 다음 날 자동 초기화됩니다.
+
 ## 빠른 시작
 
 ### 1. 백엔드 설정
@@ -61,12 +67,6 @@ LLM_OPENAI_API_KEY=sk-...
 LLM_PROVIDER=anthropic
 LLM_MODEL=claude-sonnet-4-20250514
 LLM_ANTHROPIC_API_KEY=sk-ant-...
-
-# 또는 GLM (z.ai)
-LLM_PROVIDER=anthropic
-LLM_MODEL=glm-4.7
-LLM_ANTHROPIC_API_KEY=your-key
-LLM_BASE_URL=https://api.z.ai/api/anthropic
 ```
 
 ## 개발 명령어
