@@ -113,17 +113,20 @@ async def chat(
     # Security: Sanitize input for LLM
     sanitized_message = sanitize_for_llm(request.message)
 
-    # Create initial state with sanitized message
-    initial_state = create_initial_state(sanitized_message, request.session_id)
-
-    # Check if session has uploaded documents for routing decisions
+    # Get session to retrieve device_id
+    device_id = None
     has_docs = False
-    if vector_store and session_store:
+    if session_store:
         session = await session_store.get(request.session_id)
         if session:
-            has_docs = await vector_store.has_documents_for_session(
-                device_id=session.user_id, session_id=request.session_id
-            )
+            device_id = session.user_id  # In guest mode, user_id is device_id
+            if vector_store:
+                has_docs = await vector_store.has_documents_for_session(
+                    device_id=device_id, session_id=request.session_id
+                )
+
+    # Create initial state with sanitized message and device_id
+    initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
     initial_state["has_documents"] = has_docs
 
     # Configure with thread ID for state persistence
@@ -216,16 +219,21 @@ async def chat_stream(
 
     # Security: Sanitize input for LLM
     sanitized_message = sanitize_for_llm(request.message)
-    initial_state = create_initial_state(sanitized_message, request.session_id)
 
-    # Check if session has uploaded documents for routing decisions
+    # Get session to retrieve device_id
+    device_id = None
     has_docs = False
-    if vector_store and session_store:
+    if session_store:
         session = await session_store.get(request.session_id)
         if session:
-            has_docs = await vector_store.has_documents_for_session(
-                device_id=session.user_id, session_id=request.session_id
-            )
+            device_id = session.user_id  # In guest mode, user_id is device_id
+            if vector_store:
+                has_docs = await vector_store.has_documents_for_session(
+                    device_id=device_id, session_id=request.session_id
+                )
+
+    # Create initial state with device_id
+    initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
     initial_state["has_documents"] = has_docs
 
     config = {"configurable": {"thread_id": request.session_id}}
