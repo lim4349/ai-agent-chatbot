@@ -36,12 +36,13 @@ export function HealthIndicator() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-2 cursor-pointer">
+        <div className="flex items-center gap-2 cursor-pointer" role="status" aria-live="polite">
           <div
             className={cn(
               'w-2.5 h-2.5 rounded-full',
               isHealthy ? 'bg-green-500' : 'bg-red-500'
             )}
+            aria-hidden="true"
           />
           <span className="text-sm text-muted-foreground hidden sm:inline">
             {isHealthy ? t('health.connected') : t('health.disconnected')}
