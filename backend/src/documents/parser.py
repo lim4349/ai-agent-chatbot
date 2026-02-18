@@ -209,7 +209,13 @@ class DocumentParser:
     def _parse_pdf(self, path: Path) -> list[DocumentSection]:
         """Parse PDF file using pdfplumber."""
         try:
+            import logging
+
             import pdfplumber
+
+            # Suppress pdfplumber font warnings (FontBBox, etc.)
+            logging.getLogger("pdfminer").setLevel(logging.ERROR)
+            logging.getLogger("pdfplumber").setLevel(logging.ERROR)
         except ImportError as err:
             raise ImportError(
                 "pdfplumber is required for PDF parsing. Install with: pip install pdfplumber"
