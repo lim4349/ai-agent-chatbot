@@ -81,6 +81,8 @@ def get_message_content(msg) -> str:
 async def chat(
     request: ChatRequest,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
+    vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
@@ -114,6 +116,16 @@ async def chat(
 
     # Create initial state with sanitized message
     initial_state = create_initial_state(sanitized_message, request.session_id)
+
+    # Check if session has uploaded documents for routing decisions
+    has_docs = False
+    if vector_store and session_store:
+        session = await session_store.get(request.session_id)
+        if session:
+            has_docs = await vector_store.has_documents_for_session(
+                session.user_id, request.session_id
+            )
+    initial_state["has_documents"] = has_docs
 
     # Configure with thread ID for state persistence
     config = {"configurable": {"thread_id": request.session_id}}
@@ -171,6 +183,8 @@ async def chat(
 async def chat_stream(
     request: ChatRequest,
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
+    vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
+    session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
@@ -204,6 +218,17 @@ async def chat_stream(
     # Security: Sanitize input for LLM
     sanitized_message = sanitize_for_llm(request.message)
     initial_state = create_initial_state(sanitized_message, request.session_id)
+
+    # Check if session has uploaded documents for routing decisions
+    has_docs = False
+    if vector_store and session_store:
+        session = await session_store.get(request.session_id)
+        if session:
+            has_docs = await vector_store.has_documents_for_session(
+                session.user_id, request.session_id
+            )
+    initial_state["has_documents"] = has_docs
+
     config = {"configurable": {"thread_id": request.session_id}}
 
     async def event_generator():
@@ -422,16 +447,15 @@ async def delete_session(
     1. Delete all document vectors from Pinecone for this session
     2. Remove the session from storage (documents cascade deleted)
     """
-    # Check if session exists and belongs to device
+    # Check if session exists - if it does, verify ownership
+    # If session doesn't exist (isLocalOnly), still run cleanup for Pinecone/Redis
     session = await session_store.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.user_id != device_id:
+    if session and session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this session")
 
     try:
-        # 1. Delete vectors from Pinecone
+        # 1. Delete vectors from Pinecone (always run - idempotent)
+        deleted_count = 0
         if vector_store:
             deleted_count = await vector_store.delete_session_documents(device_id, session_id)
             log_request(
@@ -443,16 +467,17 @@ async def delete_session(
                 status="success",
             )
 
-        # 2. Clear Redis memory (chat history & summary)
+        # 2. Clear Redis memory (always run - idempotent)
         await memory.clear(session_id)
 
-        # 3. Delete session from storage
-        await session_store.delete(session_id)
+        # 3. Delete session from storage (only if it exists)
+        if session:
+            await session_store.delete(session_id)
 
         return {
             "status": "deleted",
             "session_id": session_id,
-            "message": "Session and associated documents deleted successfully",
+            "message": "Session and associated resources deleted successfully",
         }
 
     except HTTPException:

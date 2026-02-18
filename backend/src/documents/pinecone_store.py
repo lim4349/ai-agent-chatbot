@@ -317,6 +317,32 @@ class PineconeVectorStore:
 
         logger.info("document_deleted", document_id=doc_id, user_id=user_id)
 
+    async def has_documents_for_session(self, user_id: str, session_id: str) -> bool:
+        """Check if any documents exist for a session.
+
+        Args:
+            user_id: User ID
+            session_id: Session ID
+
+        Returns:
+            True if documents exist for this session
+        """
+        if not self._index:
+            return False
+
+        namespace = f"user_{user_id}"
+        try:
+            results = self._index.query(
+                vector=[0.0] * 1024,
+                top_k=1,
+                filter={"session_id": {"$eq": session_id}},
+                namespace=namespace,
+                include_metadata=False,
+            )
+            return len(results.matches) > 0
+        except Exception:
+            return False
+
     async def delete_session_documents(self, user_id: str, session_id: str) -> int:
         """Delete all documents for a session.
 

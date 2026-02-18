@@ -84,14 +84,30 @@ Response format:
             docs = []
 
         if not docs:
-            # No documents found - provide helpful fallback response
-            response = (
-                "업로드된 문서에서 관련 정보를 찾을 수 없습니다.\n\n"
-                "다음 방법을 시도해보세요:\n"
-                '1. **웹 검색**: "웹에서 검색해줘"라고 요청하면 인터넷에서 찾아드릴 수 있습니다.\n'
-                "2. **문서 업로드**: 관련 문서를 업로드하면 더 정확한 답변을 드릴 수 있습니다.\n"
-                "3. **일반 대화**: 궁금한 점을 일반적인 질문으로 다시 물어보세요."
+            # No documents found - use LLM to generate natural fallback response
+            # This ensures SSE tokens are streamed (not hardcoded silent response)
+            messages = [{"role": "system", "content": self.system_prompt}]
+
+            if self.memory:
+                history = await self.memory.get_messages(session_id)
+                messages.extend(history)
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Context: No relevant documents were found in the uploaded documents "
+                        "for this session.\n\n"
+                        "The user asked: " + query + "\n\n"
+                        "Please inform the user in their language (Korean if the query is in Korean) that:\n"
+                        "1. No relevant information was found in the uploaded documents\n"
+                        "2. Suggest they try web search, upload relevant documents, or ask as a general question\n"
+                        "Keep the response helpful and concise."
+                    ),
+                }
             )
+
+            response = await self.llm.generate(messages)
             tool_results = [{"tool": "retriever", "query": query, "results": []}]
         else:
             # Check if all results are low confidence

@@ -44,7 +44,7 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
     <div
       ref={elementRef}
       className={cn(
-        'group relative flex gap-3 px-4 py-3 transition-colors hover:bg-muted/20',
+        'group relative flex gap-3 px-4 py-3 transition-colors hover:bg-muted/20 overflow-hidden',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >

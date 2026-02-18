@@ -16,12 +16,89 @@ import 'highlight.js/styles/github-dark.css';
  */
 function fixSentenceSpacing(text: string): string {
   if (!text) return text;
-  // Add space after sentence-ending punctuation if followed by a letter
-  // Handles both English (.!?) and Korean (。！？) punctuation
-  return text
+
+  // Protect code blocks from modification
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+  const inlineCodes: string[] = [];
+  result = result.replace(/`[^`]+`/g, (match) => {
+    inlineCodes.push(match);
+    return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+
+  // Fix spacing patterns
+  result = result
+    // Sentence-ending punctuation followed by a letter
     .replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2')
-    // Add space after emoji followed by Korean/English text
-    .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2');
+    // Emoji followed by Korean/English text
+    .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2')
+    // Closing bracket/paren followed by a letter
+    .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2');
+
+  // Restore protected regions (reverse order)
+  inlineCodes.forEach((code, i) => {
+    result = result.replace(`__INLINE_CODE_${i}__`, code);
+  });
+  codeBlocks.forEach((code, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, code);
+  });
+
+  return result;
+}
+
+/**
+ * Wrap bare URLs in markdown link syntax before ReactMarkdown processing.
+ * This prevents remark-gfm autolink from partially detecting URLs with
+ * parentheses, query strings, or non-ASCII characters.
+ */
+function wrapBareUrls(text: string): string {
+  if (!text) return text;
+
+  // Protect code blocks
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+  const inlineCodes: string[] = [];
+  result = result.replace(/`[^`]+`/g, (match) => {
+    inlineCodes.push(match);
+    return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+
+  // Protect existing markdown links: [text](url)
+  const mdLinks: string[] = [];
+  result = result.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match) => {
+    mdLinks.push(match);
+    return `__MD_LINK_${mdLinks.length - 1}__`;
+  });
+
+  // Wrap bare URLs in markdown link syntax
+  result = result.replace(
+    /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
+    (url) => {
+      // Strip trailing punctuation that's not part of the URL
+      const cleaned = url.replace(/[.,;:!?)]+$/, '');
+      const trailing = url.slice(cleaned.length);
+      return `[${cleaned}](${cleaned})${trailing}`;
+    }
+  );
+
+  // Restore all protected regions (reverse order)
+  mdLinks.forEach((link, i) => {
+    result = result.replace(`__MD_LINK_${i}__`, link);
+  });
+  inlineCodes.forEach((code, i) => {
+    result = result.replace(`__INLINE_CODE_${i}__`, code);
+  });
+  codeBlocks.forEach((code, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, code);
+  });
+
+  return result;
 }
 
 /**
@@ -245,9 +322,18 @@ const markdownComponents = {
     const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
     const isUnsafe = href && !safeHref;
 
-    // Truncate long URLs for display while keeping full href
-    const displayText = typeof children === 'string' && children.length > 50
-      ? children.slice(0, 47) + '...'
+    // Smart truncation: show domain + path start for URLs, simple truncation for text
+    const displayText = typeof children === 'string' && children.length > 60
+      ? (() => {
+          try {
+            const url = new URL(children);
+            const domain = url.hostname;
+            const pathStart = url.pathname.slice(0, 20);
+            return `${domain}${pathStart}...`;
+          } catch {
+            return children.slice(0, 57) + '...';
+          }
+        })()
       : children;
 
     return (
@@ -332,12 +418,10 @@ const markdownComponents = {
 };
 
 const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: string }) {
-  // Sanitize content before rendering
+  // Preprocess: wrap bare URLs in markdown link syntax for reliable link detection
   const sanitizedContent = useMemo(() => {
     if (!content) return '';
-    // ReactMarkdown already provides some XSS protection by escaping HTML
-    // We add an extra layer with URL validation via custom components
-    return content;
+    return wrapBareUrls(content);
   }, [content]);
 
   return (
@@ -364,7 +448,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
       <div
         className={cn(
           'markdown-body streaming',
-          'text-[15px] leading-[1.8] break-words cursor-text select-text max-w-prose',
+          'text-[15px] leading-[1.8] break-words cursor-text select-text max-w-prose overflow-hidden',
           className
         )}
       >
@@ -378,7 +462,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     <div
       className={cn(
         'markdown-body',
-        'text-[15px] leading-[1.8] break-words cursor-text select-text max-w-prose',
+        'text-[15px] leading-[1.8] break-words cursor-text select-text max-w-prose overflow-hidden',
         className
       )}
     >
