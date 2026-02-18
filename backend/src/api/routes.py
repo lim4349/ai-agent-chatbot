@@ -604,6 +604,7 @@ async def upload_file(
     The file is parsed, chunked, and stored in the vector database.
 
     Requires device_id and a valid session_id.
+    If session doesn't exist, it will be created automatically.
     """
     # Check if document store is available
     if not doc_store:
@@ -612,11 +613,19 @@ async def upload_file(
             detail="Document store is not configured. Set up Pinecone first.",
         )
 
-    # Verify session exists and belongs to device
+    # Verify session exists or create it
     session = await session_store.get(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != device_id:
+        # Auto-create session if it doesn't exist
+        from datetime import UTC, datetime
+
+        session = await session_store.create(
+            session_id=session_id,
+            user_id=device_id,
+            title="Document Upload",
+            created_at=datetime.now(UTC),
+        )
+    elif session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     # Validate metadata JSON size first (prevent DoS)
