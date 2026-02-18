@@ -7,8 +7,11 @@ from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
+from src.core.logging import get_logger
 from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
+
+logger = get_logger(__name__)
 
 
 def get_message_content(msg) -> str:
@@ -76,11 +79,35 @@ Response format:
         # Retrieve relevant documents (filtered by session)
         try:
             docs = await self.retriever.retrieve(query, top_k=3, session_id=session_id)
-        except Exception:
+        except Exception as e:
+            logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
             docs = []
 
         if not docs:
-            response = "I couldn't find any relevant documents to answer your question. Please make sure documents have been uploaded to the knowledge base."
+            # No documents found - use LLM to generate natural fallback response
+            # This ensures SSE tokens are streamed (not hardcoded silent response)
+            messages = [{"role": "system", "content": self.system_prompt}]
+
+            if self.memory:
+                history = await self.memory.get_messages(session_id)
+                messages.extend(history)
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Context: No relevant documents were found in the uploaded documents "
+                        "for this session.\n\n"
+                        "The user asked: " + query + "\n\n"
+                        "Please inform the user in their language (Korean if the query is in Korean) that:\n"
+                        "1. No relevant information was found in the uploaded documents\n"
+                        "2. Suggest they try web search, upload relevant documents, or ask as a general question\n"
+                        "Keep the response helpful and concise."
+                    ),
+                }
+            )
+
+            response = await self.llm.generate(messages)
             tool_results = [{"tool": "retriever", "query": query, "results": []}]
         else:
             # Check if all results are low confidence

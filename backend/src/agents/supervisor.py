@@ -219,7 +219,17 @@ Consider the context of the conversation when making your decision."""
         """Analyze query and determine routing."""
         session_id = state.get("metadata", {}).get("session_id", "default")
 
-        messages = [{"role": "system", "content": self.system_prompt}]
+        # Inject document context into system prompt for better routing
+        has_documents = state.get("has_documents", False)
+        doc_context = (
+            "\n\nIMPORTANT: The user HAS uploaded documents in this session. "
+            "Route to 'rag' if the question might be answered by those documents."
+            if has_documents
+            else "\n\nIMPORTANT: The user has NOT uploaded any documents in this session. "
+            "Do NOT route to 'rag' unless the user explicitly asks about uploading or using documents. "
+            "Prefer 'chat' or 'web_search' for informational queries."
+        )
+        messages = [{"role": "system", "content": self.system_prompt + doc_context}]
 
         # Include conversation history if memory is available
         if self.memory:

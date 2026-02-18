@@ -19,6 +19,7 @@ class AgentState(TypedDict, total=False):
     next_agent: str | None
     tool_results: list[dict[str, Any]]
     metadata: dict[str, Any]
+    has_documents: bool
 
 
 def create_initial_state(message: str, session_id: str = "default") -> AgentState:
@@ -36,4 +37,5 @@ def create_initial_state(message: str, session_id: str = "default") -> AgentStat
         "next_agent": None,
         "tool_results": [],
         "metadata": {"session_id": session_id},
+        "has_documents": False,
     }

@@ -200,7 +200,7 @@
   /* Better typography for readability */
   .markdown-body {
     /* 65ch = ~65 characters max width (optimal reading line length) */
-    max-width: 65ch;
+    max-width: min(65ch, 100%);
     letter-spacing: 0.01em;
   }
 }

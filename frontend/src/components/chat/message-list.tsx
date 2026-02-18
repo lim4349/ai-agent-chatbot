@@ -70,7 +70,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     <div className="relative flex-1 min-h-0">
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto"
+        className="h-full overflow-y-auto overflow-x-hidden"
         onScroll={checkScrollPosition}
       >
         {isEmpty ? (
