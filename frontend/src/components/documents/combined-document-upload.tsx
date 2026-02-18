@@ -81,7 +81,7 @@ export function CombinedDocumentUpload() {
           {isUploading ? 'Uploading...' : t('doc.upload')}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="w-[95%] max-w-[400px] sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>{t('doc.uploadTitle')}</DialogTitle>
           <DialogDescription>{t('doc.uploadDescription')}</DialogDescription>

@@ -252,7 +252,7 @@ export function FileUploadZone({
     <div
       {...getRootProps()}
       className={cn(
-        'relative border-2 border-dashed rounded-lg p-8 transition-all duration-200 cursor-pointer',
+        'relative border-2 border-dashed rounded-lg p-4 md:p-8 transition-all duration-200 cursor-pointer',
         'hover:border-primary/50 hover:bg-primary/5',
         isDragActive && 'border-primary bg-primary/10',
         isDragReject && 'border-destructive bg-destructive/10',

@@ -103,12 +103,14 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
               {message.content}
             </p>
           ) : (
-            <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
+            <div aria-live={isStreaming ? 'polite' : undefined} aria-atomic="true">
+              <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
+            </div>
           )}
 
           {/* Streaming cursor - only show when there's actual content */}
           {isStreaming && !isUser && message.content && (
-            <span className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 animate-pulse [animation-duration:0.8s] align-text-bottom" />
+            <span className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 animate-pulse [animation-duration:0.8s] align-text-bottom" aria-hidden="true" />
           )}
         </div>
 
@@ -133,22 +135,25 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
               : ''}
           </span>
 
-          {/* Copy button - visible on hover */}
+          {/* Copy button - visible on hover for desktop, always visible on mobile */}
           {message.content && !isStreaming && (
             <button
               onClick={handleCopy}
               className={cn(
-                'flex items-center gap-1 text-xs transition-all rounded-md px-1.5 py-0.5',
+                'flex items-center justify-center gap-1 text-xs transition-all rounded-md min-w-[44px] min-h-[44px]',
                 copied
                   ? 'text-green-400 opacity-100'
-                  : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-muted/50'
+                  : 'text-muted-foreground/50 opacity-0 md:opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 hover:text-foreground hover:bg-muted/50',
+                // Always visible on mobile (touch devices)
+                'hover:opacity-100 active:opacity-100'
               )}
               title={t('chat.copyMessage')}
+              aria-label={t('chat.copyMessage')}
             >
               {copied ? (
-                <Check className="w-3 h-3" />
+                <Check className="w-4 h-4" />
               ) : (
-                <Copy className="w-3 h-3" />
+                <Copy className="w-4 h-4" />
               )}
             </button>
           )}

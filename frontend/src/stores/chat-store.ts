@@ -10,6 +10,62 @@ import { useToastStore } from './toast-store';
 // Device ID for guest mode (no login required)
 const DEVICE_ID_KEY = 'device_id';
 
+// Error classification utility
+function classifyError(error: string): ChatError {
+  const lowerError = error.toLowerCase();
+
+  // Network errors
+  if (lowerError.includes('network') || lowerError.includes('fetch') ||
+      lowerError.includes('connection') || lowerError.includes('econnrefused')) {
+    return {
+      message: '네트워크 연결이 불안정합니다. 인터넷 연결을 확인해주세요.',
+      type: 'network',
+      retryable: true,
+      originalError: error,
+    };
+  }
+
+  // Timeout errors
+  if (lowerError.includes('timeout') || lowerError.includes('timed out')) {
+    return {
+      message: '요청 시간이 초과되었습니다. 다시 시도해주세요.',
+      type: 'timeout',
+      retryable: true,
+      originalError: error,
+    };
+  }
+
+  // Rate limiting
+  if (lowerError.includes('rate limit') || lowerError.includes('too many requests') ||
+      lowerError.includes('429')) {
+    return {
+      message: '너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해주세요.',
+      type: 'rate_limit',
+      retryable: true,
+      originalError: error,
+    };
+  }
+
+  // Server errors
+  if (lowerError.includes('500') || lowerError.includes('502') ||
+      lowerError.includes('503') || lowerError.includes('server error')) {
+    return {
+      message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+      type: 'server',
+      retryable: true,
+      originalError: error,
+    };
+  }
+
+  // Unknown errors
+  return {
+    message: '오류가 발생했습니다. 다시 시도해주세요.',
+    type: 'unknown',
+    retryable: true,
+    originalError: error,
+  };
+}
+
 export function getDeviceId(): string {
   if (typeof window === 'undefined') return '';
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
@@ -20,11 +76,21 @@ export function getDeviceId(): string {
   return deviceId;
 }
 
+// Error types for better error handling
+export type ErrorType = 'network' | 'timeout' | 'server' | 'rate_limit' | 'unknown';
+
+export interface ChatError {
+  message: string;
+  type: ErrorType;
+  retryable: boolean;
+  originalError?: string;
+}
+
 interface ChatStore {
   sessions: Session[];
   activeSessionId: string | null;
   isStreaming: boolean;
-  error: string | null;
+  error: ChatError | null;
   health: HealthResponse | null;
   sidebarOpen: boolean;
   _hasHydrated: boolean;
@@ -35,10 +101,11 @@ interface ChatStore {
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => void;
   setStreaming: (value: boolean) => void;
-  setError: (error: string | null) => void;
+  setError: (error: ChatError | null) => void;
   setHealth: (health: HealthResponse | null) => void;
   toggleSidebar: () => void;
   clearCurrentSession: () => void;
+  retryLastMessage: () => void;
 
   // Memory command handling
   lastMemoryCommand: ParsedMemoryCommand | null;
@@ -51,6 +118,9 @@ interface ChatStore {
   addMemory: (content: string) => void;
   removeMemory: (index: number) => void;
   clearMemories: () => void;
+
+  // Internal state for retry functionality
+  _lastMessageContent: string;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -69,6 +139,9 @@ export const useChatStore = create<ChatStore>()(
       showMemoryFeedback: false,
       showMemoryModal: false,
       memories: [],
+
+      // Internal state for retry functionality
+      _lastMessageContent: '',
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
@@ -118,6 +191,9 @@ export const useChatStore = create<ChatStore>()(
       sendMessage: (content) => {
         const { activeSessionId, isStreaming, showCommandFeedback, sessions } = get();
         if (isStreaming || !activeSessionId) return;
+
+        // Store message content for retry functionality
+        set({ _lastMessageContent: content });
 
         // Parse memory commands for instant feedback
         const command = parseMemoryCommand(content);
@@ -270,16 +346,17 @@ export const useChatStore = create<ChatStore>()(
                 flushInterval = null;
               }
               tokenBuffer = '';
+              const classifiedError = classifyError(error);
               set((state) => ({
                 isStreaming: false,
-                error,
+                error: classifiedError,
                 sessions: state.sessions.map((s) =>
                   s.id === sessionId
                     ? {
                         ...s,
                         messages: s.messages.map((m, idx) =>
                           idx === s.messages.length - 1
-                            ? { ...m, content: `Error: ${error}` }
+                            ? { ...m, content: classifiedError.message }
                             : m
                         ),
                       }
@@ -295,6 +372,33 @@ export const useChatStore = create<ChatStore>()(
       setError: (error) => set({ error }),
       setHealth: (health) => set({ health }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+      retryLastMessage: () => {
+        const { _lastMessageContent, activeSessionId, sessions } = get();
+        if (!_lastMessageContent || !activeSessionId) return;
+
+        // Remove the last user and assistant messages
+        const currentSession = sessions.find((s) => s.id === activeSessionId);
+        if (!currentSession || currentSession.messages.length < 2) return;
+
+        // Remove the last assistant and user messages
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === activeSessionId
+              ? {
+                  ...s,
+                  messages: s.messages.slice(0, -2),
+                }
+              : s
+          ),
+          error: null,
+        }));
+
+        // Resend the message
+        setTimeout(() => {
+          get().sendMessage(_lastMessageContent);
+        }, 100);
+      },
 
       clearCurrentSession: async () => {
         const { activeSessionId } = get();
