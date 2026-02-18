@@ -176,7 +176,6 @@ vercel --prod
 |------|---------|------|
 | `OPENAI_API_KEY` | sk-... | OpenAI API 키 |
 | `ANTHROPIC_API_KEY` | sk-ant-... | Anthropic API 키 |
-| `GLM_API_KEY` | xxx... | GLM API 키 (Zhipu AI) |
 | `TAVILY_API_KEY` | tvly-... | Tavily 검색 API |
 | `PINECONE_API_KEY` | xxx-xxx-xxx | Pinecone API 키 |
 | `PINECONE_INDEX_NAME` | ai-agent-index | Pinecone 인덱스 이름 |

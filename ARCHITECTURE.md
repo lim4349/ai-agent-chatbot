@@ -73,7 +73,7 @@
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
-| **LLM** | OpenAI / Anthropic / GLM | GPT-4o / Claude / GLM-4 |
+| **LLM** | OpenAI / Anthropic | GPT-4o / Claude |
 | **Vector DB** | Pinecone | - |
 | **임베딩** | Pinecone Inference (multilingual-e5-large) | - |
 | **세션 메모리** | Upstash Redis (프로덕션) / In-Memory (로컬) | - |
@@ -137,7 +137,7 @@ backend/src/
 ├── llm/                       # LLM 프로바이더
 │   ├── factory.py            # LLMFactory
 │   ├── openai_provider.py    # OpenAI
-│   ├── anthropic_provider.py # Anthropic (+ GLM)
+│   ├── anthropic_provider.py # Anthropic
 │   └── ollama_provider.py    # Ollama (로컬)
 │
 ├── memory/                    # 메모리 시스템
@@ -333,7 +333,7 @@ EventSource (fetch + ReadableStream)
     ↓
 토큰 버퍼링 (50ms flush, 100자 임계값)
     ↓
-fixSentenceSpacing() [GLM 후처리]
+fixSentenceSpacing() [LLM 후처리]
     ↓
 상태 업데이트 → UI 리렌더
 ```

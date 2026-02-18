@@ -14,9 +14,9 @@ interface DocumentStore {
   currentUploadFileSize: number | null;
   currentUploadValidation: ValidationResult | null;
 
-  uploadFile: (file: File) => Promise<void>;
-  fetchDocuments: () => Promise<void>;
-  deleteDocument: (id: string) => Promise<void>;
+  uploadFile: (file: File, sessionId: string, deviceId: string) => Promise<void>;
+  fetchDocuments: (deviceId: string) => Promise<void>;
+  deleteDocument: (id: string, deviceId: string) => Promise<void>;
   resetUploadStatus: () => void;
   clearValidationError: () => void;
 }
@@ -32,7 +32,7 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
   currentUploadFileSize: null,
   currentUploadValidation: null,
 
-  uploadFile: async (file: File) => {
+  uploadFile: async (file: File, sessionId: string, deviceId: string) => {
     // Validate file first
     const validation = await validateFile(file);
 
@@ -67,7 +67,7 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
     try {
       set({ uploadStatus: 'processing' });
 
-      const response = await api.uploadFile(file, {
+      const response = await api.uploadFile(file, sessionId, deviceId, {
         originalName: file.name,
         size: file.size.toString(),
         type: file.type,
@@ -111,11 +111,11 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
     }
   },
 
-  fetchDocuments: async () => {
+  fetchDocuments: async (deviceId: string) => {
     set({ isLoading: true });
 
     try {
-      const response = await api.getDocuments();
+      const response = await api.getDocuments(deviceId);
       set({ documents: response.documents });
     } catch (error) {
       console.error('Failed to fetch documents:', error);
@@ -124,9 +124,9 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
     }
   },
 
-  deleteDocument: async (id: string) => {
+  deleteDocument: async (id: string, deviceId: string) => {
     try {
-      await api.deleteDocument(id);
+      await api.deleteDocument(id, deviceId);
       set((state) => ({
         documents: state.documents.filter((doc) => doc.id !== id),
       }));

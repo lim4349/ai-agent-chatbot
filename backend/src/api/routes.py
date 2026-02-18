@@ -26,7 +26,6 @@ from src.api.schemas import (
     SessionListResponse,
     SessionResponse,
 )
-from src.auth import User, get_current_user
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import log_request
@@ -585,7 +584,7 @@ async def upload_file(
     file: UploadFile = File(...),  # noqa: B008
     metadata: str = Form(default="{}"),  # JSON string  # noqa: B008
     session_id: str = Form(...),  # noqa: B008
-    user: User = Depends(get_current_user),  # noqa: B008
+    device_id: str = Form(...),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     parser: DocumentParser = Depends(Provide[DIContainer.document_parser]),  # noqa: B008
@@ -596,7 +595,7 @@ async def upload_file(
     Supports PDF, DOCX, TXT, MD, CSV, and JSON files.
     The file is parsed, chunked, and stored in the vector database.
 
-    Requires authentication and a valid session_id.
+    Requires device_id and a valid session_id.
     """
     # Check if document store is available
     if not doc_store:
@@ -605,11 +604,11 @@ async def upload_file(
             detail="Document store is not configured. Set up Pinecone first.",
         )
 
-    # Verify session exists and belongs to user
+    # Verify session exists and belongs to device
     session = await session_store.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    if session.user_id != user.id:
+    if session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     # Validate metadata JSON size first (prevent DoS)
@@ -695,8 +694,8 @@ async def upload_file(
             metadata=meta_dict,
         )
 
-        # Store in vector database with user/session isolation
-        await doc_store.add_document(doc, user_id=user.id, session_id=session_id)
+        # Store in vector database with device/session isolation
+        await doc_store.add_document(doc, user_id=device_id, session_id=session_id)
 
         return FileUploadResponse(
             document_id=doc.id,
@@ -726,19 +725,19 @@ def _get_file_extension(filename: str) -> str:
 @router.get("/documents", response_model=DocumentListResponse)
 @inject
 async def list_documents(
-    user: User = Depends(get_current_user),  # noqa: B008
+    device_id: str,
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentListResponse:
-    """List all uploaded documents for the authenticated user."""
+    """List all uploaded documents for the device."""
     if not doc_store:
         return DocumentListResponse(documents=[])
 
     try:
-        doc_ids = await doc_store.list_documents(user_id=user.id)
+        doc_ids = await doc_store.list_documents(user_id=device_id)
 
         documents = []
         for doc_id in doc_ids:
-            stats = await doc_store.get_document_stats(doc_id, user_id=user.id)
+            stats = await doc_store.get_document_stats(doc_id, user_id=device_id)
             if stats:
                 documents.append(
                     DocumentInfo(
@@ -760,12 +759,12 @@ async def list_documents(
 @inject
 async def delete_document(
     document_id: str,
-    user: User = Depends(get_current_user),  # noqa: B008
+    device_id: str,
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentDeleteResponse:
     """Delete a document and all its chunks.
 
-    Verifies that the user owns the document before deletion.
+    Verifies that the device owns the document before deletion.
     """
     if not doc_store:
         raise HTTPException(
@@ -774,13 +773,13 @@ async def delete_document(
         )
 
     try:
-        # Check if document exists and belongs to user
-        stats = await doc_store.get_document_stats(document_id, user_id=user.id)
+        # Check if document exists and belongs to device
+        stats = await doc_store.get_document_stats(document_id, user_id=device_id)
         if not stats:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Delete with user isolation
-        await doc_store.delete_document(document_id, user_id=user.id)
+        # Delete with device isolation
+        await doc_store.delete_document(document_id, user_id=device_id)
 
         return DocumentDeleteResponse(
             document_id=document_id,

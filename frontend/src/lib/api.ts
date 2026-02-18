@@ -144,9 +144,16 @@ export const api = {
   },
 
   // File Upload (multipart/form-data)
-  async uploadFile(file: File, metadata?: Record<string, string>): Promise<FileUploadResponse> {
+  async uploadFile(
+    file: File,
+    sessionId: string,
+    deviceId: string,
+    metadata?: Record<string, string>
+  ): Promise<FileUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', sessionId);
+    formData.append('device_id', deviceId);
     formData.append('metadata', JSON.stringify(metadata || {}));
 
     return fetchApiUpload<FileUploadResponse>(`${API_ENDPOINTS.documents}/upload`, {
@@ -155,12 +162,12 @@ export const api = {
     });
   },
 
-  async getDocuments(): Promise<DocumentListResponse> {
-    return fetchApi<DocumentListResponse>(API_ENDPOINTS.documents);
+  async getDocuments(deviceId: string): Promise<DocumentListResponse> {
+    return fetchApi<DocumentListResponse>(`${API_ENDPOINTS.documents}?device_id=${encodeURIComponent(deviceId)}`);
   },
 
-  async deleteDocument(documentId: string): Promise<void> {
-    await fetchApi(`${API_ENDPOINTS.documents}/${documentId}`, { method: 'DELETE' });
+  async deleteDocument(documentId: string, deviceId: string): Promise<void> {
+    await fetchApi(`${API_ENDPOINTS.documents}/${documentId}?device_id=${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
   },
 
   // Session

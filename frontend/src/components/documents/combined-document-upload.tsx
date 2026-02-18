@@ -14,6 +14,7 @@ import { Upload } from 'lucide-react';
 import { FileUploadZone } from './file-upload-zone';
 import { UploadProgress } from './upload-progress';
 import { useDocumentStore } from '@/stores/document-store';
+import { useChatStore, getDeviceId } from '@/stores/chat-store';
 import { useTranslation } from '@/lib/i18n';
 
 export function CombinedDocumentUpload() {
@@ -32,8 +33,18 @@ export function CombinedDocumentUpload() {
 
   const handleFileUpload = async (file: File) => {
     setMessage(null);
+
+    // Get sessionId and deviceId
+    const sessionId = useChatStore.getState().activeSessionId;
+    const deviceId = getDeviceId();
+
+    if (!sessionId) {
+      setMessage({ type: 'error', text: 'No active session. Please create a session first.' });
+      return;
+    }
+
     try {
-      await uploadFile(file);
+      await uploadFile(file, sessionId, deviceId);
 
       // Only close modal if upload was successful
       // Check uploadStatus from store after uploadFile completes
