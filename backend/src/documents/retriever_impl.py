@@ -42,6 +42,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
         query: str,
         top_k: int = 3,
         session_id: str | None = None,
+        device_id: str | None = None,
     ) -> list[dict]:
         """Retrieve relevant document chunks.
 
@@ -49,12 +50,19 @@ class PineconeDocumentRetriever(DocumentRetriever):
             query: Search query text
             top_k: Number of results to return
             session_id: Optional session ID for filtering documents
+            device_id: Device ID for namespace isolation (guest mode)
 
         Returns:
             List of document chunks with content, metadata, and score
             Format: [{"content": str, "metadata": dict, "score": float}]
         """
-        logger.info("retrieving_documents", query=query[:50], top_k=top_k, session_id=session_id)
+        logger.info(
+            "retrieving_documents",
+            query=query[:50],
+            top_k=top_k,
+            session_id=session_id,
+            device_id=device_id,
+        )
 
         # Build filters for session isolation
         filters = {}
@@ -65,6 +73,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
             query=query,
             top_k=top_k,
             filters=filters if filters else None,
+            device_id=device_id,
         )
 
         # Format results for RAGAgent with confidence filtering

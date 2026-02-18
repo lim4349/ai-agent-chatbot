@@ -101,14 +101,14 @@ class PineconeVectorStore:
     async def add_document(
         self,
         document: Document,
-        user_id: str | None = None,
+        device_id: str | None = None,
         session_id: str | None = None,
     ) -> str:
         """Add a document with all its chunks to the vector store.
 
         Args:
             document: Document object with chunks to store
-            user_id: User ID for document isolation
+            device_id: Device ID for document isolation (guest mode)
             session_id: Session ID for document isolation
 
         Returns:
@@ -125,8 +125,8 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             raise RuntimeError("Pinecone not initialized")
 
-        # Use user-specific namespace for isolation
-        namespace = f"user_{user_id}" if user_id else self.namespace
+        # Use device-specific namespace for isolation (guest mode)
+        namespace = f"device_{device_id}" if device_id else self.namespace
 
         # Prepare data for Pinecone
         vectors = []
@@ -152,9 +152,9 @@ class PineconeVectorStore:
                 # Pinecone requires string values for metadata filtering
                 "text": chunk.content,  # Store text in metadata
             }
-            # Add user/session isolation metadata
-            if user_id:
-                metadata["user_id"] = user_id
+            # Add device/session isolation metadata
+            if device_id:
+                metadata["device_id"] = device_id
             if session_id:
                 metadata["session_id"] = session_id
 
@@ -195,7 +195,7 @@ class PineconeVectorStore:
                 "document_added_to_store",
                 document_id=document.id,
                 chunk_count=len(vectors),
-                user_id=user_id,
+                device_id=device_id,
                 session_id=session_id,
             )
         except Exception as e:
@@ -209,6 +209,7 @@ class PineconeVectorStore:
         query: str,
         top_k: int = 5,
         filters: dict | None = None,
+        device_id: str | None = None,
     ) -> list[SearchResult]:
         """Search for relevant document chunks.
 
@@ -216,6 +217,7 @@ class PineconeVectorStore:
             query: Search query text
             top_k: Number of results to return
             filters: Optional metadata filters
+            device_id: Device ID for namespace isolation (guest mode)
 
         Returns:
             List of search results with scores
@@ -237,12 +239,15 @@ class PineconeVectorStore:
         # Build filter
         pinecone_filter = self._build_filter(filters)
 
+        # Use device-specific namespace for isolation (guest mode)
+        namespace = f"device_{device_id}" if device_id else self.namespace
+
         # Query Pinecone
         try:
             results = self._index.query(
                 vector=query_embedding,
                 top_k=top_k,
-                namespace=self.namespace,
+                namespace=namespace,
                 filter=pinecone_filter,
                 include_metadata=True,
             )
@@ -292,12 +297,12 @@ class PineconeVectorStore:
 
         return pinecone_filter if pinecone_filter else None
 
-    async def delete_document(self, doc_id: str, user_id: str | None = None) -> None:
+    async def delete_document(self, doc_id: str, device_id: str | None = None) -> None:
         """Delete all chunks for a document.
 
         Args:
             doc_id: Document ID to delete
-            user_id: User ID for ownership verification
+            device_id: Device ID for ownership verification (guest mode)
 
         Raises:
             RuntimeError: If Pinecone is not initialized
@@ -306,8 +311,8 @@ class PineconeVectorStore:
         if not self._index:
             raise RuntimeError("Pinecone not initialized")
 
-        # Use user-specific namespace
-        namespace = f"user_{user_id}" if user_id else self.namespace
+        # Use device-specific namespace
+        namespace = f"device_{device_id}" if device_id else self.namespace
 
         # Delete by filter
         self._index.delete(
@@ -315,13 +320,13 @@ class PineconeVectorStore:
             namespace=namespace,
         )
 
-        logger.info("document_deleted", document_id=doc_id, user_id=user_id)
+        logger.info("document_deleted", document_id=doc_id, device_id=device_id)
 
-    async def has_documents_for_session(self, user_id: str, session_id: str) -> bool:
+    async def has_documents_for_session(self, device_id: str, session_id: str) -> bool:
         """Check if any documents exist for a session.
 
         Args:
-            user_id: User ID
+            device_id: Device ID (guest mode)
             session_id: Session ID
 
         Returns:
@@ -330,7 +335,7 @@ class PineconeVectorStore:
         if not self._index:
             return False
 
-        namespace = f"user_{user_id}"
+        namespace = f"device_{device_id}"
         try:
             results = self._index.query(
                 vector=[0.0] * 1024,
@@ -343,11 +348,11 @@ class PineconeVectorStore:
         except Exception:
             return False
 
-    async def delete_session_documents(self, user_id: str, session_id: str) -> int:
+    async def delete_session_documents(self, device_id: str, session_id: str) -> int:
         """Delete all documents for a session.
 
         Args:
-            user_id: User ID
+            device_id: Device ID (guest mode)
             session_id: Session ID
 
         Returns:
@@ -357,8 +362,8 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             return 0
 
-        # Use user-specific namespace
-        namespace = f"user_{user_id}"
+        # Use device-specific namespace
+        namespace = f"device_{device_id}"
 
         try:
             # First, query to get document count
@@ -384,7 +389,7 @@ class PineconeVectorStore:
             logger.info(
                 "session_documents_deleted",
                 session_id=session_id,
-                user_id=user_id,
+                device_id=device_id,
                 document_count=len(doc_ids),
             )
             return len(doc_ids)
@@ -397,13 +402,13 @@ class PineconeVectorStore:
             return 0
 
     async def get_document_stats(
-        self, doc_id: str, user_id: str | None = None
+        self, doc_id: str, device_id: str | None = None
     ) -> DocumentStats | None:
         """Get statistics for a document.
 
         Args:
             doc_id: Document ID
-            user_id: User ID for ownership verification
+            device_id: Device ID for ownership verification (guest mode)
 
         Returns:
             DocumentStats object or None if not found
@@ -412,8 +417,8 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             return None
 
-        # Use user-specific namespace
-        namespace = f"user_{user_id}" if user_id else self.namespace
+        # Use device-specific namespace
+        namespace = f"device_{device_id}" if device_id else self.namespace
 
         try:
             # Query with filter to get all chunks
@@ -462,11 +467,11 @@ class PineconeVectorStore:
             logger.error("failed_to_get_document_stats", error=str(e), document_id=doc_id)
             return None
 
-    async def list_documents(self, user_id: str | None = None) -> list[str]:
+    async def list_documents(self, device_id: str | None = None) -> list[str]:
         """List all unique document IDs in the store.
 
         Args:
-            user_id: User ID for filtering
+            device_id: Device ID for filtering (guest mode)
 
         Returns:
             List of document IDs
@@ -475,8 +480,8 @@ class PineconeVectorStore:
             logger.error("pinecone_not_initialized")
             return []
 
-        # Use user-specific namespace
-        namespace = f"user_{user_id}" if user_id else self.namespace
+        # Use device-specific namespace
+        namespace = f"device_{device_id}" if device_id else self.namespace
 
         try:
             # List all vectors with metadata
@@ -495,7 +500,7 @@ class PineconeVectorStore:
 
             return sorted(doc_ids)
         except Exception as e:
-            logger.error("failed_to_list_documents", error=str(e), user_id=user_id)
+            logger.error("failed_to_list_documents", error=str(e), device_id=device_id)
             return []
 
     async def clear(self) -> bool:

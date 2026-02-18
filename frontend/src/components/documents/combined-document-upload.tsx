@@ -15,12 +15,13 @@ import { FileUploadZone } from './file-upload-zone';
 import { UploadProgress } from './upload-progress';
 import { useDocumentStore } from '@/stores/document-store';
 import { useChatStore, getDeviceId } from '@/stores/chat-store';
+import { useToastStore } from '@/stores/toast-store';
 import { useTranslation } from '@/lib/i18n';
 
 export function CombinedDocumentUpload() {
   const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const { t } = useTranslation();
+  const { addToast } = useToastStore();
 
   const {
     isUploading,
@@ -32,50 +33,43 @@ export function CombinedDocumentUpload() {
   } = useDocumentStore();
 
   const handleFileUpload = async (file: File) => {
-    setMessage(null);
-
     // Get sessionId and deviceId
     const sessionId = useChatStore.getState().activeSessionId;
     const deviceId = getDeviceId();
 
     if (!sessionId) {
-      setMessage({ type: 'error', text: 'No active session. Please create a session first.' });
+      addToast('No active session. Please create a session first.', 'error');
       return;
     }
 
-    try {
-      await uploadFile(file, sessionId, deviceId);
+    // Close modal immediately and upload in background
+    setOpen(false);
 
-      // Only close modal if upload was successful
-      // Check uploadStatus from store after uploadFile completes
-      const { uploadStatus, uploadError } = useDocumentStore.getState();
-
-      if (uploadStatus === 'completed') {
-        setMessage({ type: 'success', text: `Successfully uploaded ${file.name}` });
+    // Start background upload
+    uploadFile(file, sessionId, deviceId)
+      .then(() => {
+        const { uploadStatus, uploadError } = useDocumentStore.getState();
+        if (uploadStatus === 'completed') {
+          addToast(`${file.name} uploaded successfully`, 'success');
+        } else if (uploadStatus === 'error') {
+          addToast(uploadError || 'Upload failed', 'error');
+        }
+      })
+      .catch((error) => {
+        addToast(error instanceof Error ? error.message : 'Upload failed', 'error');
+      })
+      .finally(() => {
+        // Reset status after a delay
         setTimeout(() => {
-          setOpen(false);
           resetUploadStatus();
-          setMessage(null);
-        }, 1500);
-      } else if (uploadStatus === 'error') {
-        setMessage({
-          type: 'error',
-          text: uploadError || 'Upload failed',
-        });
-      }
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'Upload failed',
+        }, 1000);
       });
-    }
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
       resetUploadStatus();
-      setMessage(null);
     }
   };
 
@@ -84,7 +78,7 @@ export function CombinedDocumentUpload() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Upload className="w-4 h-4" />
-          {t('doc.upload')}
+          {isUploading ? 'Uploading...' : t('doc.upload')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[550px]">
@@ -99,25 +93,14 @@ export function CombinedDocumentUpload() {
             isUploading={isUploading}
           />
 
-          {(uploadStatus === 'uploading' || uploadStatus === 'processing' || uploadStatus === 'completed' || uploadStatus === 'error') && (
+          {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
             <UploadProgress
-              status={uploadStatus as 'uploading' | 'processing' | 'completed' | 'error'}
+              status={uploadStatus as 'uploading' | 'processing'}
               progress={uploadProgress}
               filename={useDocumentStore.getState().currentUploadFilename || 'Unknown file'}
-              error={uploadError || undefined}
             />
           )}
         </div>
-
-        {message && (
-          <p
-            className={`text-sm text-center ${
-              message.type === 'success' ? 'text-green-500' : 'text-destructive'
-            }`}
-          >
-            {message.text}
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   );

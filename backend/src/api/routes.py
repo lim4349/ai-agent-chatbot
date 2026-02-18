@@ -122,7 +122,7 @@ async def chat(
         session = await session_store.get(request.session_id)
         if session:
             has_docs = await vector_store.has_documents_for_session(
-                session.user_id, request.session_id
+                device_id=session.user_id, session_id=request.session_id
             )
     initial_state["has_documents"] = has_docs
 
@@ -224,7 +224,7 @@ async def chat_stream(
         session = await session_store.get(request.session_id)
         if session:
             has_docs = await vector_store.has_documents_for_session(
-                session.user_id, request.session_id
+                device_id=session.user_id, session_id=request.session_id
             )
     initial_state["has_documents"] = has_docs
 
@@ -695,7 +695,7 @@ async def upload_file(
         )
 
         # Store in vector database with device/session isolation
-        await doc_store.add_document(doc, user_id=device_id, session_id=session_id)
+        await doc_store.add_document(doc, device_id=device_id, session_id=session_id)
 
         return FileUploadResponse(
             document_id=doc.id,
@@ -733,11 +733,11 @@ async def list_documents(
         return DocumentListResponse(documents=[])
 
     try:
-        doc_ids = await doc_store.list_documents(user_id=device_id)
+        doc_ids = await doc_store.list_documents(device_id=device_id)
 
         documents = []
         for doc_id in doc_ids:
-            stats = await doc_store.get_document_stats(doc_id, user_id=device_id)
+            stats = await doc_store.get_document_stats(doc_id, device_id=device_id)
             if stats:
                 documents.append(
                     DocumentInfo(
@@ -774,12 +774,12 @@ async def delete_document(
 
     try:
         # Check if document exists and belongs to device
-        stats = await doc_store.get_document_stats(document_id, user_id=device_id)
+        stats = await doc_store.get_document_stats(document_id, device_id=device_id)
         if not stats:
             raise HTTPException(status_code=404, detail="Document not found")
 
         # Delete with device isolation
-        await doc_store.delete_document(document_id, user_id=device_id)
+        await doc_store.delete_document(document_id, device_id=device_id)
 
         return DocumentDeleteResponse(
             document_id=document_id,

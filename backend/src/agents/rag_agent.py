@@ -74,11 +74,14 @@ Response format:
     async def process(self, state: AgentState) -> AgentState:
         """Retrieve relevant documents and generate answer."""
         session_id = state.get("metadata", {}).get("session_id", "default")
+        device_id = state.get("metadata", {}).get("device_id")
         query = get_message_content(state["messages"][-1])
 
-        # Retrieve relevant documents (filtered by session)
+        # Retrieve relevant documents (filtered by session and device)
         try:
-            docs = await self.retriever.retrieve(query, top_k=3, session_id=session_id)
+            docs = await self.retriever.retrieve(
+                query, top_k=3, session_id=session_id, device_id=device_id
+            )
         except Exception as e:
             logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
             docs = []
@@ -148,11 +151,8 @@ Response format:
             response = await self.llm.generate(messages)
             tool_results = [{"tool": "retriever", "query": query, "results": docs}]
 
-        # Store the Q&A exchange in memory if available
-        if self.memory:
-            last_msg = state["messages"][-1]
-            await self.memory.add_message(session_id, message_to_dict(last_msg))
-            await self.memory.add_message(session_id, {"role": "assistant", "content": response})
+        # Note: Memory storage is handled by chat_agent to avoid duplication
+        # RAG agent only adds response to state, not to memory
 
         return {
             **state,
