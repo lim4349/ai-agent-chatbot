@@ -454,8 +454,25 @@ function wrapBareUrls(text: string): string {
       // Remove spaces inside URL first (LLM artifact)
       let cleaned = url.replace(/\s+/g, '');
       // Strip trailing characters that are not part of the URL
-      cleaned = cleaned.replace(/[.,;:!?)\]**__\uAC00-\uD7A3]+$/, '');
+      // Includes: punctuation, Korean chars, markdown markers, and trailing dashes/periods
+      cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      // Also remove trailing '...' or '…' (ellipsis)
+      cleaned = cleaned.replace(/\.{3,}$/, '');
       return `[${cleaned}](${cleaned})`;
+    }
+  );
+
+  // Clean up citation format: (출처: [url](url)) -> ensure URL is clean
+  // and remove any trailing artifacts in citation context
+  result = result.replace(
+    /\(출처:\s*\[([^\]]+)\]\(([^)]+)\)\)/g,
+    (match, text, url) => {
+      // Clean the URL
+      let cleanedUrl = url.replace(/\s+/g, '');
+      // Remove trailing non-URL chars
+      cleanedUrl = cleanedUrl.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      cleanedUrl = cleanedUrl.replace(/\.{3,}$/, '');
+      return `(출처: ${cleanedUrl})`;
     }
   );
 
