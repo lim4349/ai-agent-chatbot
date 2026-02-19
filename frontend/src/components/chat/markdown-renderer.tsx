@@ -11,6 +11,160 @@ import DOMPurify from 'dompurify';
 import 'highlight.js/styles/github-dark.css';
 
 /**
+ * Fix URL spaces in LLM-generated text
+ * LLM sometimes inserts spaces in URLs like "https://www tossinvest. com"
+ * This function removes those spaces to form valid URLs
+ */
+export function fixUrlSpaces(text: string): string {
+  if (!text) return text;
+
+  // Protect code blocks and inline codes
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+  const inlineCodes: string[] = [];
+  result = result.replace(/`[^`]+`/g, (match) => {
+    inlineCodes.push(match);
+    return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+
+  // Pattern 1: Fix "word1 word2. tld" -> "word1.word2.tld"
+  // Handles: "www tossinvest. com" -> "www.tossinvest.com"
+  // Handles: "alphasquare co. kr" -> "alphasquare.co.kr"
+  // Repeat multiple times to handle chained patterns
+  for (let i = 0; i < 10; i++) {
+    const prev = result;
+    // Match: word + space + word + optional space + dot + tld
+    result = result.replace(
+      /(https?:\/\/[^\s]*?)([a-zA-Z0-9-]+)\s+([a-zA-Z0-9-]+)\s*\.\s*([a-zA-Z]{2,})/g,
+      '$1$2.$3.$4'
+    );
+    if (result === prev) break;
+  }
+
+  // Pattern 2: Clean up remaining spaces around dots in URLs
+  // "something. com" -> "something.com"
+  result = result.replace(
+    /(https?:\/\/[^\s]*)\s*\.\s*([a-zA-Z]{2,})/g,
+    '$1.$2'
+  );
+
+  // Pattern 3: Fix spaces before slashes in paths
+  // "domain. com/path" -> "domain.com/path"
+  result = result.replace(
+    /(https?:\/\/[^\s/]+)\s+(?=\/)/g,
+    '$1'
+  );
+
+  // Pattern 4: Fix spaces before query strings
+  // "url ?code=PLTR" -> "url?code=PLTR"
+  result = result.replace(
+    /(https?:\/\/[^\s?]+)\s+\?/g,
+    '$1?'
+  );
+
+  // Pattern 5: Fix spaces after query string start
+  // "? code=PLTR" -> "?code=PLTR"
+  result = result.replace(
+    /(https?:\/\/[^\s?]+\?)\s+/g,
+    '$1'
+  );
+
+  // Pattern 6: Fix spaces around & and = in query strings
+  // "?code=PLTR &foo=bar" -> "?code=PLTR&foo=bar"
+  result = result.replace(
+    /(https?:\/\/[^\s?]+\?[^\s]*)\s+([&=])/g,
+    '$1$2'
+  );
+
+  // Pattern 7: Remove spaces before common URL terminators
+  // URL followed by space then punctuation or Korean char
+  result = result.replace(
+    /(https?:\/\/[^\s]+)\s+(?=[,;:!?。)】\]\)]|[가-힣]|$)/g,
+    '$1'
+  );
+
+  // Restore protected regions
+  inlineCodes.forEach((code, i) => {
+    result = result.replace(`__INLINE_CODE_${i}__`, code);
+  });
+  codeBlocks.forEach((code, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, code);
+  });
+
+  return result;
+}
+
+/**
+ * Fix list formatting - separate inline list items with newlines
+ * Converts patterns like "- item - item" to "- item\n- item"
+ */
+export function fixListFormatting(text: string): string {
+  if (!text) return text;
+
+  // Protect code blocks
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+
+  // Protect inline code
+  const inlineCodes: string[] = [];
+  result = result.replace(/`[^`]+`/g, (match) => {
+    inlineCodes.push(match);
+    return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+
+  // Pattern 1: "punctuation + dash + space + content" -> "punctuation + newline + dash + space + content"
+  // Example: "입니다- 136.31달러" -> "입니다\n- 136.31달러"
+  result = result.replace(
+    /([:.。！？\s])(-\s+)([\d가-힣])/g,
+    '$1\n$2$3'
+  );
+
+  // Pattern 2: "content - number/Korean" at end of lines -> "content\n- number/Korean"
+  // Example: "order- 142.91달러" (when 142 starts a new list item conceptually)
+  // This handles the case where dash appears after a word without space
+  result = result.replace(
+    /(\S)(-\s+\d)/g,
+    (match, before, after) => {
+      // Only split if the dash looks like a list marker (preceded by punctuation-like chars or Korean)
+      if (/[\s:.。！？\]\)}]/.test(before) || /[가-힣]/.test(before)) {
+        return `${before}\n${after}`;
+      }
+      return match;
+    }
+  );
+
+  // Pattern 3: Consecutive list items on same line
+  // Example: "- 136.31달러 ... - 142.91달러" -> "- 136.31달러 ...\n- 142.91달러"
+  // But be careful not to match dashes that are part of URLs or words
+  result = result.replace(
+    /([^\n])\s+-\s+(?=[\d가-힣](?!.*\]))/g,
+    (match, prev) => {
+      // Don't split if prev is alphanumeric (part of a word)
+      if (/[a-zA-Z0-9]/.test(prev)) {
+        return match;
+      }
+      return `${prev}\n- `;
+    }
+  );
+
+  // Restore protected regions
+  inlineCodes.forEach((code, i) => {
+    result = result.replace(`__INLINE_CODE_${i}__`, code);
+  });
+  codeBlocks.forEach((code, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, code);
+  });
+
+  return result;
+}
+
+/**
  * Fix spacing issues in LLM-generated text
  * Some models (like GLM) may generate tokens without proper spacing after sentence endings
  */
@@ -155,7 +309,7 @@ function sanitizeHtml(html: string): string {
  * @param url - URL string to validate
  * @returns true if URL has safe protocol, false otherwise
  */
-function isValidUrlProtocol(url: string): boolean {
+export function isValidUrlProtocol(url: string): boolean {
   if (!url || typeof url !== 'string') {
     return false;
   }
@@ -444,10 +598,22 @@ const markdownComponents = {
 };
 
 const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: string }) {
-  // Preprocess: wrap bare URLs in markdown link syntax for reliable link detection
+  // Preprocess content in order:
+  // 1. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
+  // 2. fixListFormatting - separate inline list items with newlines
+  // 3. wrapBareUrls - wrap bare URLs in markdown link syntax
   const sanitizedContent = useMemo(() => {
     if (!content) return '';
-    return wrapBareUrls(content);
+
+    let result = content;
+    // Step 1: Fix URL spaces (must be before URL wrapping)
+    result = fixUrlSpaces(result);
+    // Step 2: Fix list formatting
+    result = fixListFormatting(result);
+    // Step 3: Wrap bare URLs in markdown links
+    result = wrapBareUrls(result);
+
+    return result;
   }, [content]);
 
   return (
@@ -462,13 +628,27 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
 });
 
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
+  // Apply all text fixes in order:
+  // 1. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
+  // 2. fixListFormatting - separate inline list items with newlines
+  // 3. fixSentenceSpacing - fix sentence spacing after punctuation
+  const fixedContent = useMemo(() => {
+    if (!content) return '';
+
+    let result = content;
+    // Step 1: Fix URL spaces (must be before URL wrapping)
+    result = fixUrlSpaces(result);
+    // Step 2: Fix list formatting
+    result = fixListFormatting(result);
+    // Step 3: Fix sentence spacing
+    result = fixSentenceSpacing(result);
+
+    return result;
+  }, [content]);
+
   // For smooth streaming: render as plain text during streaming
   // Only apply markdown formatting after streaming is complete
   // This avoids expensive re-renders on every token
-
-  // Fix spacing issues from LLM tokenization
-  const fixedContent = fixSentenceSpacing(content);
-
   if (isStreaming) {
     return (
       <div
