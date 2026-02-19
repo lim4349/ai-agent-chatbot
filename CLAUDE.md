@@ -140,6 +140,9 @@ dev (직접 커밋) → main (PR)
 **금지 사항**:
 - main에 직접 commit/push 금지
 - PR 생성 후 사용자 승인 없이 merge 금지
+- **`dev` 브랜치 삭제 절대 금지** — dev는 영구 개발 브랜치임
+  - `gh pr merge --delete-branch` 플래그 사용 금지
+  - PR merge 시 반드시 `gh pr merge <number> --merge` 만 사용 (브랜치 삭제 옵션 없이)
 
 **예시**:
 ```bash
