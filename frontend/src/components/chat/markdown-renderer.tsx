@@ -467,7 +467,7 @@ function wrapBareUrls(text: string): string {
   // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
   // This handles URLs without http:// or https:// prefix
   result = result.replace(
-    /\(출처:\s*)((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/[^\s)]*)?)/g,
+    /\(출처:\s*)((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/[^\)\s]*)?)/g,
     (match, prefix, url) => {
       let cleaned = url.replace(/\s+/g, '');
       cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
@@ -478,8 +478,8 @@ function wrapBareUrls(text: string): string {
     }
   );
 
-  // Clean up citation format: (출처: [url](url)) -> ensure URL is clean
-  // and remove any trailing artifacts in citation context
+  // Clean up citation format: (출처: [url](url)) -> clean link with domain only
+  // Convert to: (🔗 출처: domain) for cleaner UI
   result = result.replace(
     /\(출처:\s*\[([^\]]+)\]\(([^)]+)\)\)/g,
     (match, text, url) => {
@@ -488,7 +488,31 @@ function wrapBareUrls(text: string): string {
       // Remove trailing non-URL chars
       cleanedUrl = cleanedUrl.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
       cleanedUrl = cleanedUrl.replace(/\.{3,}$/, '');
-      return `(출처: ${cleanedUrl})`;
+      // Extract domain for display
+      let domain = cleanedUrl;
+      try {
+        const urlObj = new URL(cleanedUrl);
+        domain = urlObj.hostname.replace(/^www\./, '');
+      } catch {
+        // If URL parsing fails, use the cleaned URL as-is
+      }
+      return `(출처: [${domain}](${cleanedUrl}))`;
+    }
+  );
+
+  // Also handle plain URL citations: (출처: https://...)
+  result = result.replace(
+    /\(출처:\s*(https?:\/\/[^\s)]+)\)/g,
+    (match, url) => {
+      let cleanedUrl = url.replace(/\s+/g, '');
+      cleanedUrl = cleanedUrl.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      cleanedUrl = cleanedUrl.replace(/\.{3,}$/, '');
+      let domain = cleanedUrl;
+      try {
+        const urlObj = new URL(cleanedUrl);
+        domain = urlObj.hostname.replace(/^www\./, '');
+      } catch {}
+      return `(출처: [${domain}](${cleanedUrl}))`;
     }
   );
 
