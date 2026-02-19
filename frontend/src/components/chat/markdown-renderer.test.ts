@@ -3,7 +3,7 @@
  * This file demonstrates the security features implemented
  */
 
-import { isValidUrlProtocol, fixUrlSpaces, fixListFormatting } from './markdown-renderer';
+import { isValidUrlProtocol, fixUrlSpaces, fixListFormatting, aggressiveUrlRepair, fixKoreanSpacing } from './markdown-renderer';
 
 describe('XSS Protection - URL Validation', () => {
   test('should allow safe HTTP URLs', () => {
@@ -163,6 +163,25 @@ describe('Integration: Real-world PLTR example', () => {
     // Check list items are separated
     expect(result).toMatch(/\n- 142\.91달러/);
     expect(result).toMatch(/\n- 135\.49달러/);
+  });
+
+  test('should handle aggressive URL repair and Korean spacing', () => {
+    const input = '현재 팔란티어 테크놀로지스(PLTR) 의 주가는 다음과 같습니다- 136.31달러 (출처: https://www.tossinvest com/stocks/US20200930014/order- 142.91달러 (출처: https://alphasquare.co kr/home/stock-summary? code=PLTR 주가는시장 상황에 따라 변동할 수 있으므로, 실시간 정보를 확인하는 것이 중요합니다.';
+
+    // Step 1: Aggressive URL repair
+    let result = aggressiveUrlRepair(input);
+    console.log('After aggressiveUrlRepair:', result);
+
+    // URLs should be fixed
+    expect(result).toContain('https://www.tossinvest.com/');
+    expect(result).toContain('https://alphasquare.co.kr/');
+
+    // Step 2: Korean spacing fix
+    result = fixKoreanSpacing(result);
+    console.log('After fixKoreanSpacing:', result);
+
+    // Korean spacing should be fixed
+    expect(result).toContain('주가는 시장');
   });
 });
 
