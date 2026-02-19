@@ -44,8 +44,8 @@ class WebSearchTool:
                 title = r.get("title", "Untitled")
                 url = r.get("url", "")
                 content = r.get("content", "")[:500]  # Truncate long content
-                # URL 보호: 마크다운 링크 대신 별도로 표시
-                formatted.append(f"### {title}\nURL: {url}\n{content}\n")
+                # 마크다운 링크 형식으로 제공 (LLM이 인식하기 쉬움)
+                formatted.append(f"### [{title}]({url})\n{content}\n")
 
             result_text = "\n---\n".join(formatted)
             logger.info(
