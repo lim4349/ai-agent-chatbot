@@ -86,6 +86,34 @@ export function fixUrlSpaces(text: string): string {
     '$1'
   );
 
+  // Pattern 8: Fix missing dots in TLDs (common LLM artifact)
+  // "tossinvest com" -> "tossinvest.com"
+  // "co kr" -> "co.kr"
+  // "choicestock co kr" -> "choicestock.co.kr"
+  // Common TLDs: com, net, org, io, co, kr, jp, uk, de, fr, etc.
+  const commonTlds = ['com', 'net', 'org', 'io', 'co', 'kr', 'jp', 'uk', 'de', 'fr', 'gov', 'edu', 'mil', 'int', 'info', 'biz', 'name', 'pro', 'aero', 'museum', 'shop', 'store', 'app', 'dev', 'cloud', 'ai'];
+  const tldPattern = new RegExp(
+    `(https?:\\/\\/[^\\s]*?)\\b(${commonTlds.join('|')})\\s+(${commonTlds.join('|')})\\b`,
+    'gi'
+  );
+  result = result.replace(tldPattern, '$1$2.$3');
+
+  // Pattern 9: Fix single missing dot before TLD
+  // "domain com" -> "domain.com" (when com/kr/io etc follows a word)
+  for (const tld of commonTlds) {
+    const singleTldPattern = new RegExp(
+      `(https?:\\/\\/[^\\s]+?)\\s+(${tld})\\b(?!\\.)`,
+      'gi'
+    );
+    result = result.replace(singleTldPattern, (match, prefix, tldMatch) => {
+      // Check if it's already part of a path or query
+      if (/[/?]/.test(prefix.slice(-1))) return match;
+      // Check if there's already a dot before
+      if (/\.$/.test(prefix)) return match;
+      return `${prefix}.${tldMatch}`;
+    });
+  }
+
   // Restore protected regions
   inlineCodes.forEach((code, i) => {
     result = result.replace(`__INLINE_CODE_${i}__`, code);
@@ -150,6 +178,28 @@ export function fixListFormatting(text: string): string {
         return match;
       }
       return `${prev}\n- `;
+    }
+  );
+
+  // Pattern 4: Numbered list items without preceding newline
+  // Example: "입니다1. 136.31달러" -> "입니다\n1. 136.31달러"
+  // Example: "order2. 142.91달러" -> "order\n2. 142.91달러"
+  // Handles punctuation, whitespace, brackets, AND Korean/English letters
+  result = result.replace(
+    /([:.。！？\s\])}]|[a-zA-Z가-힣])(\d+\.\s+)(?=[\d가-힣])/g,
+    '$1\n$2'
+  );
+
+  // Pattern 5: Consecutive numbered list items
+  // Example: "1. item 2. item" -> "1. item\n2. item"
+  result = result.replace(
+    /([^\n])\s+(\d+\.\s+)(?=[\d가-힣])/g,
+    (match, prev, numList) => {
+      // Don't split if prev is alphanumeric (part of a word/number)
+      if (/[a-zA-Z0-9]/.test(prev)) {
+        return match;
+      }
+      return `${prev}\n${numList}`;
     }
   );
 
