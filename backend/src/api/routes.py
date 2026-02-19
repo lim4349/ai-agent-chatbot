@@ -256,8 +256,19 @@ async def chat_stream(
                         continue
 
                     chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        yield {"event": "token", "data": chunk.content}
+                    if chunk and hasattr(chunk, "content"):
+                        content = chunk.content
+                        if isinstance(content, list):
+                            # Anthropic/Gemini via OpenRouter returns content as list of blocks
+                            text = "".join(
+                                block.get("text", "")
+                                for block in content
+                                if isinstance(block, dict) and block.get("type") == "text"
+                            )
+                        else:
+                            text = content
+                        if text:
+                            yield {"event": "token", "data": text}
 
                 elif kind == "on_chain_end":
                     # Send metadata about which agent was used
