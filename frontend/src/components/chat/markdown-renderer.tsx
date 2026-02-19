@@ -91,6 +91,22 @@ function wrapBareUrls(text: string): string {
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
+  // Repair unclosed markdown links: [text](https://url <- missing closing )
+  // Handles LLM artifact where closing ) is omitted
+  // URL char class (RFC 3986) excludes Korean, quotes, parens — these signal URL end
+  // (?!\)) negative lookahead excludes already-closed links (handled above)
+  const urlCharClass = `[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'*+,;=%]`;
+  const unclosedLinkPattern = new RegExp(
+    `\\[([^\\]\\n]+)\\]\\((https?://${urlCharClass}+(?:\\s+${urlCharClass}+)*)(?!\\))`,
+    'g'
+  );
+  result = result.replace(unclosedLinkPattern, (match, text, url) => {
+    const cleanUrl = url.replace(/\s+/g, '').replace(/[-.,;:!?]+$/, '');
+    if (!cleanUrl) return match;
+    mdLinks.push(`[${text}](${cleanUrl})`);
+    return `__MD_LINK_${mdLinks.length - 1}__`;
+  });
+
   // Wrap bare URLs in markdown link syntax
   // Allow ')' in URL characters; trailing unbalanced ')' are stripped below
   result = result.replace(
