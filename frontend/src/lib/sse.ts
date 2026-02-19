@@ -73,9 +73,19 @@ export function streamChat(
               }
               break;
             case 'token':
-              // Filter out internal LangGraph JSON data
-              if (eventData && !eventData.startsWith('[') && !eventData.startsWith('{')) {
-                callbacks.onToken(eventData);
+              if (eventData) {
+                let isInternalJson = false;
+                if (eventData.startsWith('{') || eventData.startsWith('[')) {
+                  try {
+                    JSON.parse(eventData);
+                    isInternalJson = true;
+                  } catch {
+                    // Incomplete/non-JSON = normal text token (e.g. markdown link starting with '[')
+                  }
+                }
+                if (!isInternalJson) {
+                  callbacks.onToken(eventData);
+                }
               }
               break;
             case 'agent':
