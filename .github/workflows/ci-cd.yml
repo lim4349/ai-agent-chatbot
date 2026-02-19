@@ -132,11 +132,17 @@ jobs:
         run: |
           if [ -n "$RENDER_API_KEY" ] && [ -n "$RENDER_SERVICE_ID" ]; then
             echo "🔄 Deploying Redis..."
-            curl -s -X POST \
+            HTTP_STATUS=$(curl -s -o /tmp/redis_response.json -w "%{http_code}" -X POST \
               "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
               -H "Authorization: Bearer $RENDER_API_KEY" \
-              -H "Content-Type: application/json"
-            echo "✅ Redis deployed"
+              -H "Content-Type: application/json")
+            echo "Render API response (HTTP $HTTP_STATUS):"
+            cat /tmp/redis_response.json
+            if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+              echo "❌ Redis deploy trigger failed (HTTP $HTTP_STATUS)"
+              exit 1
+            fi
+            echo "✅ Redis deploy triggered"
           fi
 
       - name: Deploy Backend
@@ -149,12 +155,18 @@ jobs:
             exit 1
           fi
           echo "🚀 Deploying Backend..."
-          curl -s -X POST \
+          HTTP_STATUS=$(curl -s -o /tmp/backend_response.json -w "%{http_code}" -X POST \
             "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"clearCache": true}'
-          echo "✅ Backend deployed"
+            -d '{"clearCache": true}')
+          echo "Render API response (HTTP $HTTP_STATUS):"
+          cat /tmp/backend_response.json
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "❌ Backend deploy trigger failed (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+          echo "✅ Backend deploy triggered"
 
   cd-vercel:
     name: CD - Deploy to Vercel
