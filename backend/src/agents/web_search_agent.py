@@ -101,7 +101,7 @@ Examples:
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Search Results:\n{search_results}\n\nQuestion: {query}",
+                    "content": f"Search Results:\n{search_results}\n\nQuestion: {query}\n\nIMPORTANT: When citing URLs, copy them EXACTLY as shown in the 'URL:' field above. Do NOT modify, retype, or reformat URLs.",
                 }
             )
             response = await self.llm.generate(messages)

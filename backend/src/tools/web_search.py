@@ -44,10 +44,15 @@ class WebSearchTool:
                 title = r.get("title", "Untitled")
                 url = r.get("url", "")
                 content = r.get("content", "")[:500]  # Truncate long content
-                formatted.append(f"### [{title}]({url})\n{content}\n")
+                # URL 보호: 마크다운 링크 대신 별도로 표시
+                formatted.append(f"### {title}\nURL: {url}\n{content}\n")
 
             result_text = "\n---\n".join(formatted)
-            logger.info("web_search_completed", results_count=len(formatted))
+            logger.info(
+                "web_search_completed",
+                results_count=len(formatted),
+                urls=[r.get("url") for r in results.get("results", [])],
+            )
             return result_text
 
         except Exception as e:
