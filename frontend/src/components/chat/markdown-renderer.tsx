@@ -359,7 +359,14 @@ function fixSentenceSpacing(text: string): string {
   // Protect URLs - CRITICAL: must protect before fixing sentence spacing
   // to avoid adding spaces inside URLs like "www.example.com"
   const urls: string[] = [];
+  // First protect full URLs with protocol
   result = result.replace(/https?:\/\/[^\s]+/g, (match) => {
+    urls.push(match);
+    return `__URL_${urls.length - 1}__`;
+  });
+  // Also protect domain-only URLs (e.g., liner.com, www.reddit.com)
+  // This prevents "liner.com" from becoming "liner. com"
+  result = result.replace(/\b(www\.)?[a-zA-Z0-9-]+\.(com|net|org|io|kr|jp|uk|de|fr|cn|co\.kr|co\.jp|go\.kr|or\.kr|ac\.kr)\b/g, (match) => {
     urls.push(match);
     return `__URL_${urls.length - 1}__`;
   });
@@ -446,19 +453,28 @@ function wrapBareUrls(text: string): string {
     }
   );
 
-  // Wrap bare URLs in markdown link syntax
-  // Also clean spaces inside URLs (LLM artifact)
+  // Wrap bare URLs with protocol (http/https) in markdown link syntax
   result = result.replace(
     /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
     (url) => {
-      // Remove spaces inside URL first (LLM artifact)
       let cleaned = url.replace(/\s+/g, '');
-      // Strip trailing characters that are not part of the URL
-      // Includes: punctuation, Korean chars, markdown markers, and trailing dashes/periods
       cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
-      // Also remove trailing '...' or '…' (ellipsis)
       cleaned = cleaned.replace(/\.{3,}$/, '');
       return `[${cleaned}](${cleaned})`;
+    }
+  );
+
+  // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
+  // This handles URLs without http:// or https:// prefix
+  result = result.replace(
+    /\(출처:\s*)((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/[^\s)]*)?)/g,
+    (match, prefix, url) => {
+      let cleaned = url.replace(/\s+/g, '');
+      cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      cleaned = cleaned.replace(/\.{3,}$/, '');
+      // Add https:// prefix if missing
+      const fullUrl = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
+      return `${prefix}[${fullUrl}](${fullUrl})`;
     }
   );
 
