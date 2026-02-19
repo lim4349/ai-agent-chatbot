@@ -159,7 +159,7 @@ jobs:
             "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"clearCache": true}')
+            -d '{"clearCache": "clear"}')
           echo "Render API response (HTTP $HTTP_STATUS):"
           cat /tmp/backend_response.json
           if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
