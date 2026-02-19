@@ -45,8 +45,8 @@ function fixSentenceSpacing(text: string): string {
     // Korean text followed by a digit: "합니다4." → "합니다 4."
     .replace(/([가-힣])(\d)/g, '$1 $2')
     // ATX heading without preceding newline: "텍스트### 제목" → "텍스트\n### 제목"
-    // Exclude '/' to avoid breaking URL fragments (e.g. example.com/#section)
-    .replace(/([^/\n])(#{1,6} )/g, '$1\n$2');
+    // Exclude '/' and whitespace to avoid false matches on inline comments (e.g. "echo # comment")
+    .replace(/([^\s/])(#{1,6} )/g, '$1\n$2');
 
   // Restore protected regions (reverse order)
   inlineCodes.forEach((code, i) => {
@@ -101,7 +101,7 @@ function wrapBareUrls(text: string): string {
     'g'
   );
   result = result.replace(unclosedLinkPattern, (match, text, url) => {
-    const cleanUrl = url.replace(/\s+/g, '').replace(/[-.,;:!?]+$/, '');
+    const cleanUrl = url.replace(/\s+/g, '').replace(/[.,;:!?]+$/, '');
     if (!cleanUrl) return match;
     mdLinks.push(`[${text}](${cleanUrl})`);
     return `__MD_LINK_${mdLinks.length - 1}__`;
@@ -110,10 +110,13 @@ function wrapBareUrls(text: string): string {
   // Wrap bare URLs in markdown link syntax
   // Allow ')' in URL characters; trailing unbalanced ')' are stripped below
   result = result.replace(
-    /(?<!\()(https?:\/\/[^\s<>\]"']+)/g,
+    /(?<!\()(https?:\/\/[^\s<>\]"'*]+)/g,
     (url) => {
-      // Strip trailing sentence punctuation (not closing parens yet)
-      let cleaned = url.replace(/[.,;:!?]+$/, '');
+      // Strip trailing markdown markers and sentence punctuation
+      let cleaned = url
+        .replace(/\*+$/, '')      // trailing * (bold/italic markers)
+        .replace(/#{2,}$/, '')    // trailing ## (heading markers; single # anchor is kept)
+        .replace(/[.,;:!?]+$/, ''); // trailing sentence punctuation
       // Remove excess closing parens: only strip unbalanced trailing ')'
       const openCount = (cleaned.match(/\(/g) || []).length;
       const closeCount = (cleaned.match(/\)/g) || []).length;
@@ -361,19 +364,27 @@ const markdownComponents = {
     const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
     const isUnsafe = href && !safeHref;
 
-    // Smart truncation: show domain + path start for URLs, simple truncation for text
-    const displayText = typeof children === 'string' && children.length > 60
-      ? (() => {
-          try {
-            const url = new URL(children);
-            const domain = url.hostname;
-            const pathStart = url.pathname.slice(0, 20);
-            return `${domain}${pathStart}...`;
-          } catch {
-            return children.slice(0, 57) + '...';
-          }
-        })()
-      : children;
+    // Detect bare URLs: wrapBareUrls produces [url](url) where text === href
+    const childText = Array.isArray(children)
+      ? children.map(c => (typeof c === 'string' ? c : '')).join('')
+      : typeof children === 'string' ? children : '';
+    const isBareUrl = !!(href && childText === href);
+
+    // bare URL → show full URL (no truncation); named link → truncate if too long
+    const displayText = isBareUrl
+      ? children
+      : typeof children === 'string' && children.length > 60
+        ? (() => {
+            try {
+              const url = new URL(children);
+              const domain = url.hostname;
+              const pathStart = url.pathname.slice(0, 20);
+              return `${domain}${pathStart}...`;
+            } catch {
+              return children.slice(0, 57) + '...';
+            }
+          })()
+        : children;
 
     return (
       <a

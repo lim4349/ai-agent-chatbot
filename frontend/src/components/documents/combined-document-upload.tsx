@@ -32,7 +32,7 @@ export function CombinedDocumentUpload() {
     resetUploadStatus,
   } = useDocumentStore();
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = (file: File) => {
     // Get sessionId and deviceId
     const sessionId = useChatStore.getState().activeSessionId;
     const deviceId = getDeviceId();

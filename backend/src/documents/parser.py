@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -209,8 +210,6 @@ class DocumentParser:
     def _parse_pdf(self, path: Path) -> list[DocumentSection]:
         """Parse PDF file using pdfplumber."""
         try:
-            import logging
-
             import pdfplumber
 
             # Suppress pdfplumber font warnings (FontBBox, etc.)
