@@ -89,7 +89,8 @@ function wrapBareUrls(text: string): string {
       ? url
           .replace(/\s+/g, '')          // remove spaces
           .replace(/#{2,}.*$/, '')      // strip ## and everything after
-          .replace(/\*+$/, '')          // strip trailing * (bold/italic markers)
+          .replace(/\*{2,}/g, '')       // strip ** bold/italic markers anywhere in URL
+          .replace(/\*+$/, '')          // strip trailing lone * markers
           .replace(/[.,;:!?]+$/, '')    // strip trailing sentence punctuation
       : url;
     const cleanedMatch = isHttpUrl ? `[${text}](${cleanedUrl})` : match;
@@ -121,7 +122,8 @@ function wrapBareUrls(text: string): string {
       // Strip trailing markdown markers and sentence punctuation
       let cleaned = url
         .replace(/#{2,}.*$/, '')  // strip ## and everything after (## is never valid in URLs; single # anchor kept)
-        .replace(/\*+$/, '')      // trailing * (bold/italic markers)
+        .replace(/\*{2,}/g, '')   // strip ** bold/italic markers anywhere in URL
+        .replace(/\*+$/, '')      // trailing lone * markers
         .replace(/[.,;:!?]+$/, ''); // trailing sentence punctuation
       // Remove excess closing parens: only strip unbalanced trailing ')'
       const openCount = (cleaned.match(/\(/g) || []).length;
@@ -361,8 +363,6 @@ function CodeBlock({
 }
 
 function MarkdownLink({ href, children }: { href?: string; children?: React.ReactNode }) {
-  const [showUrl, setShowUrl] = useState(false);
-
   const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
   const isUnsafe = href && !safeHref;
 
@@ -372,26 +372,8 @@ function MarkdownLink({ href, children }: { href?: string; children?: React.Reac
     : typeof children === 'string' ? children : '';
   const isBareUrl = !!(href && childText === href);
 
-  // bare URL → show full URL (no truncation); named link → truncate if too long
-  const displayText = isBareUrl
-    ? children
-    : typeof children === 'string' && children.length > 60
-      ? (() => {
-          try {
-            const u = new URL(children);
-            return `${u.hostname}${u.pathname.slice(0, 20)}...`;
-          } catch {
-            return children.slice(0, 57) + '...';
-          }
-        })()
-      : children;
-
   return (
-    <span
-      className="relative inline"
-      onMouseEnter={() => { if (!isBareUrl) setShowUrl(true); }}
-      onMouseLeave={() => setShowUrl(false)}
-    >
+    <span className="inline">
       <a
         href={safeHref || '#'}
         target={safeHref ? '_blank' : undefined}
@@ -403,12 +385,11 @@ function MarkdownLink({ href, children }: { href?: string; children?: React.Reac
         )}
         onClick={(e) => { if (isUnsafe) e.preventDefault(); }}
       >
-        {displayText}
+        {children}
       </a>
-      {/* Named link hover URL tooltip */}
-      {!isBareUrl && showUrl && safeHref && (
-        <span className="absolute bottom-full left-0 z-50 max-w-sm bg-popover border border-border/50 rounded-md px-2.5 py-1.5 text-xs font-mono text-muted-foreground break-all shadow-lg pointer-events-none whitespace-pre-wrap">
-          {safeHref}
+      {!isBareUrl && safeHref && (
+        <span className="text-xs font-mono text-muted-foreground/70 ml-1 break-all">
+          ({safeHref})
         </span>
       )}
     </span>
