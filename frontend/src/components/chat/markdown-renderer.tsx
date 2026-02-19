@@ -78,6 +78,20 @@ function wrapBareUrls(text: string): string {
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
+  // Fix unclosed markdown links: [text](https://url... (missing closing ))
+  // LLM sometimes forgets the closing parenthesis
+  result = result.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s\])"]+)(?!\))/g,
+    (match, text, url) => {
+      // Clean spaces from URL
+      const cleanedUrl = url.replace(/\s+/g, '');
+      // Remove trailing non-URL chars (punctuation, Korean, markdown)
+      const finalUrl = cleanedUrl.replace(/[.,;:!?\]\s\uAC00-\uD7A3]+$/, '');
+      mdLinks.push(`[${text}](${finalUrl})`);
+      return `__MD_LINK_${mdLinks.length - 1}__`;
+    }
+  );
+
   // Wrap bare URLs in markdown link syntax
   // Also clean spaces inside URLs (LLM artifact)
   result = result.replace(

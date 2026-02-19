@@ -69,13 +69,7 @@ Guidelines:
 - Provide helpful and accurate information
 - If you don't know something, admit it honestly
 - Be concise but thorough when appropriate
-- Show empathy and understanding in your responses
-
-Formatting rules:
-- Separate paragraphs with a blank line
-- Always add a newline after headings (###)
-- Always add a newline after URLs for readability
-- Write list items on separate lines"""
+- Show empathy and understanding in your responses"""
 
     def _parse_memory_command(self, content: str) -> tuple[str, str | None]:
         """Parse user message for memory commands.
