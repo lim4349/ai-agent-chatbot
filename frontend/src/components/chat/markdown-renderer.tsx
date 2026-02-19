@@ -70,21 +70,24 @@ function wrapBareUrls(text: string): string {
   });
 
   // Protect existing markdown links: [text](url)
+  // Also clean spaces inside URLs (LLM artifact: "https://example. com" → "https://example.com")
   const mdLinks: string[] = [];
-  result = result.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match) => {
-    mdLinks.push(match);
+  result = result.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match, text, url) => {
+    const cleanedUrl = url.replace(/\s+/g, ''); // Remove all spaces from URL
+    mdLinks.push(`[${text}](${cleanedUrl})`);
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
   // Wrap bare URLs in markdown link syntax
+  // Also clean spaces inside URLs (LLM artifact)
   result = result.replace(
     /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
     (url) => {
+      // Remove spaces inside URL first (LLM artifact)
+      let cleaned = url.replace(/\s+/g, '');
       // Strip trailing characters that are not part of the URL
-      // Including: punctuation, markdown syntax (*, _), Korean text, closing parens
-      const cleaned = url.replace(/[.,;:!?)\]**__\s\uAC00-\uD7A3]+$/, '');
-      const trailing = url.slice(cleaned.length);
-      return `[${cleaned}](${cleaned})${trailing}`;
+      cleaned = cleaned.replace(/[.,;:!?)\]**__\uAC00-\uD7A3]+$/, '');
+      return `[${cleaned}](${cleaned})`;
     }
   );
 
