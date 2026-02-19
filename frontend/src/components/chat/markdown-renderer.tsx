@@ -39,7 +39,14 @@ function fixSentenceSpacing(text: string): string {
     // Closing bracket/paren followed by a letter
     .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2')
     // Comma/semicolon followed immediately by a letter (no space)
-    .replace(/([,;])([A-Za-z가-힣])/g, '$1 $2');
+    .replace(/([,;])([A-Za-z가-힣])/g, '$1 $2')
+    // Sentence-ending punctuation followed by a digit: "합니다.4" → "합니다. 4"
+    .replace(/([.!?。！？])(\d)/g, '$1 $2')
+    // Korean text followed by a digit: "합니다4." → "합니다 4."
+    .replace(/([가-힣])(\d)/g, '$1 $2')
+    // ATX heading without preceding newline: "텍스트### 제목" → "텍스트\n### 제목"
+    // Exclude '/' to avoid breaking URL fragments (e.g. example.com/#section)
+    .replace(/([^/\n])(#{1,6} )/g, '$1\n$2');
 
   // Restore protected regions (reverse order)
   inlineCodes.forEach((code, i) => {
@@ -75,8 +82,12 @@ function wrapBareUrls(text: string): string {
   // Protect existing markdown links: [text](url)
   // Use regex that handles parentheses inside URLs, e.g. [text](https://example.com/foo_(bar))
   const mdLinks: string[] = [];
-  result = result.replace(/\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (match) => {
-    mdLinks.push(match);
+  result = result.replace(/\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (match, text, url) => {
+    // LLM tokenizer artifact: remove spaces inside HTTP/HTTPS URLs
+    const isHttpUrl = /^\s*https?:\/\//.test(url);
+    const cleanedUrl = isHttpUrl ? url.replace(/\s+/g, '') : url;
+    const cleanedMatch = isHttpUrl ? `[${text}](${cleanedUrl})` : match;
+    mdLinks.push(cleanedMatch);
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
