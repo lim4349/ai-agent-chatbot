@@ -114,6 +114,14 @@ export function fixUrlSpaces(text: string): string {
     });
   }
 
+  // Pattern 10: Add space between URL and Korean text
+  // Example: "/PLTR주가는" -> "/PLRL 주가는"
+  // Split when Korean characters immediately follow alphanumeric in URL path
+  result = result.replace(
+    /(https?:\/\/[^\s]*)([a-zA-Z0-9])([가-힣])/g,
+    '$1$2 $3'
+  );
+
   // Restore protected regions
   inlineCodes.forEach((code, i) => {
     result = result.replace(`__INLINE_CODE_${i}__`, code);
@@ -155,12 +163,14 @@ export function fixListFormatting(text: string): string {
 
   // Pattern 2: "content - number/Korean" at end of lines -> "content\n- number/Korean"
   // Example: "order- 142.91달러" (when 142 starts a new list item conceptually)
+  // Example: "PLTR- 135.49달러" (uppercase like stock tickers)
   // This handles the case where dash appears after a word without space
   result = result.replace(
     /(\S)(-\s+\d)/g,
     (match, before, after) => {
-      // Only split if the dash looks like a list marker (preceded by punctuation-like chars or Korean)
-      if (/[\s:.。！？\]\)}]/.test(before) || /[가-힣]/.test(before)) {
+      // Only split if the dash looks like a list marker
+      // Preceded by: punctuation, whitespace, brackets, Korean, OR letters (end of URL path/stock ticker)
+      if (/[\s:.。！？\]\)}]/.test(before) || /[가-힣a-zA-Z]/.test(before)) {
         return `${before}\n${after}`;
       }
       return match;
