@@ -83,9 +83,15 @@ function wrapBareUrls(text: string): string {
   // Use regex that handles parentheses inside URLs, e.g. [text](https://example.com/foo_(bar))
   const mdLinks: string[] = [];
   result = result.replace(/\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (match, text, url) => {
-    // LLM tokenizer artifact: remove spaces inside HTTP/HTTPS URLs
+    // LLM tokenizer artifact: remove spaces and markdown markers inside HTTP/HTTPS URLs
     const isHttpUrl = /^\s*https?:\/\//.test(url);
-    const cleanedUrl = isHttpUrl ? url.replace(/\s+/g, '') : url;
+    const cleanedUrl = isHttpUrl
+      ? url
+          .replace(/\s+/g, '')          // remove spaces
+          .replace(/#{2,}.*$/, '')      // strip ## and everything after
+          .replace(/\*+$/, '')          // strip trailing * (bold/italic markers)
+          .replace(/[.,;:!?]+$/, '')    // strip trailing sentence punctuation
+      : url;
     const cleanedMatch = isHttpUrl ? `[${text}](${cleanedUrl})` : match;
     mdLinks.push(cleanedMatch);
     return `__MD_LINK_${mdLinks.length - 1}__`;
@@ -354,58 +360,67 @@ function CodeBlock({
   );
 }
 
+function MarkdownLink({ href, children }: { href?: string; children?: React.ReactNode }) {
+  const [showUrl, setShowUrl] = useState(false);
+
+  const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
+  const isUnsafe = href && !safeHref;
+
+  // Detect bare URLs: wrapBareUrls produces [url](url) where text === href
+  const childText = Array.isArray(children)
+    ? children.map(c => (typeof c === 'string' ? c : '')).join('')
+    : typeof children === 'string' ? children : '';
+  const isBareUrl = !!(href && childText === href);
+
+  // bare URL → show full URL (no truncation); named link → truncate if too long
+  const displayText = isBareUrl
+    ? children
+    : typeof children === 'string' && children.length > 60
+      ? (() => {
+          try {
+            const u = new URL(children);
+            return `${u.hostname}${u.pathname.slice(0, 20)}...`;
+          } catch {
+            return children.slice(0, 57) + '...';
+          }
+        })()
+      : children;
+
+  return (
+    <span
+      className="relative inline"
+      onMouseEnter={() => { if (!isBareUrl) setShowUrl(true); }}
+      onMouseLeave={() => setShowUrl(false)}
+    >
+      <a
+        href={safeHref || '#'}
+        target={safeHref ? '_blank' : undefined}
+        rel="noopener noreferrer"
+        title={safeHref}
+        className={cn(
+          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors break-all',
+          isUnsafe && 'cursor-not-allowed opacity-50'
+        )}
+        onClick={(e) => { if (isUnsafe) e.preventDefault(); }}
+      >
+        {displayText}
+      </a>
+      {/* Named link hover URL tooltip */}
+      {!isBareUrl && showUrl && safeHref && (
+        <span className="absolute bottom-full left-0 z-50 max-w-sm bg-popover border border-border/50 rounded-md px-2.5 py-1.5 text-xs font-mono text-muted-foreground break-all shadow-lg pointer-events-none whitespace-pre-wrap">
+          {safeHref}
+        </span>
+      )}
+    </span>
+  );
+}
+
 const markdownComponents = {
   code: CodeBlock,
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="mb-4 last:mb-0 leading-[1.8]">{children}</p>
   ),
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
-    // Validate URL protocol before rendering
-    const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
-    const isUnsafe = href && !safeHref;
-
-    // Detect bare URLs: wrapBareUrls produces [url](url) where text === href
-    const childText = Array.isArray(children)
-      ? children.map(c => (typeof c === 'string' ? c : '')).join('')
-      : typeof children === 'string' ? children : '';
-    const isBareUrl = !!(href && childText === href);
-
-    // bare URL → show full URL (no truncation); named link → truncate if too long
-    const displayText = isBareUrl
-      ? children
-      : typeof children === 'string' && children.length > 60
-        ? (() => {
-            try {
-              const url = new URL(children);
-              const domain = url.hostname;
-              const pathStart = url.pathname.slice(0, 20);
-              return `${domain}${pathStart}...`;
-            } catch {
-              return children.slice(0, 57) + '...';
-            }
-          })()
-        : children;
-
-    return (
-      <a
-        href={safeHref || '#'}
-        target={safeHref ? '_blank' : undefined}
-        rel="noopener noreferrer"
-        title={typeof children === 'string' ? children : undefined}
-        className={cn(
-          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors break-all',
-          isUnsafe && 'cursor-not-allowed opacity-50'
-        )}
-        onClick={(e) => {
-          if (isUnsafe) {
-            e.preventDefault();
-          }
-        }}
-      >
-        {displayText}
-      </a>
-    );
-  },
+  a: MarkdownLink,
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   h1: ({ children }: { children?: React.ReactNode }) => (
     <h1 className="text-xl font-bold mb-4 mt-6 first:mt-0 pb-2 border-b border-border/30">
