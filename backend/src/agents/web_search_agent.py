@@ -7,8 +7,11 @@ from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
+from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
+
+logger = get_logger(__name__)
 
 
 def get_message_content(msg) -> str:
@@ -114,6 +117,14 @@ Examples:
                 }
             )
             response = await self.llm.generate(messages)
+            # Debug: Log the raw LLM response to trace URL corruption
+            logger.debug(
+                "web_search_llm_raw_response",
+                response_preview=response[:500] if len(response) > 500 else response,
+                contains_broken_url=" tossinvest com" in response
+                or " co kr" in response
+                or " co jp" in response,
+            )
         except Exception as e:
             response = f"I encountered an error while searching: {str(e)}. Please try again later."
             tool_results.append({"tool": "web_search", "query": query, "error": str(e)})
