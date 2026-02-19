@@ -81,7 +81,15 @@ Response format:
 1. Answer the question using ONLY the provided context - write naturally without inline citations
 2. At the very end, add a separator line (---) followed by referenced source documents:
    참고 문서: document name(s), comma-separated
-3. Do NOT insert [Source: ...] tags inside the answer text"""
+3. Do NOT insert [Source: ...] tags inside the answer text
+
+Formatting Rules (IMPORTANT):
+- ALWAYS use proper markdown formatting
+- When listing multiple items, use proper line breaks:
+  - item 1
+  - item 2
+- NEVER put multiple list items on the same line
+- When citing URLs, use proper format without spaces inside URLs"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:

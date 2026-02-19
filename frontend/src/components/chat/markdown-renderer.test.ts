@@ -144,6 +144,28 @@ describe('fixUrlSpaces - Missing dots', () => {
   });
 });
 
+describe('Integration: Real-world PLTR example', () => {
+  test('should fix URLs and list formatting in full text', () => {
+    const input = '현재 팔란티어 테크놀로지스(PLTR) 의 주가는 다음과 같습니다- 136.31달러 (출처: https://www.tossinvest com/stocks/US20200930014/order- 142.91달러 (출처: https://alphasquare.co kr/home/stock-summary? code=PLTR- 135.49달러 (애프터마켓 가격, 출처: https://www.choicestock co. kr/search/summary/PLTR주가는실시간으로 변동할 수 있으므로, 자세한 정보는 각 링크를 통해 확인하실 수 있습니다.';
+
+    // Step 1: Fix URL spaces
+    let result = fixUrlSpaces(input);
+    console.log('After fixUrlSpaces:', result);
+
+    expect(result).toContain('https://www.tossinvest.com/stocks');
+    expect(result).toContain('https://alphasquare.co.kr/home');
+    expect(result).toContain('https://www.choicestock.co.kr/search');
+
+    // Step 2: Fix list formatting
+    result = fixListFormatting(result);
+    console.log('After fixListFormatting:', result);
+
+    // Check list items are separated
+    expect(result).toMatch(/\n- 142\.91달러/);
+    expect(result).toMatch(/\n- 135\.49달러/);
+  });
+});
+
 /**
  * Example malicious inputs that should be blocked:
  *

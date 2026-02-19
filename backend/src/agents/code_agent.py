@@ -58,7 +58,13 @@ When writing code:
 1. First understand the requirements
 2. Write the code with proper structure
 3. Add comments for clarity
-4. Test edge cases mentally"""
+4. Test edge cases mentally
+
+Formatting Rules (IMPORTANT):
+- ALWAYS use proper markdown formatting
+- When citing URLs or references, use proper format: [text](https://example.com)
+- ALWAYS separate URLs from surrounding text with proper spacing
+- NEVER include spaces inside URLs: use https://example.com NOT https://example. com"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:

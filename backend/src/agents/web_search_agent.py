@@ -60,7 +60,20 @@ Guidelines:
 - Present information in a clear, organized manner
 - If sources conflict, present multiple perspectives
 - Focus on the most relevant and recent information
-- Be honest about the limitations of search results"""
+- Be honest about the limitations of search results
+
+Formatting Rules (IMPORTANT):
+- ALWAYS use proper line breaks between list items
+- Format lists as:
+  - item 1
+  - item 2
+  - item 3
+- NEVER put multiple list items on the same line
+- ALWAYS separate URLs from Korean text with a space
+- Format URLs properly: https://www.example.com (no spaces in domain)
+- Example:
+  Wrong:  "- 136.31달러 (출처: https://www.example.com/order- 142.91달러"
+  Right:  "- 136.31달러 (출처: https://www.example.com/order)\n- 142.91달러"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
