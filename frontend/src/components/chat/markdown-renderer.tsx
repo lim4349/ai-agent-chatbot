@@ -3,6 +3,7 @@
 import { useState, memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,7 +37,9 @@ function fixSentenceSpacing(text: string): string {
     // Emoji followed by Korean/English text
     .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2')
     // Closing bracket/paren followed by a letter
-    .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2');
+    .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2')
+    // Comma/semicolon followed immediately by a letter (no space)
+    .replace(/([,;])([A-Za-z가-힣])/g, '$1 $2');
 
   // Restore protected regions (reverse order)
   inlineCodes.forEach((code, i) => {
@@ -70,18 +73,27 @@ function wrapBareUrls(text: string): string {
   });
 
   // Protect existing markdown links: [text](url)
+  // Use regex that handles parentheses inside URLs, e.g. [text](https://example.com/foo_(bar))
   const mdLinks: string[] = [];
-  result = result.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match) => {
+  result = result.replace(/\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (match) => {
     mdLinks.push(match);
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
   // Wrap bare URLs in markdown link syntax
+  // Allow ')' in URL characters; trailing unbalanced ')' are stripped below
   result = result.replace(
-    /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
+    /(?<!\()(https?:\/\/[^\s<>\]"']+)/g,
     (url) => {
-      // Strip trailing punctuation that's not part of the URL
-      const cleaned = url.replace(/[.,;:!?)]+$/, '');
+      // Strip trailing sentence punctuation (not closing parens yet)
+      let cleaned = url.replace(/[.,;:!?]+$/, '');
+      // Remove excess closing parens: only strip unbalanced trailing ')'
+      const openCount = (cleaned.match(/\(/g) || []).length;
+      const closeCount = (cleaned.match(/\)/g) || []).length;
+      if (closeCount > openCount) {
+        const excess = closeCount - openCount;
+        cleaned = cleaned.replace(new RegExp(`\\){${excess}}$`), '');
+      }
       const trailing = url.slice(cleaned.length);
       return `[${cleaned}](${cleaned})${trailing}`;
     }
@@ -426,7 +438,7 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkBreaks]}
       rehypePlugins={[rehypeHighlight]}
       components={markdownComponents}
     >
