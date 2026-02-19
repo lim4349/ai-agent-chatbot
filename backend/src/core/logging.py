@@ -3,11 +3,15 @@
 import logging
 import re
 import sys
+import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, override
 
 import structlog
+
+# Suppress Pydantic serialization warnings (non-critical, just noisy)
+warnings.filterwarnings("ignore", message=".*PydanticSerializationUnexpectedValue.*")
 
 # Log file paths
 LOG_DIR = Path(__file__).parent.parent.parent / "logs"

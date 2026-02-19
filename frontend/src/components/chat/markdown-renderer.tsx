@@ -3,7 +3,6 @@
 import { useState, memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,16 +36,7 @@ function fixSentenceSpacing(text: string): string {
     // Emoji followed by Korean/English text
     .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2')
     // Closing bracket/paren followed by a letter
-    .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2')
-    // Comma/semicolon followed immediately by a letter (no space)
-    .replace(/([,;])([A-Za-z가-힣])/g, '$1 $2')
-    // Sentence-ending punctuation followed by a digit: "합니다.4" → "합니다. 4"
-    .replace(/([.!?。！？])(\d)/g, '$1 $2')
-    // Korean text followed by a digit: "합니다4." → "합니다 4."
-    .replace(/([가-힣])(\d)/g, '$1 $2')
-    // ATX heading without preceding newline: "텍스트### 제목" → "텍스트\n### 제목"
-    // Exclude '/' and whitespace to avoid false matches on inline comments (e.g. "echo # comment")
-    .replace(/([^\s/])(#{1,6} )/g, '$1\n$2');
+    .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2');
 
   // Restore protected regions (reverse order)
   inlineCodes.forEach((code, i) => {
@@ -80,58 +70,19 @@ function wrapBareUrls(text: string): string {
   });
 
   // Protect existing markdown links: [text](url)
-  // Use regex that handles parentheses inside URLs, e.g. [text](https://example.com/foo_(bar))
   const mdLinks: string[] = [];
-  result = result.replace(/\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (match, text, url) => {
-    // LLM tokenizer artifact: remove spaces and markdown markers inside HTTP/HTTPS URLs
-    const isHttpUrl = /^\s*https?:\/\//.test(url);
-    const cleanedUrl = isHttpUrl
-      ? url
-          .replace(/\s+/g, '')          // remove spaces
-          .replace(/#{2,}.*$/, '')      // strip ## and everything after
-          .replace(/\*{2,}/g, '')       // strip ** bold/italic markers anywhere in URL
-          .replace(/\*+$/, '')          // strip trailing lone * markers
-          .replace(/[.,;:!?]+$/, '')    // strip trailing sentence punctuation
-      : url;
-    const cleanedMatch = isHttpUrl ? `[${text}](${cleanedUrl})` : match;
-    mdLinks.push(cleanedMatch);
-    return `__MD_LINK_${mdLinks.length - 1}__`;
-  });
-
-  // Repair unclosed markdown links: [text](https://url <- missing closing )
-  // Handles LLM artifact where closing ) is omitted
-  // URL char class (RFC 3986) excludes Korean, quotes, parens — these signal URL end
-  // (?!\)) negative lookahead excludes already-closed links (handled above)
-  const urlCharClass = `[A-Za-z0-9\\-._~:/?#\\[\\]@!$&'*+,;=%]`;
-  const unclosedLinkPattern = new RegExp(
-    `\\[([^\\]\\n]+)\\]\\((https?://${urlCharClass}+(?:\\s+${urlCharClass}+)*)(?!\\))`,
-    'g'
-  );
-  result = result.replace(unclosedLinkPattern, (match, text, url) => {
-    const cleanUrl = url.replace(/\s+/g, '').replace(/[.,;:!?]+$/, '');
-    if (!cleanUrl) return match;
-    mdLinks.push(`[${text}](${cleanUrl})`);
+  result = result.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match) => {
+    mdLinks.push(match);
     return `__MD_LINK_${mdLinks.length - 1}__`;
   });
 
   // Wrap bare URLs in markdown link syntax
-  // Allow ')' in URL characters; trailing unbalanced ')' are stripped below
   result = result.replace(
-    /(?<!\()(https?:\/\/[^\s<>\]"'*]+)/g,
+    /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
     (url) => {
-      // Strip trailing markdown markers and sentence punctuation
-      let cleaned = url
-        .replace(/#{2,}.*$/, '')  // strip ## and everything after (## is never valid in URLs; single # anchor kept)
-        .replace(/\*{2,}/g, '')   // strip ** bold/italic markers anywhere in URL
-        .replace(/\*+$/, '')      // trailing lone * markers
-        .replace(/[.,;:!?]+$/, ''); // trailing sentence punctuation
-      // Remove excess closing parens: only strip unbalanced trailing ')'
-      const openCount = (cleaned.match(/\(/g) || []).length;
-      const closeCount = (cleaned.match(/\)/g) || []).length;
-      if (closeCount > openCount) {
-        const excess = closeCount - openCount;
-        cleaned = cleaned.replace(new RegExp(`\\){${excess}}$`), '');
-      }
+      // Strip trailing characters that are not part of the URL
+      // Including: punctuation, markdown syntax (*, _), Korean text, closing parens
+      const cleaned = url.replace(/[.,;:!?)\]**__\s\uAC00-\uD7A3]+$/, '');
       const trailing = url.slice(cleaned.length);
       return `[${cleaned}](${cleaned})${trailing}`;
     }
@@ -362,46 +313,58 @@ function CodeBlock({
   );
 }
 
-function MarkdownLink({ href, children }: { href?: string; children?: React.ReactNode }) {
-  const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
-  const isUnsafe = href && !safeHref;
-
-  // Detect bare URLs: wrapBareUrls produces [url](url) where text === href
-  const childText = Array.isArray(children)
-    ? children.map(c => (typeof c === 'string' ? c : '')).join('')
-    : typeof children === 'string' ? children : '';
-  const isBareUrl = !!(href && childText === href);
-
-  return (
-    <span className="inline">
-      <a
-        href={safeHref || '#'}
-        target={safeHref ? '_blank' : undefined}
-        rel="noopener noreferrer"
-        title={safeHref}
-        className={cn(
-          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors break-all',
-          isUnsafe && 'cursor-not-allowed opacity-50'
-        )}
-        onClick={(e) => { if (isUnsafe) e.preventDefault(); }}
-      >
-        {children}
-      </a>
-      {!isBareUrl && safeHref && (
-        <span className="text-xs font-mono text-muted-foreground/70 ml-1 break-all">
-          ({safeHref})
-        </span>
-      )}
-    </span>
-  );
-}
-
 const markdownComponents = {
   code: CodeBlock,
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="mb-4 last:mb-0 leading-[1.8]">{children}</p>
   ),
-  a: MarkdownLink,
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    // Validate URL protocol before rendering
+    const safeHref = href && isValidUrlProtocol(href) ? href : undefined;
+    const isUnsafe = href && !safeHref;
+
+    // Check if link text is a URL or plain text
+    const childText = typeof children === 'string' ? children : '';
+    const isUrlText = childText.startsWith('http://') || childText.startsWith('https://');
+
+    // If text is not a URL (e.g., "AI타임스"), show the actual URL instead
+    const displayText = isUrlText
+      ? (childText.length > 60
+          ? (() => {
+              try {
+                const url = new URL(childText);
+                const domain = url.hostname;
+                const pathStart = url.pathname.slice(0, 20);
+                return `${domain}${pathStart}...`;
+              } catch {
+                return childText.slice(0, 57) + '...';
+              }
+            })()
+          : childText)
+      : (safeHref && safeHref.length > 60
+          ? safeHref.slice(0, 57) + '...'
+          : safeHref || childText);
+
+    return (
+      <a
+        href={safeHref || '#'}
+        target={safeHref ? '_blank' : undefined}
+        rel="noopener noreferrer"
+        title={typeof children === 'string' ? children : undefined}
+        className={cn(
+          'text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors break-all',
+          isUnsafe && 'cursor-not-allowed opacity-50'
+        )}
+        onClick={(e) => {
+          if (isUnsafe) {
+            e.preventDefault();
+          }
+        }}
+      >
+        {displayText}
+      </a>
+    );
+  },
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   h1: ({ children }: { children?: React.ReactNode }) => (
     <h1 className="text-xl font-bold mb-4 mt-6 first:mt-0 pb-2 border-b border-border/30">
@@ -472,7 +435,7 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkBreaks]}
+      remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={markdownComponents}
     >
