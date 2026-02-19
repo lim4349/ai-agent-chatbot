@@ -24,7 +24,7 @@ def _clean_source_name(metadata: dict, fallback: str) -> str:
     Applies NFC normalization and strips the file extension.
     """
     raw = metadata.get("filename") or metadata.get("source") or fallback
-    normalized = unicodedata.normalize("NFC", raw)
+    normalized = unicodedata.normalize("NFC", str(raw))
     return Path(normalized).stem  # remove .pdf / .docx etc.
 
 
