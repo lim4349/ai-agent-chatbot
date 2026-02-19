@@ -60,7 +60,13 @@ Guidelines:
 - Present information in a clear, organized manner
 - If sources conflict, present multiple perspectives
 - Focus on the most relevant and recent information
-- Be honest about the limitations of search results"""
+- Be honest about the limitations of search results
+
+Formatting rules:
+- Separate paragraphs with a blank line
+- Always add a newline after headings (###)
+- Always add a newline after URLs for readability
+- Write list items on separate lines"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
