@@ -165,6 +165,29 @@ describe('Integration: Real-world PLTR example', () => {
     expect(result).toMatch(/\n- 135\.49달러/);
   });
 
+  test('latest PLTR example with newlines', () => {
+    // 사용자가 제공한 최신 예시
+    const input = `팔란티어(PLTR) 의 현재 주가는 다음과 같습니다
+
+136.31달러 (출처: https://www.tossinvest com/stocks/US20200930014/order
+
+142.91달러 (출처: https://alphasquare.co kr/home/stock-summary? code=PLTR 주가는출처에 따라 다르게 나타나고 있으며, 실시간 변동이 있을 수 있습니다.`;
+
+    // Full pipeline
+    let result = aggressiveUrlRepair(input);
+    result = fixUrlSpaces(result);
+    result = fixKoreanSpacing(result);
+
+    console.log('Final result:', result);
+
+    // URLs should be fixed
+    expect(result).toContain('https://www.tossinvest.com/');
+    expect(result).toContain('https://alphasquare.co.kr/');
+    // Should NOT contain broken URLs
+    expect(result).not.toContain('tossinvest com/');
+    expect(result).not.toContain('co kr/');
+  });
+
   test('should handle aggressive URL repair and Korean spacing', () => {
     const input = '현재 팔란티어 테크놀로지스(PLTR) 의 주가는 다음과 같습니다- 136.31달러 (출처: https://www.tossinvest com/stocks/US20200930014/order- 142.91달러 (출처: https://alphasquare.co kr/home/stock-summary? code=PLTR 주가는시장 상황에 따라 변동할 수 있으므로, 실시간 정보를 확인하는 것이 중요합니다.';
 
