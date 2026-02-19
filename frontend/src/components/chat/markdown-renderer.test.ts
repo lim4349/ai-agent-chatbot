@@ -110,6 +110,38 @@ describe('fixListFormatting', () => {
     const result = fixListFormatting(input);
     expect(result).toBe(input);
   });
+
+  test('should separate numbered list items after punctuation', () => {
+    const input = '다음과 같습니다1. 136.31달러';
+    const result = fixListFormatting(input);
+    expect(result).toBe('다음과 같습니다\n1. 136.31달러');
+  });
+
+  test('should separate consecutive numbered list items', () => {
+    const input = '1. 136.31달러 2. 142.91달러';
+    const result = fixListFormatting(input);
+    expect(result).toContain('\n2. 142.91달러');
+  });
+});
+
+describe('fixUrlSpaces - Missing dots', () => {
+  test('should fix missing dot before com: "tossinvest com"', () => {
+    const input = 'https://www.tossinvest com/stocks/US20200930014';
+    const result = fixUrlSpaces(input);
+    expect(result).toContain('https://www.tossinvest.com/stocks');
+  });
+
+  test('should fix missing dot in co.kr: "co kr"', () => {
+    const input = 'https://alphasquare.co kr/home/stock-summary';
+    const result = fixUrlSpaces(input);
+    expect(result).toContain('https://alphasquare.co.kr/home');
+  });
+
+  test('should fix multiple missing dots: "choicestock co kr"', () => {
+    const input = 'https://www.choicestock co kr/search/summary/PLTR';
+    const result = fixUrlSpaces(input);
+    expect(result).toContain('https://www.choicestock.co.kr/search');
+  });
 });
 
 /**
