@@ -71,6 +71,7 @@ services:
         value: "30"
     healthCheckPath: /api/v1/health
     autoDeploy: false  # Controlled by GitHub Actions
+    port: 8000
     plan: free
 
 # External Services Setup:
