@@ -348,10 +348,20 @@ function fixSentenceSpacing(text: string): string {
     codeBlocks.push(match);
     return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
   });
+
+  // Protect inline code
   const inlineCodes: string[] = [];
   result = result.replace(/`[^`]+`/g, (match) => {
     inlineCodes.push(match);
     return `__INLINE_CODE_${inlineCodes.length - 1}__`;
+  });
+
+  // Protect URLs - CRITICAL: must protect before fixing sentence spacing
+  // to avoid adding spaces inside URLs like "www.example.com"
+  const urls: string[] = [];
+  result = result.replace(/https?:\/\/[^\s]+/g, (match) => {
+    urls.push(match);
+    return `__URL_${urls.length - 1}__`;
   });
 
   // Fix spacing patterns
@@ -364,6 +374,9 @@ function fixSentenceSpacing(text: string): string {
     .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2');
 
   // Restore protected regions (reverse order)
+  urls.forEach((url, i) => {
+    result = result.replace(`__URL_${i}__`, url);
+  });
   inlineCodes.forEach((code, i) => {
     result = result.replace(`__INLINE_CODE_${i}__`, code);
   });
@@ -393,6 +406,22 @@ function wrapBareUrls(text: string): string {
     inlineCodes.push(match);
     return `__INLINE_CODE_${inlineCodes.length - 1}__`;
   });
+
+  // CRITICAL: First, aggressively fix spaces inside URLs
+  // Pattern: https://www. example. com -> https://www.example.com
+  // This must happen before we try to match URLs
+  result = result.replace(
+    /(https?:\/\/[^\s]*?)\s+(com|net|org|io|kr|jp|uk|de|fr|cn|ru|gov|edu|mil|int|info|biz|co|go|or|ac)(?=[\/\s?]|$)/gi,
+    '$1.$2'
+  );
+  // Multi-part TLDs: co kr -> .co.kr, co jp -> .co.jp, etc.
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+co\s+kr\b/gi, '$1.co.kr');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+co\s+jp\b/gi, '$1.co.jp');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+co\s+uk\b/gi, '$1.co.uk');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+or\s+kr\b/gi, '$1.or.kr');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+go\s+kr\b/gi, '$1.go.kr');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+or\s+jp\b/gi, '$1.or.jp');
+  result = result.replace(/(https?:\/\/[^\s]+?)\s+ac\s+kr\b/gi, '$1.ac.kr');
 
   // Protect existing markdown links: [text](url)
   // Also clean spaces inside URLs (LLM artifact: "https://example. com" → "https://example.com")
@@ -778,34 +807,17 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
   const sanitizedContent = useMemo(() => {
     if (!content) return '';
 
-    // DEBUG: Log original content
-    console.log('[MarkdownRenderer] Original content:', content);
-    console.log('[MarkdownRenderer] Original has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(content));
-
     let result = content;
-
     // Step 1: Aggressive URL repair (most severe issues first)
     result = aggressiveUrlRepair(result);
-    console.log('[MarkdownRenderer] After aggressiveUrlRepair:', result);
-    console.log('[MarkdownRenderer] After step1 has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
-
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    console.log('[MarkdownRenderer] After fixUrlSpaces:', result);
-    console.log('[MarkdownRenderer] After step2 has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
-
     // Step 3: Fix Korean spacing
     result = fixKoreanSpacing(result);
-    console.log('[MarkdownRenderer] After fixKoreanSpacing:', result);
-
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
-    console.log('[MarkdownRenderer] After fixListFormatting:', result);
-
     // Step 5: Wrap bare URLs in markdown links
     result = wrapBareUrls(result);
-    console.log('[MarkdownRenderer] After wrapBareUrls (final):', result);
-    console.log('[MarkdownRenderer] Final has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
 
     return result;
   }, [content]);
@@ -831,31 +843,17 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const fixedContent = useMemo(() => {
     if (!content) return '';
 
-    // DEBUG: Log streaming content preprocessing
-    console.log('[MarkdownRenderer:Streaming] Original content:', content);
-    console.log('[MarkdownRenderer:Streaming] Original has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(content));
-
     let result = content;
     // Step 1: Aggressive URL repair (most severe issues first)
     result = aggressiveUrlRepair(result);
-    console.log('[MarkdownRenderer:Streaming] After aggressiveUrlRepair:', result);
-
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    console.log('[MarkdownRenderer:Streaming] After fixUrlSpaces:', result);
-
     // Step 3: Fix Korean spacing
     result = fixKoreanSpacing(result);
-    console.log('[MarkdownRenderer:Streaming] After fixKoreanSpacing:', result);
-
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
-    console.log('[MarkdownRenderer:Streaming] After fixListFormatting:', result);
-
     // Step 5: Fix sentence spacing
     result = fixSentenceSpacing(result);
-    console.log('[MarkdownRenderer:Streaming] After fixSentenceSpacing (final):', result);
-    console.log('[MarkdownRenderer:Streaming] Final has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
 
     return result;
   }, [content]);

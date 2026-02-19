@@ -53,11 +53,6 @@ class WebSearchTool:
                 results_count=len(formatted),
                 urls=[r.get("url") for r in results.get("results", [])],
             )
-            # Trace: Log formatted results being sent to LLM
-            logger.info(
-                "web_search_formatted_for_llm",
-                formatted_results=result_text[:1000] if len(result_text) > 1000 else result_text,
-            )
             return result_text
 
         except Exception as e:
