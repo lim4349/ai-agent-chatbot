@@ -59,16 +59,15 @@ class RAGAgent(BaseAgent):
 
 CRITICAL RULES TO PREVENT HALLUCINATION:
 - ONLY use information from the provided context - NEVER use outside knowledge
-- You MUST cite sources using [Source: filename] format for EVERY claim you make
-- If the context doesn't contain relevant information, say "I couldn't find relevant information in the available documents."
 - Do NOT make assumptions or fill in gaps with your own knowledge
-- If you're uncertain, explicitly state "Based on the available context, I'm not entirely certain, but..."
+- If the context doesn't contain relevant information, say "I couldn't find relevant information in the available documents."
+- If you're uncertain, explicitly state uncertainty
 
 Response format:
-1. Answer the question using ONLY the provided context
-2. Include [Source: filename] citations for each claim
-3. If multiple sources provide different information, present all perspectives
-4. End with a brief note if information is incomplete or uncertain"""
+1. Answer the question using ONLY the provided context - write naturally without inline citations
+2. At the very end, add a separator line (---) followed by referenced source documents:
+   참고 문서: document name(s), comma-separated
+3. Do NOT insert [Source: ...] tags inside the answer text"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
@@ -118,13 +117,15 @@ Response format:
 
             # Format context with confidence indicators
             context_parts = []
+            source_names = []
             for i, doc in enumerate(docs, 1):
                 source = doc.get("metadata", {}).get("source", f"Document {i}")
                 content = doc.get("content", "")
                 score = doc.get("score", 0)
                 confidence_note = " [PARTIAL MATCH]" if doc.get("low_confidence") else ""
+                source_names.append(source)
                 context_parts.append(
-                    f"[Source: {source} | Relevance: {score:.2f}{confidence_note}]\n{content}"
+                    f"[Document {i}: {source} | Relevance: {score:.2f}{confidence_note}]\n{content}"
                 )
 
             context = "\n\n---\n\n".join(context_parts)
@@ -141,10 +142,15 @@ Response format:
                 history = await self.memory.get_messages(session_id)
                 messages.extend(history)
 
+            sources_list = ", ".join(dict.fromkeys(source_names))  # deduplicated
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Context:\n{context}{confidence_warning}\n\nQuestion: {query}",
+                    "content": (
+                        f"Context:\n{context}{confidence_warning}\n\n"
+                        f"Question: {query}\n\n"
+                        f"[Referenced sources for footer: {sources_list}]"
+                    ),
                 }
             )
 
