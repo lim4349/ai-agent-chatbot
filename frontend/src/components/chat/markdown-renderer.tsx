@@ -453,47 +453,24 @@ function wrapBareUrls(text: string): string {
     }
   );
 
-  // Wrap bare URLs with protocol (http/https) in markdown link syntax
+  // Wrap bare URLs in markdown link syntax
+  // Also clean spaces inside URLs (LLM artifact)
   result = result.replace(
     /(?<!\()(https?:\/\/[^\s<>\])"']+)/g,
     (url) => {
+      // Remove spaces inside URL first (LLM artifact)
       let cleaned = url.replace(/\s+/g, '');
+      // Strip trailing characters that are not part of the URL
+      // Includes: punctuation, Korean chars, markdown markers, and trailing dashes/periods
       cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      // Also remove trailing '...' or '…' (ellipsis)
       cleaned = cleaned.replace(/\.{3,}$/, '');
       return `[${cleaned}](${cleaned})`;
     }
   );
 
-  // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
-  // This handles URLs without http:// or https:// prefix
-  // Use RegExp constructor to avoid escaping issues
-  // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
-  // This handles URLs without http:// or https:// prefix
-  // Note: Using separate regex patterns to avoid TypeScript parsing issues
-  const citationPrefix = /\(출처:\s+/g;
-  result = result.replace(citationPrefix, '(출처: ');
-
-  // Match domain-only URLs after "출처: " and wrap them
-  const domainPattern = /\(출처: )((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/[^\s()]+)?)/g;
-  result = result.replace(domainPattern, (match, prefix, url) => {
-    let cleaned = url.replace(/\s+/g, '');
-    cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
-    cleaned = cleaned.replace(/\.{3,}$/, '');
-    // Add https:// prefix if missing
-    const fullUrl = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
-    return `${prefix}[${fullUrl}](${fullUrl})`;
-  });
-  result = result.replace(domainUrlPattern, (match, prefix, url) => {
-    let cleaned = url.replace(/\s+/g, '');
-    cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
-    cleaned = cleaned.replace(/\.{3,}$/, '');
-    // Add https:// prefix if missing
-    const fullUrl = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
-    return `${prefix}[${fullUrl}](${fullUrl})`;
-  });
-
-  // Clean up citation format: (출처: [url](url)) -> clean link with domain only
-  // Convert to: (🔗 출처: domain) for cleaner UI
+  // Clean up citation format: (출처: [url](url)) -> ensure URL is clean
+  // and remove any trailing artifacts in citation context
   result = result.replace(
     /\(출처:\s*\[([^\]]+)\]\(([^)]+)\)\)/g,
     (match, text, url) => {
@@ -502,31 +479,7 @@ function wrapBareUrls(text: string): string {
       // Remove trailing non-URL chars
       cleanedUrl = cleanedUrl.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
       cleanedUrl = cleanedUrl.replace(/\.{3,}$/, '');
-      // Extract domain for display
-      let domain = cleanedUrl;
-      try {
-        const urlObj = new URL(cleanedUrl);
-        domain = urlObj.hostname.replace(/^www\./, '');
-      } catch {
-        // If URL parsing fails, use the cleaned URL as-is
-      }
-      return `(출처: [${domain}](${cleanedUrl}))`;
-    }
-  );
-
-  // Also handle plain URL citations: (출처: https://...)
-  result = result.replace(
-    /\(출처:\s*(https?:\/\/[^\s)]+)\)/g,
-    (match, url) => {
-      let cleanedUrl = url.replace(/\s+/g, '');
-      cleanedUrl = cleanedUrl.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
-      cleanedUrl = cleanedUrl.replace(/\.{3,}$/, '');
-      let domain = cleanedUrl;
-      try {
-        const urlObj = new URL(cleanedUrl);
-        domain = urlObj.hostname.replace(/^www\./, '');
-      } catch {}
-      return `(출처: [${domain}](${cleanedUrl}))`;
+      return `(출처: ${cleanedUrl})`;
     }
   );
 
