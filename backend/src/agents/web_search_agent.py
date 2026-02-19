@@ -101,7 +101,16 @@ Examples:
             messages.append(
                 {
                     "role": "user",
-                    "content": f"Search Results:\n{search_results}\n\nQuestion: {query}\n\nIMPORTANT: When citing URLs, copy them EXACTLY as shown in the 'URL:' field above. Do NOT modify, retype, or reformat URLs.",
+                    "content": (
+                        f"Search Results:\n{search_results}\n\n"
+                        f"Question: {query}\n\n"
+                        "CRITICAL INSTRUCTIONS FOR URL HANDLING:\n"
+                        "1. The URLs in the search results are formatted as: [Title](https://www.example.com)\n"
+                        "2. When you cite a source, copy the URL inside the parentheses EXACTLY\n"
+                        "3. Example: if you see '[TossInvest](https://www.tossinvest.com)', cite it as '(출처: https://www.tossinvest.com)'\n"
+                        "4. NEVER add spaces inside URLs: https://www.tossinvest.com (CORRECT) vs https://www.tossinvest com (WRONG)\n"
+                        "5. The URL must be copied character by character without any modification"
+                    ),
                 }
             )
             response = await self.llm.generate(messages)
