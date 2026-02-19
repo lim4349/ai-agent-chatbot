@@ -1,5 +1,7 @@
 """RAG agent for document-based Q&A."""
 
+import unicodedata
+from pathlib import Path
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
@@ -12,6 +14,18 @@ from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
 
 logger = get_logger(__name__)
+
+
+def _clean_source_name(metadata: dict, fallback: str) -> str:
+    """Return a clean, human-readable source label.
+
+    Prefers 'filename' over 'source' because 'source' can contain
+    encoding-corrupted characters from some PDF uploads.
+    Applies NFC normalization and strips the file extension.
+    """
+    raw = metadata.get("filename") or metadata.get("source") or fallback
+    normalized = unicodedata.normalize("NFC", raw)
+    return Path(normalized).stem  # remove .pdf / .docx etc.
 
 
 def get_message_content(msg) -> str:
@@ -119,7 +133,7 @@ Response format:
             context_parts = []
             source_names = []
             for i, doc in enumerate(docs, 1):
-                source = doc.get("metadata", {}).get("source", f"Document {i}")
+                source = _clean_source_name(doc.get("metadata", {}), f"Document {i}")
                 content = doc.get("content", "")
                 score = doc.get("score", 0)
                 confidence_note = " [PARTIAL MATCH]" if doc.get("low_confidence") else ""
