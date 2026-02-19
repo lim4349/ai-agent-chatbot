@@ -467,7 +467,19 @@ function wrapBareUrls(text: string): string {
   // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
   // This handles URLs without http:// or https:// prefix
   // Use RegExp constructor to avoid escaping issues
-  const domainUrlPattern = /\(출처:\s*)((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/[^\s]+)?)/g;
+  // Wrap domain-only URLs (e.g., liner.com, www.reddit.com) in citation context
+  // This handles URLs without http:// or https:// prefix
+  result = result.replace(
+    /\(출처:\s*)((?:www\.)?[a-zA-Z0-9-]+\.(?:com|net|org|io|kr|jp|uk|de|fr|cn)(?:\/\S+)?)/g,
+    (match, prefix, url) => {
+      let cleaned = url.replace(/\s+/g, '');
+      cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
+      cleaned = cleaned.replace(/\.{3,}$/, '');
+      // Add https:// prefix if missing
+      const fullUrl = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
+      return `${prefix}[${fullUrl}](${fullUrl})`;
+    }
+  );
   result = result.replace(domainUrlPattern, (match, prefix, url) => {
     let cleaned = url.replace(/\s+/g, '');
     cleaned = cleaned.replace(/[.,;:!?\)\]**_\uAC00-\uD7A3-]+$/, '');
