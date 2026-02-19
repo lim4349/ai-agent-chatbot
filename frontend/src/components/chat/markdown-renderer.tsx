@@ -778,17 +778,34 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
   const sanitizedContent = useMemo(() => {
     if (!content) return '';
 
+    // DEBUG: Log original content
+    console.log('[MarkdownRenderer] Original content:', content);
+    console.log('[MarkdownRenderer] Original has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(content));
+
     let result = content;
+
     // Step 1: Aggressive URL repair (most severe issues first)
     result = aggressiveUrlRepair(result);
+    console.log('[MarkdownRenderer] After aggressiveUrlRepair:', result);
+    console.log('[MarkdownRenderer] After step1 has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
+
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
+    console.log('[MarkdownRenderer] After fixUrlSpaces:', result);
+    console.log('[MarkdownRenderer] After step2 has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
+
     // Step 3: Fix Korean spacing
     result = fixKoreanSpacing(result);
+    console.log('[MarkdownRenderer] After fixKoreanSpacing:', result);
+
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
+    console.log('[MarkdownRenderer] After fixListFormatting:', result);
+
     // Step 5: Wrap bare URLs in markdown links
     result = wrapBareUrls(result);
+    console.log('[MarkdownRenderer] After wrapBareUrls (final):', result);
+    console.log('[MarkdownRenderer] Final has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
 
     return result;
   }, [content]);
@@ -814,17 +831,31 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const fixedContent = useMemo(() => {
     if (!content) return '';
 
+    // DEBUG: Log streaming content preprocessing
+    console.log('[MarkdownRenderer:Streaming] Original content:', content);
+    console.log('[MarkdownRenderer:Streaming] Original has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(content));
+
     let result = content;
     // Step 1: Aggressive URL repair (most severe issues first)
     result = aggressiveUrlRepair(result);
+    console.log('[MarkdownRenderer:Streaming] After aggressiveUrlRepair:', result);
+
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
+    console.log('[MarkdownRenderer:Streaming] After fixUrlSpaces:', result);
+
     // Step 3: Fix Korean spacing
     result = fixKoreanSpacing(result);
+    console.log('[MarkdownRenderer:Streaming] After fixKoreanSpacing:', result);
+
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
+    console.log('[MarkdownRenderer:Streaming] After fixListFormatting:', result);
+
     // Step 5: Fix sentence spacing
     result = fixSentenceSpacing(result);
+    console.log('[MarkdownRenderer:Streaming] After fixSentenceSpacing (final):', result);
+    console.log('[MarkdownRenderer:Streaming] Final has broken URL:', / tossinvest|\.com\/ | co kr| co jp/.test(result));
 
     return result;
   }, [content]);
