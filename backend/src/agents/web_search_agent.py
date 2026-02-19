@@ -117,13 +117,18 @@ Examples:
                 }
             )
             response = await self.llm.generate(messages)
-            # Debug: Log the raw LLM response to trace URL corruption
-            logger.debug(
-                "web_search_llm_raw_response",
-                response_preview=response[:500] if len(response) > 500 else response,
-                contains_broken_url=" tossinvest com" in response
+            # Trace: Log the raw LLM response to trace URL corruption
+            # This is INFO level for production debugging
+            logger.info(
+                "web_search_llm_response",
+                response_preview=response[:800] if len(response) > 800 else response,
+                full_response=response,
+                has_broken_url=" tossinvest" in response
+                or ".com/ " in response
                 or " co kr" in response
-                or " co jp" in response,
+                or " co jp" in response
+                or "alphasquare co" in response
+                or "choicestock co" in response,
             )
         except Exception as e:
             response = f"I encountered an error while searching: {str(e)}. Please try again later."
