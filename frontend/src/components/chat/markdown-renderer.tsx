@@ -114,8 +114,8 @@ function wrapBareUrls(text: string): string {
     (url) => {
       // Strip trailing markdown markers and sentence punctuation
       let cleaned = url
+        .replace(/#{2,}.*$/, '')  // strip ## and everything after (## is never valid in URLs; single # anchor kept)
         .replace(/\*+$/, '')      // trailing * (bold/italic markers)
-        .replace(/#{2,}$/, '')    // trailing ## (heading markers; single # anchor is kept)
         .replace(/[.,;:!?]+$/, ''); // trailing sentence punctuation
       // Remove excess closing parens: only strip unbalanced trailing ')'
       const openCount = (cleaned.match(/\(/g) || []).length;

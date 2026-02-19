@@ -140,6 +140,21 @@ dev (직접 커밋) → main (PR)
 **금지 사항**:
 - main에 직접 commit/push 금지
 - PR 생성 후 사용자 승인 없이 merge 금지
+- **`dev` 브랜치 삭제 절대 금지** — dev는 영구 개발 브랜치임
+  - `gh pr merge --delete-branch` 플래그 사용 금지
+  - PR merge 시 반드시 `gh pr merge <number> --merge` 만 사용 (브랜치 삭제 옵션 없이)
+
+**작업 시작 전 필수: dev와 main 동기화 확인**:
+```bash
+# main과 dev가 동일한지 확인 후 작업 시작
+git fetch origin
+git checkout dev
+git pull origin dev
+# dev가 main보다 뒤처진 경우 main 반영
+git merge origin/main
+```
+- dev 브랜치는 항상 main과 동일하거나 앞선 상태여야 함
+- 작업 시작 전 반드시 위 명령으로 동기화 확인
 
 **예시**:
 ```bash
