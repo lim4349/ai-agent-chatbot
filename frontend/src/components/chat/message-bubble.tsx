@@ -44,7 +44,7 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
     <div
       ref={elementRef}
       className={cn(
-        'group relative flex gap-3 px-4 py-3 transition-colors hover:bg-muted/20 overflow-hidden',
+        'group relative flex gap-3 px-4 py-5 transition-colors hover:bg-muted/20 overflow-hidden',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
@@ -65,10 +65,15 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
       {/* Content */}
       <div
         className={cn(
-          'flex flex-col gap-1.5 max-w-[80%] min-w-0',
-          isUser ? 'items-end' : 'items-start'
+          'flex flex-col gap-1.5 min-w-0',
+          isUser ? 'items-end max-w-[75%]' : 'items-start flex-1'
         )}
       >
+        {/* Sender label */}
+        <span className="text-sm font-semibold text-foreground">
+          {isUser ? 'You' : 'Assistant'}
+        </span>
+
         {/* Agent badge and switch animation */}
         {!isUser && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -90,29 +95,25 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
         )}
 
         {/* Message bubble */}
-        <div
-          className={cn(
-            'relative rounded-2xl px-4 py-3 cursor-text select-text',
-            isUser
-              ? 'bg-primary text-primary-foreground rounded-br-md'
-              : 'bg-muted/50 border border-border/50 rounded-bl-md'
-          )}
-        >
-          {isUser ? (
+        {isUser ? (
+          <div className="relative rounded-2xl px-4 py-3 cursor-text select-text bg-primary text-primary-foreground rounded-br-md">
             <p className="text-[15px] leading-[1.75] whitespace-pre-wrap break-words">
               {message.content}
             </p>
-          ) : (
-            <div aria-live={isStreaming ? 'polite' : undefined} aria-atomic="true">
-              <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
-            </div>
-          )}
-
-          {/* Streaming cursor - only show when there's actual content */}
-          {isStreaming && !isUser && message.content && (
-            <span className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 animate-pulse [animation-duration:0.8s] align-text-bottom" aria-hidden="true" />
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            className="w-full cursor-text select-text"
+            aria-live={isStreaming ? 'polite' : undefined}
+            aria-atomic="true"
+          >
+            <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
+            {/* Streaming cursor - only show when there's actual content */}
+            {isStreaming && message.content && (
+              <span className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 animate-pulse [animation-duration:0.8s] align-text-bottom" aria-hidden="true" />
+            )}
+          </div>
+        )}
 
         {/* Tool usage display */}
         {!isUser && message.tools && message.tools.length > 0 && (

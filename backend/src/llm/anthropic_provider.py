@@ -73,5 +73,9 @@ class AnthropicProvider:
             return None
 
         if hasattr(result, "model_dump"):
+            # Handle LangChain wrapper with 'parsed' field (suppresses Pydantic UserWarning)
+            if hasattr(result, "parsed") and result.parsed is not None:
+                inner = result.parsed
+                return inner.model_dump() if hasattr(inner, "model_dump") else dict(inner)
             return result.model_dump()
         return result
