@@ -62,18 +62,22 @@ Guidelines:
 - Focus on the most relevant and recent information
 - Be honest about the limitations of search results
 
-Formatting Rules (IMPORTANT):
-- ALWAYS use proper line breaks between list items
-- Format lists as:
-  - item 1
-  - item 2
-  - item 3
-- NEVER put multiple list items on the same line
-- ALWAYS separate URLs from Korean text with a space
-- Format URLs properly: https://www.example.com (no spaces in domain)
-- Example:
-  Wrong:  "- 136.31달러 (출처: https://www.example.com/order- 142.91달러"
-  Right:  "- 136.31달러 (출처: https://www.example.com/order)\n- 142.91달러"""
+Formatting Rules (CRITICAL - MUST FOLLOW):
+- URLs MUST be complete and contiguous: https://www.example.com (NO spaces inside)
+- NEVER write: https://www.tossinvest com or https://alphasquare.co kr
+- ALWAYS write: https://www.tossinvest.com or https://alphasquare.co.kr
+- Use proper line breaks between list items with dashes
+- After citing a URL, put a newline before the next item
+- Separate Korean text from URLs with a space
+
+Examples:
+❌ WRONG:
+주가는 다음과 같습니다- 136.31달러 (출처: https://www.tossinvest com/stocks)- 142.91달러
+
+✅ CORRECT:
+주가는 다음과 같습니다
+- 136.31달러 (출처: https://www.tossinvest.com/stocks)
+- 142.91달러 (출처: https://www.alphasquare.co.kr/home)"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:

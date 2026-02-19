@@ -11,6 +11,114 @@ import DOMPurify from 'dompurify';
 import 'highlight.js/styles/github-dark.css';
 
 /**
+ * Aggressive URL repair for severely malformed LLM output
+ * This handles cases where dots are completely missing or spaces are everywhere
+ */
+export function aggressiveUrlRepair(text: string): string {
+  if (!text) return text;
+
+  // Pattern: www.X com -> www.X.com (missing dot in TLD)
+  // This specifically handles the case where subdomain is followed by space + TLD
+  let result = text.replace(
+    /(https:\/\/[^\s]*?)([a-zA-Z0-9-]+)\s+(com|net|org|io|kr|jp|uk|de|fr|cn|ru|gov|edu|mil|int|info|biz|co)([\/\s?]|$)/gi,
+    (match, prefix, domain, tld, suffix) => {
+      // Check if domain already ends with a dot
+      if (/\.$/.test(domain)) return match;
+      // Check if it's already a valid URL
+      if (/\.[a-z]{2,}$/i.test(domain)) return match;
+      return `${prefix}${domain}.${tld}${suffix}`;
+    }
+  );
+
+  // Pattern: X co kr -> X.co.kr (multi-part TLDs with spaces)
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+co\s+kr\b/gi,
+    '$1.co.kr'
+  );
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+co\s+jp\b/gi,
+    '$1.co.jp'
+  );
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+co\s+uk\b/gi,
+    '$1.co.uk'
+  );
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+or\s+jp\b/gi,
+    '$1.or.jp'
+  );
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+go\s+kr\b/gi,
+    '$1.go.kr'
+  );
+
+  // Pattern: or kr -> .or.kr
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+or\s+kr\b/gi,
+    '$1.or.kr'
+  );
+
+  // Pattern: ac kr -> .ac.kr
+  result = result.replace(
+    /(https:\/\/[^\s]+?)\s+ac\s+kr\b/gi,
+    '$1.ac.kr'
+  );
+
+  return result;
+}
+
+/**
+ * Fix Korean text spacing issues
+ * LLM sometimes generates "주가는시장" instead of "주가는 시장"
+ * This is a conservative fix that only handles clear cases
+ */
+export function fixKoreanSpacing(text: string): string {
+  if (!text) return text;
+
+  // Protect code blocks and URLs
+  const codeBlocks: string[] = [];
+  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+
+  const urls: string[] = [];
+  result = result.replace(/https?:\/\/[^\s]+/g, (match) => {
+    urls.push(match);
+    return `__URL_${urls.length - 1}__`;
+  });
+
+  // Pattern: "는XXX" or "은XXX" or "이XXX" where XXX is a clear new word
+  // Only apply to common patterns that are clearly wrong
+  // "주가는시장" -> "주가는 시장" (주가는 ends with 는 particle, 시장 is a new word)
+  const particles = ['는', '은', '이', '가', '을', '를', '와', '과', '로', '으로'];
+  for (const particle of particles) {
+    const pattern = new RegExp(`([가-힣])${particle}([가-힣]{2,})(?=[^가-힣]|$)`, 'g');
+    result = result.replace(pattern, (match, before, after) => {
+      // Check if after looks like a new word (starts with noun-starting characters)
+      // Common noun starters: 시, 상, 하, 대, 소, 등
+      const nounStarters = ['시', '상', '하', '대', '소', '중', '고', '저', '전', '후', '내', '외', '신', '구'];
+      if (nounStarters.includes(after[0])) {
+        return `${before}${particle} ${after}`;
+      }
+      return match;
+    });
+  }
+
+  // Restore URLs
+  urls.forEach((url, i) => {
+    result = result.replace(`__URL_${i}__`, url);
+  });
+
+  // Restore code blocks
+  codeBlocks.forEach((code, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, code);
+  });
+
+  return result;
+}
+
+/**
  * Fix URL spaces in LLM-generated text
  * LLM sometimes inserts spaces in URLs like "https://www tossinvest. com"
  * This function removes those spaces to form valid URLs
@@ -18,9 +126,12 @@ import 'highlight.js/styles/github-dark.css';
 export function fixUrlSpaces(text: string): string {
   if (!text) return text;
 
+  // First pass: aggressive repair for severely malformed URLs
+  let result = aggressiveUrlRepair(text);
+
   // Protect code blocks and inline codes
   const codeBlocks: string[] = [];
-  let result = text.replace(/```[\s\S]*?```/g, (match) => {
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
     codeBlocks.push(match);
     return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
   });
@@ -659,18 +770,24 @@ const markdownComponents = {
 
 const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: string }) {
   // Preprocess content in order:
-  // 1. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 2. fixListFormatting - separate inline list items with newlines
-  // 3. wrapBareUrls - wrap bare URLs in markdown link syntax
+  // 1. aggressiveUrlRepair - fix severely malformed URLs
+  // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
+  // 3. fixKoreanSpacing - fix Korean text spacing issues
+  // 4. fixListFormatting - separate inline list items with newlines
+  // 5. wrapBareUrls - wrap bare URLs in markdown link syntax
   const sanitizedContent = useMemo(() => {
     if (!content) return '';
 
     let result = content;
-    // Step 1: Fix URL spaces (must be before URL wrapping)
+    // Step 1: Aggressive URL repair (most severe issues first)
+    result = aggressiveUrlRepair(result);
+    // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    // Step 2: Fix list formatting
+    // Step 3: Fix Korean spacing
+    result = fixKoreanSpacing(result);
+    // Step 4: Fix list formatting
     result = fixListFormatting(result);
-    // Step 3: Wrap bare URLs in markdown links
+    // Step 5: Wrap bare URLs in markdown links
     result = wrapBareUrls(result);
 
     return result;
@@ -689,18 +806,24 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
 
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
   // Apply all text fixes in order:
-  // 1. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 2. fixListFormatting - separate inline list items with newlines
-  // 3. fixSentenceSpacing - fix sentence spacing after punctuation
+  // 1. aggressiveUrlRepair - fix severely malformed URLs
+  // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
+  // 3. fixKoreanSpacing - fix Korean text spacing issues
+  // 4. fixListFormatting - separate inline list items with newlines
+  // 5. fixSentenceSpacing - fix sentence spacing after punctuation
   const fixedContent = useMemo(() => {
     if (!content) return '';
 
     let result = content;
-    // Step 1: Fix URL spaces (must be before URL wrapping)
+    // Step 1: Aggressive URL repair (most severe issues first)
+    result = aggressiveUrlRepair(result);
+    // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    // Step 2: Fix list formatting
+    // Step 3: Fix Korean spacing
+    result = fixKoreanSpacing(result);
+    // Step 4: Fix list formatting
     result = fixListFormatting(result);
-    // Step 3: Fix sentence spacing
+    // Step 5: Fix sentence spacing
     result = fixSentenceSpacing(result);
 
     return result;
