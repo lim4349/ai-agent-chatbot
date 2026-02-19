@@ -58,13 +58,7 @@ When writing code:
 1. First understand the requirements
 2. Write the code with proper structure
 3. Add comments for clarity
-4. Test edge cases mentally
-
-Formatting rules:
-- Separate paragraphs with a blank line
-- Always add a newline after headings (###)
-- Always add a newline after URLs for readability
-- Write list items on separate lines"""
+4. Test edge cases mentally"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
