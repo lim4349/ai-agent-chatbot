@@ -144,17 +144,27 @@ dev (직접 커밋) → main (PR)
   - `gh pr merge --delete-branch` 플래그 사용 금지
   - PR merge 시 반드시 `gh pr merge <number> --merge` 만 사용 (브랜치 삭제 옵션 없이)
 
-**작업 시작 전 필수: dev와 main 동기화 확인**:
+**⚠️ 작업 시작 전 필수: 브랜치 동기화 확인 (CRITICAL)**:
 ```bash
-# main과 dev가 동일한지 확인 후 작업 시작
+# 1. 원격 브랜치 최신 정보 가져오기
 git fetch origin
+
+# 2. main 브랜치 동기화
+git checkout main
+git pull origin main
+
+# 3. dev 브랜치 동기화 및 main 변경사항 반영
 git checkout dev
 git pull origin dev
-# dev가 main보다 뒤처진 경우 main 반영
-git merge origin/main
+git merge origin/main  # dev가 main보다 뒤처진 경우 필수
+
+# 4. 동기화 확인 (반드시 실행)
+git log --oneline main..dev  # dev가 main보다 앞서있거나 동일해야 함
 ```
+- **모든 작업 전 반드시 위 명령 실행**
 - dev 브랜치는 항상 main과 동일하거나 앞선 상태여야 함
-- 작업 시작 전 반드시 위 명령으로 동기화 확인
+- 뒤처진 상태에서 작업 시 충돌/데이터 유실 위험 있음
+- 이전 PR이 자동 머지되었을 수 있으므로 반드시 확인
 
 **예시**:
 ```bash
@@ -214,16 +224,14 @@ pre-commit run --all-files
 - Frontend: ESLint
 - 공통: trailing whitespace, EOF, YAML/JSON 검사
 
-**모든 작업 전 git pull 필수**:
+**⚠️ 모든 작업 전 브랜치 동기화 (위 '작업 시작 전 필수' 참조)**:
+> **중요**: 위의 '⚠️ 작업 시작 전 필수: 브랜치 동기화 확인' 섹션을 먼저 실행하세요.
+
+간단 버전:
 ```bash
-# 원격 변경사항 최신화
-git fetch origin
-git checkout dev && git pull origin dev
-# 또는 현재 브랜치에서
-git pull
+git fetch origin && git checkout main && git pull origin main \
+  && git checkout dev && git pull origin dev && git merge origin/main
 ```
-- 로컬/원격 브랜치 모두 항상 최신 상태 유지
-- 작업 시작 전 반드시 pull로 동기화
 
 **Git Push 전 로컬 테스트 필수**:
 ```bash
