@@ -1,4 +1,4 @@
-"""RAG agent for document-based Q&A."""
+"""RAG agent for document-based Q&A with structured output."""
 
 import unicodedata
 from pathlib import Path
@@ -6,6 +6,7 @@ from typing import override
 
 from dependency_injector.wiring import Provide, inject
 from langchain_core.messages import BaseMessage
+from pydantic import BaseModel, Field
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
@@ -14,6 +15,37 @@ from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
 
 logger = get_logger(__name__)
+
+
+class RAGParagraph(BaseModel):
+    """A paragraph/section of the RAG response."""
+
+    title: str | None = Field(
+        default=None, description="Optional title/subject for this paragraph"
+    )
+    content: str = Field(
+        description="Main text content. Each sentence should be complete and properly spaced."
+    )
+    bullet_points: list[str] = Field(
+        default_factory=list,
+        description="Optional bullet points under this paragraph. Each item is a complete sentence."
+    )
+
+
+class RAGResponse(BaseModel):
+    """Structured response format for RAG queries."""
+
+    paragraphs: list[RAGParagraph] = Field(
+        description="List of paragraphs/sections that answer the question. Each paragraph has optional title, content text, and bullet points."
+    )
+    references: list[str] = Field(
+        default_factory=list,
+        description="List of source document names referenced in the answer"
+    )
+    confidence: str = Field(
+        default="high",
+        description="Confidence level: 'high' if documents clearly answer the question, 'medium' if partially, 'low' if unclear"
+    )
 
 
 def _clean_source_name(metadata: dict, fallback: str) -> str:
@@ -74,70 +106,44 @@ class RAGAgent(BaseAgent):
 CRITICAL RULES TO PREVENT HALLUCINATION:
 - ONLY use information from the provided context - NEVER use outside knowledge
 - Do NOT make assumptions or fill in gaps with your own knowledge
-- If the context doesn't contain relevant information, say "I couldn't find relevant information in the available documents."
+- If the context doesn't contain relevant information, indicate low confidence
 - If you're uncertain, explicitly state uncertainty
 
-Response format:
-1. Answer the question using ONLY the provided context - write naturally without inline citations
-2. At the very end, add a separator line (---) followed by referenced source documents:
-   참고 문서: document name(s), comma-separated
-3. Do NOT insert [Source: ...] tags inside the answer text
+OUTPUT FORMAT INSTRUCTIONS:
+You must output a structured JSON response with the following fields:
+- paragraphs: Array of paragraph objects, each with:
+  - title: Optional subtitle for this section (e.g., "주요 내용", "지원 대상")
+  - content: Main text as complete sentences with proper spacing between sentences
+  - bullet_points: Array of bullet point strings (optional, for lists)
+- references: Array of source document names
+- confidence: "high", "medium", or "low" based on how well documents answer the question
 
-# 응답 형식 규칙 (CommonMark 마크다운 표준 준수)
+TEXT FORMATTING RULES:
+1. Each sentence must end with proper punctuation and be separated by a space
+2. Use paragraphs array to organize content by topic
+3. Use bullet_points for list items (each should be a complete sentence)
+4. References should be document filenames without extensions
 
-## 문장 작성 규칙
-- 문장 끝 마침표(., !, ?) 뒤에는 반드시 공백 한 칸 추가
-- 한 문장이 끝나면 다음 문장은 새로 시작 (같은 줄에 이어쓰기 금지)
-
-## 제목/소주제 작성
-- 주제 변경 시 반드시 줄바꿈으로 구분
-- 소주제 앞뒤로 빈 줄 추가
-
-## 목록 작성 (CRITICAL)
-- 모든 목록 항목은 반드시 새 줄에 작성
-- 순서 없는 목록: "- " (하이픈 + 공백)으로 시작
-- 순서 있는 목록: "1. " "2. " 형식으로 시작
-- 목록 앞뒤로 반드시 빈 줄 추가
-- 절대 한 줄에 여러 목록 항목 작성 금지
-
-올바른 예시:
-```
-내용입니다.
-
-- 항목 1
-- 항목 2
-- 항목 3
-
-다음 내용입니다.
-```
-
-잘못된 예시:
-```
-내용입니다.- 항목 1- 항목 2
-```
-
-## 참고 문서 섹션
-- 본문과 참고 문서 사이에 --- 구분선 추가
-- 구분선 앞뒤로 빈 줄 추가
-- "참고 문서:" 뒤에 쉼표로 문서명 구분
-
-완전한 응답 예시:
-```
-임성근은 한국의 유명한 셰프입니다.
-
-흑백요리사:
-- 독특한 요리 스타일로 인기를 얻고 있습니다
-- 여러 요리 관련 프로그램에 출연하고 있습니다
-
-경력:
-- 칠레 산티아고 세계조리사총연맹 연회주 총괄 주방장
-- 중국 베이징 주중대사관 국빈급 만찬 메인 총괄 셰프
-
----
-
-참고 문서: 임성근_프로필.pdf, 흑백요리사_소개.pdf
-```
-"""
+Example output structure:
+{
+  "paragraphs": [
+    {
+      "title": "개요",
+      "content": "IP나래는 중소기업 및 창업 기업을 위한 지식재산 관련 지원 프로그램입니다.",
+      "bullet_points": []
+    },
+    {
+      "title": "주요 내용",
+      "content": "이 프로그램은 창업 후 7년 이내의 기업을 대상으로 합니다.",
+      "bullet_points": [
+        "목적: 기업의 기술이 독점 배타권을 가질 수 있도록 지원합니다.",
+        "대상: 창업 후 7년 이내의 중소기업 및 전환창업 후 5년 이내의 기업입니다."
+      ]
+    }
+  ],
+  "references": ["2025_IP나래_인포플라_VLAgent_8회"],
+  "confidence": "high"
+}"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
@@ -219,12 +225,24 @@ Response format:
                     "content": (
                         f"Context:\n{context}{confidence_warning}\n\n"
                         f"Question: {query}\n\n"
-                        f"[Referenced sources for footer: {sources_list}]"
+                        f"Available source documents: {sources_list}\n\n"
+                        f"Respond using the structured JSON format described in your instructions."
                     ),
                 }
             )
 
-            response = await self.llm.generate(messages)
+            # Use structured output for consistent formatting
+            structured_response = await self.llm.generate_structured(
+                messages, output_schema=RAGResponse
+            )
+
+            if structured_response:
+                # Convert structured response to formatted text
+                response = self._format_structured_response(structured_response)
+            else:
+                # Fallback to regular generation if structured output fails
+                response = await self.llm.generate(messages)
+
             tool_results = [{"tool": "retriever", "query": query, "results": docs}]
 
         # Note: Memory storage is handled by chat_agent to avoid duplication
@@ -235,3 +253,39 @@ Response format:
             "messages": [*state["messages"], {"role": "assistant", "content": response}],
             "tool_results": [*state.get("tool_results", []), *tool_results],
         }
+
+    def _format_structured_response(self, data: dict) -> str:
+        """Convert structured RAGResponse to formatted text."""
+        paragraphs = data.get("paragraphs", [])
+        references = data.get("references", [])
+        confidence = data.get("confidence", "high")
+
+        parts = []
+
+        for para in paragraphs:
+            # Add title if present
+            if title := para.get("title"):
+                parts.append(f"\n{title}")
+
+            # Add main content
+            if content := para.get("content", "").strip():
+                parts.append(content)
+
+            # Add bullet points
+            for bullet in para.get("bullet_points", []):
+                parts.append(f"- {bullet}")
+
+            parts.append("")  # Empty line between paragraphs
+
+        # Add references section
+        if references:
+            parts.append("---")
+            parts.append("")
+            parts.append(f"참고 문서: {', '.join(references)}")
+
+        # Add confidence note if low
+        if confidence in ["low", "medium"]:
+            parts.append("")
+            parts.append(f"[신뢰도: {confidence}]")
+
+        return "\n".join(parts)
