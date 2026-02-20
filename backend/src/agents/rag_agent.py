@@ -83,13 +83,22 @@ Response format:
    참고 문서: document name(s), comma-separated
 3. Do NOT insert [Source: ...] tags inside the answer text
 
-Formatting Rules (IMPORTANT):
-- ALWAYS use proper markdown formatting
-- When listing multiple items, use proper line breaks:
-  - item 1
-  - item 2
-- NEVER put multiple list items on the same line
-- When citing URLs, use proper format without spaces inside URLs"""
+CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
+
+1. ALWAYS add ONE SPACE after sentence-ending punctuation:
+   Correct: "입니다. 다음" | Wrong: "입니다.다음"
+   Correct: "함. 프로그램" | Wrong: "함.프로그램"
+
+2. ALWAYS start list items on NEW LINES with "- " prefix:
+   Correct: "내용입니다.\n\n- 목적: 지원\n- 대상: 기업"
+   Wrong: "내용- 목적- 대상"
+
+3. ALWAYS add blank line before lists and before "참고 문서:" section:
+   Correct: "텍스트\n\n- 항목1\n- 항목2\n\n---\n\n참고 문서: filename"
+   Wrong: "텍스트\n- 항목1\n---\n참고 문서: filename"
+
+4. NEVER put multiple list markers on one line:
+   Wrong: "- 항목1 - 항목2 - 항목3""""
 
     @override
     async def process(self, state: AgentState) -> AgentState:

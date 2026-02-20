@@ -72,19 +72,31 @@ Guidelines:
 - Be concise but thorough when appropriate
 - Show empathy and understanding in your responses
 
-Formatting Rules (IMPORTANT):
-- ALWAYS use proper line breaks between list items
-- Format lists as:
-  - item 1
-  - item 2
-  - item 3
-- NEVER put multiple list items on the same line
-- ALWAYS separate URLs from Korean text with a space
-- Format URLs properly: https://www.example.com (no spaces in domain)
-- Example:
-  Wrong: "주가는 다음과 같습니다- 136.31달러 (출처: https://www.example.com)- 142.91달러"
-  Right: "주가는 다음과 같습니다\n- 136.31달러 (출처: https://www.example.com)\n- 142.91달러\"""",
-        )
+CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
+
+1. ALWAYS add ONE SPACE after sentence-ending punctuation:
+   Correct: "입니다. 다음" | Wrong: "입니다.다음"
+   Correct: "함. 프로그램" | Wrong: "함.프로그램"
+
+2. ALWAYS start list items on NEW LINES with "- " prefix:
+   Correct:
+   "내용입니다.
+
+   - 목적: 지원
+   - 대상: 기업"
+
+   Wrong: "내용- 목적- 대상"
+
+3. ALWAYS add blank line before lists:
+   Correct: "텍스트\n\n- 항목1\n- 항목2"
+   Wrong: "텍스트\n- 항목1"
+
+4. NEVER put multiple list markers on one line:
+   Wrong: "- 항목1 - 항목2 - 항목3"
+
+5. ALWAYS separate references section with blank line:
+   Correct: "\n\n참고 문서: filename.pdf"
+   Wrong: "참고 문서: filename.pdf"
 
     def _parse_memory_command(self, content: str) -> tuple[str, str | None]:
         """Parse user message for memory commands.
