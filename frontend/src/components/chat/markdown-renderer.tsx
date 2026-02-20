@@ -310,6 +310,20 @@ export function fixListFormatting(text: string): string {
     }
   );
 
+  // Pattern 3b: Markdown list items with bold markers on same line
+  // Example: "기술- **동작 방식**:" -> "기술\n- **동작 방식**:"
+  // Example: "- **개념**: ... - **동작 방식**:" -> "- **개념**: ...\n- **동작 방식**:"
+  result = result.replace(
+    /([^\n])(\s*)(-\s+\*\*[^*]+\*\*:)/g,
+    (match, prev, space, listMarker) => {
+      // Don't split if prev is start of string or already has newline
+      if (!prev || prev === '' || /\n$/.test(prev)) {
+        return match;
+      }
+      return `${prev}\n${listMarker}`;
+    }
+  );
+
   // Pattern 4: Numbered list items without preceding newline
   // Example: "입니다1. 내용" -> "입니다\n1. 내용"
   // Example: "내용 1. 항목" -> "내용\n1. 항목"
@@ -936,20 +950,24 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     result = aggressiveUrlRepair(result);
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    // Step 3: NEW AST-based formatting for sentences and lists
-    result = formatLLMOutput(result);
 
-    // DEBUG: Log after formatLLMOutput - FULL CONTENT
-    console.log('[DEBUG] After formatLLMOutput:', JSON.stringify(result));
+    // DEBUG: Log before sentence formatting - FULL CONTENT
+    console.log('[DEBUG] Before sentence formatting:', JSON.stringify(result));
+
+    // Step 3: Fix sentence spacing (handles Korean sentence breaks)
+    result = fixSentenceSpacing(result);
+
+    // DEBUG: Log after sentence formatting - FULL CONTENT
+    console.log('[DEBUG] After sentence formatting:', JSON.stringify(result));
 
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
 
-    // DEBUG: Log after fixListFormatting - FULL CONTENT
-    console.log('[DEBUG] After fixListFormatting:', JSON.stringify(result));
+    // DEBUG: Log after list formatting - FULL CONTENT
+    console.log('[DEBUG] After list formatting:', JSON.stringify(result));
 
-    // Step 5: Fix sentence spacing
-    result = fixSentenceSpacing(result);
+    // Step 5: Additional Korean text normalization
+    result = fixKoreanSpacing(result);
 
     // DEBUG: Log final result - FULL CONTENT
     console.log('[DEBUG] After fixSentenceSpacing (FINAL):', JSON.stringify(result));
