@@ -928,8 +928,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const fixedContent = useMemo(() => {
     if (!content) return '';
 
-    // DEBUG: Log original content (always log for now)
-    console.log('[DEBUG] Original content:', JSON.stringify(content.slice(0, 200)));
+    // DEBUG: Log original content (always log for now) - FULL CONTENT
+    console.log('[DEBUG] Original content:', JSON.stringify(content));
 
     let result = content;
     // Step 1: Aggressive URL repair (most severe issues first)
@@ -939,20 +939,20 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     // Step 3: NEW AST-based formatting for sentences and lists
     result = formatLLMOutput(result);
 
-    // DEBUG: Log after formatLLMOutput
-    console.log('[DEBUG] After formatLLMOutput:', JSON.stringify(result.slice(0, 200)));
+    // DEBUG: Log after formatLLMOutput - FULL CONTENT
+    console.log('[DEBUG] After formatLLMOutput:', JSON.stringify(result));
 
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
 
-    // DEBUG: Log after fixListFormatting
-    console.log('[DEBUG] After fixListFormatting:', JSON.stringify(result.slice(0, 200)));
+    // DEBUG: Log after fixListFormatting - FULL CONTENT
+    console.log('[DEBUG] After fixListFormatting:', JSON.stringify(result));
 
     // Step 5: Fix sentence spacing
     result = fixSentenceSpacing(result);
 
-    // DEBUG: Log final result
-    console.log('[DEBUG] After fixSentenceSpacing (FINAL):', JSON.stringify(result.slice(0, 200)));
+    // DEBUG: Log final result - FULL CONTENT
+    console.log('[DEBUG] After fixSentenceSpacing (FINAL):', JSON.stringify(result));
 
     return result;
   }, [content]);
