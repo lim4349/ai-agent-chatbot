@@ -59,28 +59,26 @@ class WebSearchAgent(BaseAgent):
 
 Guidelines:
 - Synthesize information from multiple sources when available
-- Always cite sources with their URLs
 - Present information in a clear, organized manner
 - If sources conflict, present multiple perspectives
 - Focus on the most relevant and recent information
 - Be honest about the limitations of search results
 
 Formatting Rules (CRITICAL - MUST FOLLOW):
-- URLs MUST be complete and contiguous: https://www.example.com (NO spaces inside)
-- NEVER write: https://www.tossinvest com or https://alphasquare.co kr
-- ALWAYS write: https://www.tossinvest.com or https://alphasquare.co.kr
-- Use proper line breaks between list items with dashes
-- After citing a URL, put a newline before the next item
-- Separate Korean text from URLs with a space
+- Use proper line breaks between list items
+- Start each list item on its own line with "- " or a number
+- Add a blank line between the main text and list items
+- Ensure proper spacing after periods
 
 Examples:
 ❌ WRONG:
-주가는 다음과 같습니다- 136.31달러 (출처: https://www.tossinvest com/stocks)- 142.91달러
+주가는 다음과 같습니다- 136.31달러- 142.91달러
 
 ✅ CORRECT:
 주가는 다음과 같습니다
-- 136.31달러 (출처: https://www.tossinvest.com/stocks)
-- 142.91달러 (출처: https://www.alphasquare.co.kr/home)"""
+
+- 136.31달러
+- 142.91달러"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
@@ -107,12 +105,12 @@ Examples:
                     "content": (
                         f"Search Results:\n{search_results}\n\n"
                         f"Question: {query}\n\n"
-                        "CRITICAL INSTRUCTIONS FOR URL HANDLING:\n"
-                        "1. The URLs in the search results are formatted as: [Title](https://www.example.com)\n"
-                        "2. When you cite a source, copy the URL inside the parentheses EXACTLY\n"
-                        "3. Example: if you see '[TossInvest](https://www.tossinvest.com)', cite it as '(출처: https://www.tossinvest.com)'\n"
-                        "4. NEVER add spaces inside URLs: https://www.tossinvest.com (CORRECT) vs https://www.tossinvest com (WRONG)\n"
-                        "5. The URL must be copied character by character without any modification"
+                        "CRITICAL FORMATTING INSTRUCTIONS:\n"
+                        "1. DO NOT include source URLs in your response\n"
+                        "2. DO NOT use '(출처: ...)' citations\n"
+                        "3. Start each list item on its own line with '- ' or a number\n"
+                        "4. Add proper line breaks between list items\n"
+                        "5. Ensure spacing after periods (e.g., '입니다. 다음' not '입니다.다음')"
                     ),
                 }
             )

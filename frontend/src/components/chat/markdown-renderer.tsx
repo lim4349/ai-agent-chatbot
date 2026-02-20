@@ -349,6 +349,29 @@ export function fixListFormatting(text: string): string {
     '$1\n$2'
   );
 
+  // Pattern 8: Force newline before dash + Korean word patterns
+  // This handles cases like "-목적", "-지원내용", "-대상" etc.
+  // These are common in Korean formatted lists
+  result = result.replace(
+    /([^\n])(\s*)(-[가-힣]{2,})/g,
+    '$1\n$3'
+  );
+
+  // Pattern 9: Force newline between Korean sentence endings and new content
+  // Handles cases like "제공합니다프로그램의" -> "제공합니다\n프로그램의"
+  // Matches common Korean sentence endings (습니다, 입니다, 함, 등) followed immediately by Korean text
+  result = result.replace(
+    /(습니다|입니다|함|등|있습니다|없습니다|됩니다)([가-힣]{2,})/g,
+    '$1\n$2'
+  );
+
+  // Pattern 10: Add space after period if followed immediately by letter
+  // Handles "word.Word" -> "word. Word"
+  result = result.replace(
+    /([.!?])([A-Za-z가-힣])/g,
+    '$1 $2'
+  );
+
   // Restore protected regions
   inlineCodes.forEach((code, i) => {
     result = result.replace(`__INLINE_CODE_${i}__`, code);
