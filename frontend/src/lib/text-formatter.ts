@@ -1,10 +1,7 @@
 /**
  * LLM 출력 텍스트 정제 모듈
- * 정규식 대신 AST 기반 접근으로 문맥을 이해하고 처리
+ * 문맥 기반 텍스트 처리
  */
-
-import { remark } from 'remark';
-import remarkGfm from 'remark-gfm';
 
 interface TextSegment {
   type: 'text' | 'list' | 'heading' | 'code' | 'break';
@@ -12,14 +9,14 @@ interface TextSegment {
   level?: number;
 }
 
+// 한글 문장 종결어미 패턴 (우선순위: 긴 패턴 먼저)
+const KOREAN_ENDINGS = ['습니다', '입니다', '있습니다', '없습니다', '됩니다', '했습니다', '하면', '하여', '되어', '함', '등'];
+
 /**
  * 문장을 의미 단위로 분리
- * 한글/영문 문장 끝을 인식하여 적절히 분리
  */
 function segmentText(text: string): TextSegment[] {
   const segments: TextSegment[] = [];
-
-  // 줄 단위로 먼저 분리
   const lines = text.split('\n');
 
   for (const line of lines) {
@@ -29,25 +26,21 @@ function segmentText(text: string): TextSegment[] {
       continue;
     }
 
-    // 리스트 항목인지 확인 (-, *, 1., • 등)
     if (/^[-*•‣○◦▸▹▪▫]\s/.test(trimmed) || /^\d+\.\s/.test(trimmed)) {
       segments.push({ type: 'list', content: trimmed });
       continue;
     }
 
-    // 헤딩인지 확인
     if (/^#{1,6}\s/.test(trimmed)) {
       segments.push({ type: 'heading', content: trimmed, level: trimmed.match(/^#+/)?.[0].length });
       continue;
     }
 
-    // 코드 블록
     if (/^```/.test(trimmed)) {
       segments.push({ type: 'code', content: trimmed });
       continue;
     }
 
-    // 일반 텍스트 - 문장 단위로 분리
     const sentences = splitSentences(trimmed);
     for (const sentence of sentences) {
       segments.push({ type: 'text', content: sentence });
@@ -58,7 +51,7 @@ function segmentText(text: string): TextSegment[] {
 }
 
 /**
- * 문장 단위로 분리 (한글/영문 모두 지원)
+ * 문장 단위로 분리
  */
 function splitSentences(text: string): string[] {
   const sentences: string[] = [];
@@ -70,12 +63,15 @@ function splitSentences(text: string): string[] {
 
     current += char;
 
-    // 문장 끝 표현 확인
-    const isSentenceEnd = /[.!?。！？]$/.test(current) ||
-                          /(습니다|입니다|함|등|있습니다|없습니다|됩니다|했습니다|하면)$/.test(current);
+    // 문장 끝 패턴 확인
+    const endingInfo = getSentenceEnding(current);
 
-    if (isSentenceEnd && nextChar && !/[\s\n]/.test(nextChar)) {
-      // 문장 끝인데 다음 글자가 공백/줄바꿈이 아니면 분리
+    if (endingInfo && nextChar && !/[\s\n]/.test(nextChar)) {
+      // 마침표 뒤 소문자는 소수점 가능성
+      if (endingInfo.type === 'punct' && /[a-z]/.test(nextChar)) {
+        continue;
+      }
+
       sentences.push(current.trim());
       current = '';
     }
@@ -85,11 +81,66 @@ function splitSentences(text: string): string[] {
     sentences.push(current.trim());
   }
 
-  return sentences.length > 0 ? sentences : [text];
+  // 후처리: 단일 마침표 항목을 이전 문장에 붙이기
+  return mergeOrphanPunctuation(sentences);
 }
 
 /**
- * 세그먼트를 다시 조합하며 적절한 줄바꿈 추가
+ * 문장 끝인지 확인하고 종류 반환
+ */
+function getSentenceEnding(current: string): { type: 'korean' | 'punct' } | null {
+  // 1. 마침표/물음표/느낌표 확인
+  if (/[.!?。！？]$/.test(current)) {
+    // 한글 종결어미 직후의 마침표는 그 종결어미의 일부로 처리
+    const beforePunct = current.slice(0, -1);
+    for (const ending of KOREAN_ENDINGS) {
+      if (beforePunct.endsWith(ending)) {
+        // "입니다." 상황 - "입니다"에서 이미 처리됨
+        return null;
+      }
+    }
+    return { type: 'punct' };
+  }
+
+  // 2. 한글 종결어미 확인
+  for (const ending of KOREAN_ENDINGS) {
+    if (current.endsWith(ending)) {
+      const beforeEnding = current.slice(0, -ending.length);
+      // 종결어미 앞이 공백이나 한글로 끝나야 함
+      if (beforeEnding.length === 0 || /[\s가-힣]$/.test(beforeEnding)) {
+        return { type: 'korean' };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 단일 마침표/쉼표 항목을 이전 문장에 병합
+ */
+function mergeOrphanPunctuation(sentences: string[]): string[] {
+  const result: string[] = [];
+
+  for (const sentence of sentences) {
+    if (result.length === 0) {
+      result.push(sentence);
+      continue;
+    }
+
+    // 단일 문장부호만 있는 항목은 이전 문장에 붙이기
+    if (/^[.!?。！？]+$/.test(sentence)) {
+      result[result.length - 1] += sentence;
+    } else {
+      result.push(sentence);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 세그먼트 재조합
  */
 function joinSegments(segments: TextSegment[]): string {
   const result: string[] = [];
@@ -101,11 +152,12 @@ function joinSegments(segments: TextSegment[]): string {
 
     switch (seg.type) {
       case 'break':
-        result.push('');
+        if (result.length > 0 && result[result.length - 1] !== '') {
+          result.push('');
+        }
         break;
 
       case 'list':
-        // 리스트 전에 빈 줄이 없으면 추가 (단 연속된 리스트는 제외)
         if (prevType !== 'list' && prevType !== 'break' && result.length > 0) {
           result.push('');
         }
@@ -113,7 +165,6 @@ function joinSegments(segments: TextSegment[]): string {
         break;
 
       case 'heading':
-        // 헤딩 전후로 빈 줄
         if (result.length > 0 && result[result.length - 1] !== '') {
           result.push('');
         }
@@ -124,14 +175,10 @@ function joinSegments(segments: TextSegment[]): string {
         break;
 
       case 'text':
-        // 이전이 리스트나 헤딩이었으면 빈 줄 추가
         if (prevType === 'list' || prevType === 'heading') {
           result.push('');
         }
-
-        // 문장 내에서 마침표 뒤 공백 처리
-        const fixed = fixSpacingInSentence(seg.content);
-        result.push(fixed);
+        result.push(fixSpacingInSentence(seg.content));
         break;
 
       case 'code':
@@ -145,7 +192,6 @@ function joinSegments(segments: TextSegment[]): string {
     prevType = seg.type;
   }
 
-  // 연속된 빈 줄 제거
   return result
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -153,14 +199,12 @@ function joinSegments(segments: TextSegment[]): string {
 }
 
 /**
- * 문장 난ㄱ에서 마침표 뒤 공백 처리
+ * 문장 내 공백 처리
  */
 function fixSpacingInSentence(text: string): string {
-  // 마침표/물음표/느낌표 뒤에 한글/영문이 바로 오면 공백 추가
   return text
-    .replace(/([.!?])([가-힣A-Za-z])/g, '$1 $2')
-    // 한글 종결어미 뒤에 한글/영문이 바로 오면 공백 추가
-    .replace(/(습니다|입니다|함|등|있습니다|없습니다|됩니다|했습니다|하면)([가-힣A-Za-z])/g, '$1 $2');
+    .replace(/([.!?])([가-힣A-Z])/g, '$1 $2')
+    .replace(/(습니다|입니다|함|등|있습니다|없습니다|됩니다|했습니다|하면|하여|되어)([가-힣A-Z])/g, '$1 $2');
 }
 
 /**
@@ -168,21 +212,14 @@ function fixSpacingInSentence(text: string): string {
  */
 export function formatLLMOutput(text: string): string {
   if (!text || typeof text !== 'string') return text;
-
-  // 1단계: 세그먼트 분리
   const segments = segmentText(text);
-
-  // 2단계: 재조합
-  const formatted = joinSegments(segments);
-
-  return formatted;
+  return joinSegments(segments);
 }
 
 /**
- * 참고 문서/출처 섹션 분리
+ * 참고 문서 섹션 분리
  */
 export function separateReferences(text: string): { content: string; references?: string } {
-  // 참고 문서 패턴 매칭
   const patterns = [
     /(참고 문서|참고문서|출처|References?|Sources?|Bibliography)[:：]\s*/i,
     /\n(참고 문서|참고문서|출처|References?|Sources?)[:：]?\s*/i,
@@ -204,10 +241,7 @@ export function separateReferences(text: string): { content: string; references?
  * 완전한 후처리 파이프라인
  */
 export function postProcessLLMOutput(rawText: string): { content: string; references?: string } {
-  // 1. 참고 문서 분리
   const { content, references } = separateReferences(rawText);
-
-  // 2. 본문 포맷팅
   const formattedContent = formatLLMOutput(content);
 
   return {

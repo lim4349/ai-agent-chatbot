@@ -7,7 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import DOMPurify from 'dompurify';
-import { formatLLMOutput, postProcessLLMOutput } from '@/lib/text-formatter';
+import { formatLLMOutput } from '@/lib/text-formatter';
 
 import 'highlight.js/styles/github-dark.css';
 
