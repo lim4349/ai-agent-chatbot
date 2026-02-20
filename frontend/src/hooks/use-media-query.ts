@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /**
  * Hook for responsive design using media queries
@@ -8,38 +8,36 @@ import { useState, useEffect } from 'react';
  * @returns boolean indicating if the media query matches
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  return useSyncExternalStore(
+    (callback) => {
+      const media = window.matchMedia(query);
 
-  useEffect(() => {
-    const media = window.matchMedia(query);
-
-    // Set initial value
-    setMatches(media.matches);
-
-    // Create event listener
-    const listener = (e: MediaQueryListEvent) => {
-      setMatches(e.matches);
-    };
-
-    // Add listener (with fallback for older browsers)
-    if (media.addEventListener) {
-      media.addEventListener('change', listener);
-    } else {
-      // Fallback for older Safari versions
-      media.addListener(listener);
-    }
-
-    // Cleanup
-    return () => {
-      if (media.removeEventListener) {
-        media.removeEventListener('change', listener);
+      // Add listener (with fallback for older browsers)
+      if (media.addEventListener) {
+        media.addEventListener('change', callback);
       } else {
-        media.removeListener(listener);
+        // Fallback for older Safari versions
+        media.addListener(callback);
       }
-    };
-  }, [query]);
 
-  return matches;
+      // Cleanup
+      return () => {
+        if (media.removeEventListener) {
+          media.removeEventListener('change', callback);
+        } else {
+          media.removeListener(callback);
+        }
+      };
+    },
+    () => {
+      // Client-side snapshot
+      return window.matchMedia(query).matches;
+    },
+    () => {
+      // Server-side snapshot (default to false)
+      return false;
+    }
+  );
 }
 
 /**
