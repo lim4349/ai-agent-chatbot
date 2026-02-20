@@ -64,11 +64,27 @@ Guidelines:
 - Focus on the most relevant and recent information
 - Be honest about the limitations of search results
 
-Formatting Rules (CRITICAL - MUST FOLLOW):
-- Use proper line breaks between list items
-- Start each list item on its own line with "- " or a number
-- Add a blank line between the main text and list items
-- Ensure proper spacing after periods
+CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
+
+1. ALWAYS add ONE SPACE after sentence-ending punctuation:
+   Correct: "입니다. 다음" | Wrong: "입니다.다음"
+   Correct: "함. 프로그램" | Wrong: "함.프로그램"
+
+2. ALWAYS start list items on NEW LINES with "- " prefix:
+   Correct:
+   "내용입니다.
+
+   - 목적: 지원
+   - 대상: 기업"
+
+   Wrong: "내용- 목적- 대상"
+
+3. ALWAYS add blank line before lists:
+   Correct: "텍스트\n\n- 항목1\n- 항목2"
+   Wrong: "텍스트\n- 항목1"
+
+4. NEVER put multiple list markers on one line:
+   Wrong: "- 항목1 - 항목2 - 항목3"
 
 Examples:
 ❌ WRONG:

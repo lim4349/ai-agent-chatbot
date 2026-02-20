@@ -7,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import DOMPurify from 'dompurify';
+import { formatLLMOutput } from '@/lib/text-formatter';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -875,7 +876,7 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
   // Preprocess content in order:
   // 1. aggressiveUrlRepair - fix severely malformed URLs
   // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 3. fixKoreanSpacing - fix Korean text spacing issues
+  // 3. formatLLMOutput - AST-based text formatting (sentences, lists)
   // 4. fixListFormatting - separate inline list items with newlines
   // 5. wrapBareUrls - wrap bare URLs in markdown link syntax
   const sanitizedContent = useMemo(() => {
@@ -886,8 +887,8 @@ const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: stri
     result = aggressiveUrlRepair(result);
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    // Step 3: Fix Korean spacing
-    result = fixKoreanSpacing(result);
+    // Step 3: AST-based formatting for sentences and lists
+    result = formatLLMOutput(result);
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
     // Step 5: Wrap bare URLs in markdown links
@@ -911,7 +912,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   // Apply all text fixes in order:
   // 1. aggressiveUrlRepair - fix severely malformed URLs
   // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 3. fixKoreanSpacing - fix Korean text spacing issues
+  // 3. formatLLMOutput - NEW: AST-based text formatting (sentences, lists)
   // 4. fixListFormatting - separate inline list items with newlines
   // 5. fixSentenceSpacing - fix sentence spacing after punctuation
   const fixedContent = useMemo(() => {
@@ -922,8 +923,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     result = aggressiveUrlRepair(result);
     // Step 2: Fix URL spaces
     result = fixUrlSpaces(result);
-    // Step 3: Fix Korean spacing
-    result = fixKoreanSpacing(result);
+    // Step 3: NEW AST-based formatting for sentences and lists
+    result = formatLLMOutput(result);
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
     // Step 5: Fix sentence spacing
