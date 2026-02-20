@@ -145,6 +145,16 @@ function mergeOrphanPunctuation(sentences: string[]): string[] {
 function joinSegments(segments: TextSegment[]): string {
   const result: string[] = [];
   let prevType: string | null = null;
+  let textBuffer: string[] = []; // 연속된 text 세그먼트를 버퍼링
+
+  // 버퍼 Flush 함수
+  const flushTextBuffer = () => {
+    if (textBuffer.length > 0) {
+      // 연속된 text는 공백으로 합침
+      result.push(textBuffer.join(' '));
+      textBuffer = [];
+    }
+  };
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
@@ -152,12 +162,14 @@ function joinSegments(segments: TextSegment[]): string {
 
     switch (seg.type) {
       case 'break':
+        flushTextBuffer();
         if (result.length > 0 && result[result.length - 1] !== '') {
           result.push('');
         }
         break;
 
       case 'list':
+        flushTextBuffer();
         if (prevType !== 'list' && prevType !== 'break' && result.length > 0) {
           result.push('');
         }
@@ -165,6 +177,7 @@ function joinSegments(segments: TextSegment[]): string {
         break;
 
       case 'heading':
+        flushTextBuffer();
         if (result.length > 0 && result[result.length - 1] !== '') {
           result.push('');
         }
@@ -176,12 +189,15 @@ function joinSegments(segments: TextSegment[]): string {
 
       case 'text':
         if (prevType === 'list' || prevType === 'heading') {
+          flushTextBuffer();
           result.push('');
         }
-        result.push(fixSpacingInSentence(seg.content));
+        // text는 버퍼에 추가 (나중에 공백으로 합침)
+        textBuffer.push(fixSpacingInSentence(seg.content));
         break;
 
       case 'code':
+        flushTextBuffer();
         if (result.length > 0 && result[result.length - 1] !== '') {
           result.push('');
         }
@@ -191,6 +207,9 @@ function joinSegments(segments: TextSegment[]): string {
 
     prevType = seg.type;
   }
+
+  // 마지막 버퍼 flush
+  flushTextBuffer();
 
   return result
     .join('\n')
