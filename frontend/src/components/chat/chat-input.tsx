@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Loader2, ShieldAlert, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { Send, Loader2, ShieldAlert, XCircle, AlertTriangle, Info, X, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MAX_MESSAGE_LENGTH, WARNING_THRESHOLD } from '@/lib/constants';
 import {
@@ -26,13 +26,17 @@ const SECURITY_CONFIG: SecurityConfig = {
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
+  isStreaming?: boolean;
+  onCancel?: () => void;
+  placeholder?: string;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, isStreaming, onCancel, placeholder }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showWarning, setShowWarning] = useState(true);
   const { t, locale } = useTranslation();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Real-time validation with useMemo to avoid setState in effect
   const newValidation = useMemo(() => {
@@ -47,6 +51,18 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     setValidation(newValidation);
   }, [newValidation]);
 
+  // Dynamic height adjustment
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset height to auto to get proper scrollHeight
+    textarea.style.height = 'auto';
+    // Set height to scrollHeight, but cap at max height
+    const newHeight = Math.min(textarea.scrollHeight, 200);
+    textarea.style.height = `${newHeight}px`;
+  }, [message]);
+
   const handleSubmit = useCallback(() => {
     const trimmed = message.trim();
 
@@ -55,13 +71,22 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       return; // Block submission for critical/error severity
     }
 
+    // During streaming, only allow cancel, not new messages
+    if (isStreaming) {
+      return;
+    }
+
     if (trimmed && !disabled) {
       onSend(trimmed);
       setMessage('');
       setValidation(null);
       setShowWarning(true);
+      // Reset height after sending
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     }
-  }, [message, disabled, onSend, validation]);
+  }, [message, disabled, onSend, validation, isStreaming]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -87,28 +112,38 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   // Determine if send button should be disabled
   const shouldDisableSend: boolean =
     !!disabled ||
+    isStreaming ||
     !message.trim() ||
     isOverLimit ||
     (validation !== null && shouldBlockMessage(validation.severity));
+
+  // Determine placeholder text
+  const getPlaceholder = () => {
+    if (placeholder) return placeholder;
+    if (isStreaming) return locale === 'ko' ? 'AI가 응답하는 중...' : 'AI is responding...';
+    return t('chat.inputPlaceholder');
+  };
 
   return (
     <div className="border-t border-border bg-background p-4">
       <div className="flex gap-2 items-end max-w-4xl mx-auto">
         <div className="flex-1 relative">
           <Textarea
+            ref={textareaRef}
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={t('chat.inputPlaceholder')}
+            placeholder={getPlaceholder()}
             disabled={disabled}
             className={cn(
-              'min-h-[44px] max-h-[200px] resize-none pr-16',
+              'min-h-[44px] max-h-[200px] resize-none pr-16 overflow-y-auto',
               isOverLimit && 'border-destructive focus-visible:ring-destructive',
               validation?.severity === 'critical' && 'border-red-500 focus-visible:ring-red-500',
               validation?.severity === 'error' && 'border-red-500 focus-visible:ring-red-500',
               validation?.severity === 'warning' && 'border-yellow-500 focus-visible:ring-yellow-500'
             )}
             rows={1}
+            aria-label={locale === 'ko' ? '메시지 입력' : 'Message input'}
           />
           <span
             className={cn(
@@ -119,22 +154,36 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
             {characterCount}/{MAX_MESSAGE_LENGTH}
           </span>
         </div>
-        <Button
-          onClick={handleSubmit}
-          disabled={shouldDisableSend}
-          size="icon"
-          className={cn(
-            'h-11 w-11',
-            validation?.severity === 'critical' && 'bg-red-600 hover:bg-red-700'
-          )}
-          title={validation?.message || undefined}
-        >
-          {disabled ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </Button>
+        {isStreaming ? (
+          <Button
+            onClick={onCancel}
+            size="icon"
+            variant="destructive"
+            className="h-11 w-11"
+            aria-label={locale === 'ko' ? '응답 취소' : 'Cancel response'}
+            title={locale === 'ko' ? '응답 취소' : 'Cancel response'}
+          >
+            <Square className="w-4 h-4 fill-current" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={shouldDisableSend}
+            size="icon"
+            className={cn(
+              'h-11 w-11',
+              validation?.severity === 'critical' && 'bg-red-600 hover:bg-red-700'
+            )}
+            title={validation?.message || undefined}
+            aria-label={locale === 'ko' ? '메시지 전송' : 'Send message'}
+          >
+            {disabled ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Security Warning Banner */}

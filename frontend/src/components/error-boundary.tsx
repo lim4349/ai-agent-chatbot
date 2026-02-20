@@ -42,14 +42,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center" role="alert" aria-live="assertive">
           <div className="max-w-md space-y-4">
-            <div className="flex justify-center">
+            <div className="flex justify-center" aria-hidden="true">
               <svg
                 className="w-16 h-16 text-red-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -60,9 +61,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </svg>
             </div>
 
-            <h2 className="text-2xl font-semibold text-foreground">문제가 발생했습니다</h2>
+            <h2 className="text-2xl font-semibold text-foreground" role="heading" aria-level={2}>
+              문제가 발생했습니다
+            </h2>
 
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground" role="status">
               죄송합니다. 예기치 않은 오류가 발생했습니다. 다시 시도해 주세요.
             </p>
 

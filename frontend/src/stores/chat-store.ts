@@ -237,12 +237,31 @@ export const useChatStore = create<ChatStore>()(
           createdAt: now as unknown as Date,
         };
 
+        // Generate title from first message with better truncation
+        const generateTitle = (text: string): string => {
+          // Remove code block markdown
+          const withoutCodeBlocks = text.replace(/```[\s\S]*?```/g, ' ');
+          // Remove inline code
+          const withoutInlineCode = withoutCodeBlocks.replace(/`[^`]+`/g, ' ');
+          // Remove other markdown
+          const withoutMarkdown = withoutInlineCode
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/[#*_~]/g, '');
+          // Clean up whitespace
+          const cleaned = withoutMarkdown.replace(/\s+/g, ' ').trim();
+          // Truncate at word boundary
+          if (cleaned.length <= 40) return cleaned;
+          const truncated = cleaned.slice(0, 40);
+          const lastSpace = truncated.lastIndexOf(' ');
+          return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
+        };
+
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === sessionId
               ? {
                   ...s,
-                  title: s.messages.length === 0 ? content.slice(0, 40) : s.title,
+                  title: s.messages.length === 0 ? generateTitle(content) : s.title,
                   messages: [...s.messages, userMessage, assistantMessage],
                 }
               : s

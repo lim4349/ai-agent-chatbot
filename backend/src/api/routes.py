@@ -95,7 +95,7 @@ async def chat(
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
     if injection:
-        # Log the security event
+        # Log the security event (with details for internal logging)
         log_request(
             method="POST",
             path="/api/v1/chat",
@@ -105,9 +105,10 @@ async def chat(
             status="blocked",
             error=f"Prompt injection detected: {injection['type']}",
         )
+        # Generic error message to avoid revealing security details
         raise HTTPException(
             status_code=400,
-            detail="Your request contains potentially malicious content and cannot be processed.",
+            detail="Invalid request. Please try again with different input.",
         )
 
     # Security: Sanitize input for LLM
@@ -198,6 +199,7 @@ async def chat_stream(
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
     if injection:
+        # Log the security event (with details for internal logging)
         log_request(
             method="POST",
             path="/api/v1/chat/stream",
@@ -208,11 +210,11 @@ async def chat_stream(
             error=f"Prompt injection detected: {injection['type']}",
         )
 
-        # Return error as SSE event
+        # Return error as SSE event with generic message
         async def error_generator():
             yield {
                 "event": "error",
-                "data": json.dumps({"error": "Request contains potentially malicious content"}),
+                "data": json.dumps({"error": "Invalid request. Please try again with different input."}),
             }
 
         return EventSourceResponse(error_generator())

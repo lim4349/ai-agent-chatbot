@@ -265,6 +265,13 @@ export function fixListFormatting(text: string): string {
     return `__INLINE_CODE_${inlineCodes.length - 1}__`;
   });
 
+  // Pattern 0: Add newline before reference/citation labels
+  // "참고 문서", "출처", "Reference", "Source", "참조" 등 앞에 줄바꿈 추가
+  result = result.replace(
+    /([^\n])(\s*)(?=참고 문서|참고문서|출처|참조|Reference|Sources?|출처|바 References?|Bibliography)/gi,
+    '$1\n\n'
+  );
+
   // Pattern 1: "punctuation + dash + space + content" -> "punctuation + newline + dash + space + content"
   // Example: "입니다- 136.31달러" -> "입니다\n- 136.31달러"
   result = result.replace(
@@ -322,6 +329,24 @@ export function fixListFormatting(text: string): string {
       }
       return `${prev}\n${numList}`;
     }
+  );
+
+  // Pattern 6: Add newline before bullet points (•, ‣, ○ 등)
+  result = result.replace(
+    /([^\n])\s*([•‣○◦▸▹▪▫])\s+/g,
+    (match, prev, bullet) => {
+      if (/[a-zA-Z0-9]/.test(prev)) {
+        return match;
+      }
+      return `${prev}\n${bullet} `;
+    }
+  );
+
+  // Pattern 7: Add newline between parenthesized numbers that look like list items
+  // Example: "내용 (1) 첫째 (2) 둘째" -> "내용\n(1) 첫째\n(2) 둘째"
+  result = result.replace(
+    /([^\n])\s*(\(\d+\)\s+)/g,
+    '$1\n$2'
   );
 
   // Restore protected regions
@@ -677,15 +702,17 @@ function CodeBlock({
               ? 'text-green-400 bg-green-500/10'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           )}
+          aria-label={copied ? 'Code copied to clipboard' : 'Copy code to clipboard'}
+          aria-live="polite"
         >
           {copied ? (
             <>
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Copied!</span>
             </>
           ) : (
             <>
-              <Copy className="w-3.5 h-3.5" />
+              <Copy className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Copy</span>
             </>
           )}

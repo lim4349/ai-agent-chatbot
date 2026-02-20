@@ -110,7 +110,10 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
             <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
             {/* Streaming cursor - only show when there's actual content */}
             {isStreaming && message.content && (
-              <span className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 animate-pulse [animation-duration:0.8s] align-text-bottom" aria-hidden="true" />
+              <span
+                className="inline-block w-0.5 h-5 bg-foreground/70 ml-0.5 align-text-bottom motion-safe:animate-pulse [animation-duration:0.8s]"
+                aria-hidden="true"
+              />
             )}
           </div>
         )}

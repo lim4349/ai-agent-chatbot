@@ -30,27 +30,41 @@ export function ToolUsage({ tools }: ToolUsageProps) {
 
   const totalResults = tools.reduce((acc, tool) => acc + (tool.results?.length || 0), 0);
 
+  const toggleId = `tool-usage-${tools.map(t => t.name).join('-')}`;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsExpanded(!isExpanded);
+    }
+  };
+
   return (
     <div className="mt-2 rounded-md border border-border/50 bg-muted/30 overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
+        onKeyDown={handleKeyDown}
         className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+        aria-expanded={isExpanded}
+        aria-controls={toggleId}
+        aria-label={isExpanded ? 'Hide tool details' : 'Show tool details'}
       >
         <div className="flex items-center gap-2">
-          <Wrench className="w-3.5 h-3.5 text-muted-foreground" />
+          <Wrench className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           <span className="font-medium text-muted-foreground">
             {tools.length} {tools.length === 1 ? 'tool' : 'tools'} used
             {totalResults > 0 && ` • ${totalResults} results`}
           </span>
         </div>
         {isExpanded ? (
-          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
         ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
         )}
       </button>
 
       <div
+        id={toggleId}
         className={cn(
           'overflow-hidden transition-all duration-200',
           isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
@@ -66,7 +80,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                 key={index}
                 className="flex items-start gap-2 p-2 rounded bg-muted/50 text-xs"
               >
-                <Icon className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <Icon className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-medium capitalize">{tool.name}</span>
