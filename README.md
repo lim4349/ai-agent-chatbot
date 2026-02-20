@@ -6,7 +6,7 @@ LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전�
 
 **체험하기**: [https://ai-agent-chatbot-iota.vercel.app/chat](https://ai-agent-chatbot-iota.vercel.app/chat)
 
-> **사용량 제한**: 묣가 서버라 하루 50회까지만 사용 가능합니다. 내일 다시 쓸 수 있어요.
+> **사용량 제한**: 무루 서버라 하루 50회까지만 사용 가능합니다. 내일 다시 쓸 수 있어요.
 
 > **서버 켜지는 중**: 우측 상단이 빨간색이면 서버가 깨어나는 중이에요. 초록색으로 바뀌면 사용하실 수 있습니다. (최대 30초 소요)
 
