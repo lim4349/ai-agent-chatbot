@@ -203,7 +203,11 @@ function joinSegments(segments: TextSegment[]): string {
  */
 function fixSpacingInSentence(text: string): string {
   return text
-    .replace(/([.!?])([가-힣A-Z])/g, '$1 $2')
+    // 1. 마침표/물음표/느낌표 앞의 공백 제거 ("입니다 ." -> "입니다.")
+    .replace(/\s+([.!?。！？])/g, '$1')
+    // 2. 마침표 뒤에 문자가 오면 공백 추가 ("입니다.다음" -> "입니다. 다음")
+    .replace(/([.!?。！？])([가-힣A-Z])/g, '$1 $2')
+    // 3. 한글 종결어미 뒤에 문자가 오면 공백 추가 ("입니다다음" -> "입니다 다음")
     .replace(/(습니다|입니다|함|등|있습니다|없습니다|됩니다|했습니다|하면|하여|되어)([가-힣A-Z])/g, '$1 $2');
 }
 
