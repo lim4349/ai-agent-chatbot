@@ -1,4 +1,4 @@
-# AI Agent Chatbot - Project Context
+# AI Agent Chatbot - 개발 가이드
 
 > LangGraph 기반 멀티 에이전트 챗봇 시스템
 
@@ -10,7 +10,7 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 
 **핵심 특징**:
 - 멀티 에이전트 오케스트레이션 (LangGraph)
-- RAG 파이프라인 (Pinecone + Pinecone Inference Embeddings)
+- RAG 파이프라인 (Pinecone + multilingual-e5-large)
 - 실시간 스트리밍 응답 (SSE)
 - 구조 기반 문서 청킹
 - 영구 세션 메모리 (Upstash Redis)
@@ -24,50 +24,14 @@ Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에�
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI** | LangGraph + LangChain | 0.2.x |
-| **LLM** | OpenRouter (OpenAI 호환) | Gemini Flash / GPT-4o / Claude |
+| **LLM** | OpenRouter | Gemini/GPT-4o/Claude |
 | **Vector DB** | Pinecone | - |
-| **Embedding** | Pinecone Inference (multilingual-e5-large) | - |
-| **Session** | Upstash Redis (프로덕션) / In-Memory (로컬) | - |
+| **세션** | Upstash Redis / In-Memory | - |
 | **배포** | Render + Vercel | - |
 
 ---
 
-## 프로젝트 구조
-
-```
-.
-├── frontend/              # Next.js 16 프론트엔드
-│   ├── src/
-│   │   ├── app/          # App Router
-│   │   ├── components/   # React 컴포넌트
-│   │   ├── lib/          # 유틸리티
-│   │   └── stores/       # Zustand 상태관리
-│   └── package.json
-│
-├── backend/               # FastAPI 백엔드
-│   ├── src/
-│   │   ├── agents/       # 에이전트 구현
-│   │   ├── api/          # REST API
-│   │   ├── core/         # DI 컨테이너, 설정
-│   │   ├── documents/    # 문서 처리 (파서, 청커)
-│   │   ├── graph/        # LangGraph 상태 머신
-│   │   ├── llm/          # LLM 프로바이더
-│   │   ├── memory/       # 메모리 저장소
-│   │   └── tools/        # 도구 (MCP, 웹 검색 등)
-│   ├── tests/
-│   └── pyproject.toml
-│
-├── .github/workflows/     # CI/CD
-├── docker-compose.yml     # 로컬 개발 환경
-├── ARCHITECTURE.md        # 아키텍처 문서
-└── README.md              # 프로젝트 소개
-```
-
----
-
-## 개발 가이드
-
-### 1. 로컬 개발 환경 설정
+## 개발 환경 설정
 
 ```bash
 # 1. 환경 변수 설정
@@ -90,7 +54,9 @@ npm install
 # Backend API: http://localhost:8000/docs
 ```
 
-### 2. 코드 스타일
+---
+
+## 코드 스타일
 
 **Python (Ruff)**:
 ```bash
@@ -107,7 +73,9 @@ npm run lint               # 린트 체크
 npm run build              # 빌드 테스트
 ```
 
-### 3. 테스트 실행
+---
+
+## 테스트
 
 ```bash
 # 백엔드 테스트 (가상환경에서)
@@ -120,7 +88,9 @@ cd frontend
 npm test
 ```
 
-### 4. Git Workflow
+---
+
+## Git Workflow
 
 ```
 dev (직접 커밋) → main (PR)
@@ -130,21 +100,7 @@ dev (직접 커밋) → main (PR)
 - `main`: 프로덕션 브랜치 (자동 배포)
 - `dev`: 개발 브랜치 (직접 커밋 가능)
 
-**프로세스**:
-```
-1. dev 브랜치에서 직접 작업 & 커밋
-2. dev → main PR 생성
-3. 사용자 승인 후 merge → 자동 배포
-```
-
-**금지 사항**:
-- main에 직접 commit/push 금지
-- PR 생성 후 사용자 승인 없이 merge 금지
-- **`dev` 브랜치 삭제 절대 금지** — dev는 영구 개발 브랜치임
-  - `gh pr merge --delete-branch` 플래그 사용 금지
-  - PR merge 시 반드시 `gh pr merge <number> --merge` 만 사용 (브랜치 삭제 옵션 없이)
-
-**⚠️ 작업 시작 전 필수: 브랜치 동기화 확인 (CRITICAL)**:
+**⚠️ 작업 시작 전 필수 - 브랜치 동기화**:
 ```bash
 # 1. 원격 브랜치 최신 정보 가져오기
 git fetch origin
@@ -161,12 +117,14 @@ git merge origin/main  # dev가 main보다 뒤처진 경우 필수
 # 4. 동기화 확인 (반드시 실행)
 git log --oneline main..dev  # dev가 main보다 앞서있거나 동일해야 함
 ```
-- **모든 작업 전 반드시 위 명령 실행**
-- dev 브랜치는 항상 main과 동일하거나 앞선 상태여야 함
-- 뒤처진 상태에서 작업 시 충돌/데이터 유실 위험 있음
-- 이전 PR이 자동 머지되었을 수 있으므로 반드시 확인
 
-**예시**:
+**간단 버전**:
+```bash
+git fetch origin && git checkout main && git pull origin main \
+  && git checkout dev && git pull origin dev && git merge origin/main
+```
+
+**프로세스**:
 ```bash
 # 1. dev에서 작업
 git checkout dev
@@ -177,13 +135,22 @@ git add .
 git commit -m "feat: add new feature"
 git push origin dev
 
-# 3. dev → main PR 생성
+# 3. dev → main PR 생성 (사용자 승인 필요)
 gh pr create --base main --head dev
 ```
 
-### 5. ⚠️ 필수 규칙
+**금지 사항**:
+- main에 직접 commit/push 금지
+- PR 생성 후 사용자 승인 없이 merge 금지
+- **`dev` 브랜치 삭제 절대 금지**
+  - `gh pr merge --delete-branch` 플래그 사용 금지
+  - `gh pr merge <number> --merge` 만 사용
 
-**Commit 메시지 형식 (commitlint.config.js 준수)**:
+---
+
+## 필수 규칙
+
+**Commit 메시지**:
 ```
 <type>: <subject>
 
@@ -198,18 +165,12 @@ gh pr create --base main --head dev
 - `refactor`: 리팩토링
 - `test`: 테스트 추가/수정
 - `chore`: 빌드/보조 도구 변경
-- `build`: 빌드 시스템 변경
-- `ci`: CI 설정 변경
-- `perf`: 성능 개선
-- `revert`: 이전 커밋 되돌리기
-- `release`: 릴리즈
 
 **규칙**:
 - subject는 소문자로 시작
 - subject 길이: 3~72자
-- 예: `feat: Add user authentication`
 
-**Pre-commit Hooks (.pre-commit-config.yaml)**:
+**Pre-commit Hooks**:
 ```bash
 # 설치 (최초 1회)
 pip install pre-commit
@@ -219,36 +180,17 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-**실행되는 검사**:
-- Backend: Ruff lint + format
-- Frontend: ESLint
-- 공통: trailing whitespace, EOF, YAML/JSON 검사
-
-**⚠️ 모든 작업 전 브랜치 동기화 (위 '작업 시작 전 필수' 참조)**:
-> **중요**: 위의 '⚠️ 작업 시작 전 필수: 브랜치 동기화 확인' 섹션을 먼저 실행하세요.
-
-간단 버전:
-```bash
-git fetch origin && git checkout main && git pull origin main \
-  && git checkout dev && git pull origin dev && git merge origin/main
-```
-
 **Git Push 전 로컬 테스트 필수**:
 ```bash
-# 백엔드 (가상환경에서)
+# 백엔드
 cd backend
 source .venv/bin/activate
-ruff check src/                    # 린트 체크
-python -c "from src.xxx import yyy" # import 테스트
+ruff check src/
 
 # 프론트엔드
 cd frontend
-npm run build                      # 빌드 테스트
+npm run build
 ```
-
-**PR Review 피드백은 CLAUDE.md에 추가**:
-- 새로운 에러 패턴 발견 시 이 문서에 기록
-- 코드 컨벤션/패턴 학습 내용 추가
 
 ---
 
@@ -258,84 +200,14 @@ npm run build                      # 빌드 테스트
 
 1. **Protocol 반환 타입 일치**
    - 구현체의 반환 타입을 변경하면 Protocol도 함께 수정해야 함
-   - `dict` → `dict | None` 변경 시 `protocols.py`도 업데이트
 
-2. **validate_file_upload 반환값**
-   - 반환하는 metadata에는 `detected_type` 키 사용 (not `extension`)
-   - `file_metadata.get("detected_type")`로 접근
-
-3. **asyncio.to_thread 사용**
+2. **asyncio.to_thread 사용**
    - 동기 SDK 호출은 이벤트 루프 차단 가능
    - Pinecone SDK: `await asyncio.to_thread(client.inference.embed, ...)`
 
-4. **문서 업로드 UX**
-   - 상태 확인 후 모달 닫기: `uploadStatus === 'completed'` 체크
-   - 에러 시 모달 유지 필요
-
-5. **LLM 모델 토큰화 이슈**
+3. **LLM 모델 토큰화 이슈**
    - 일부 모델이 문장 끝 punctuation 뒤 공백 없이 토큰 생성
    - 해결: `fixSentenceSpacing()` 함수로 후처리
-   - 패턴: `/([.!?。！？])([A-Za-z가-힣])/g` → `$1 $2`
-
-6. **SSE JSON 이스케이핑**
-   - heredoc으로 JSON 생성 시 특수 문자로 파싱 에러
-   - 해결: `jq -Rs` 사용하여 안전하게 JSON 생성
-
-7. **threading.Lock for thread-safe dict**
-   - FastAPI는 비동기지만 글로벌 dict 접근 시 race condition 가능
-   - `threading.Lock`으로 보호 (임시 방편, DB 마이그레이션 권장)
-
----
-
-## 핵심 패턴
-
-### 1. Protocol 지향 설계
-
-```python
-@runtime_checkable
-class LLMProvider(Protocol):
-    async def generate(self, messages: list[dict], **kwargs) -> str: ...
-```
-
-### 2. DI 컨테이너 패턴
-
-```python
-@dataclass
-class Container:
-    config: AppConfig
-
-    @cached_property
-    def llm(self) -> LLMProvider:
-        return LLMFactory.create(self.config.llm)
-```
-
-### 3. Factory 패턴
-
-```python
-@LLMFactory.register("openai")
-class OpenAIProvider: ...
-
-llm = LLMFactory.create(config)  # 자동 매핑
-```
-
----
-
-## 배포
-
-### 무료 티어
-
-| 서비스 | 용도 | 비고 |
-|--------|------|------|
-| Render.com | 백엔드 | 512MB RAM, Public repo = 무제한 CI |
-| Vercel | 프론트엔드 | 100GB/월 |
-| Pinecone | Vector DB | 무료 tier |
-| GitHub Actions | CI/CD | Public repo 무제한 |
-
-### 배포 프로세스
-
-1. `dev` 브랜치에서 개발
-2. PR 생성 → CI 테스트
-3. `main` 머지 → 자동 배포
 
 ---
 
@@ -345,9 +217,7 @@ llm = LLMFactory.create(config)  # 자동 매핑
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - 배포 가이드
 - [backend/AGENTS.md](./backend/AGENTS.md) - 백엔드 상세 가이드
 - [frontend/AGENTS.md](./frontend/AGENTS.md) - 프론트엔드 상세 가이드
-- [commitlint.config.js](./commitlint.config.js) - 커밋 메시지 규칙
-- [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Pre-commit hooks
 
 ---
 
-*마지막 업데이트: 2026-02-18*
+*마지막 업데이트: 2026-02-20*
