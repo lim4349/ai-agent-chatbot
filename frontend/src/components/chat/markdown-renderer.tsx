@@ -423,17 +423,19 @@ function fixSentenceSpacing(text: string): string {
   // Fix spacing patterns
   result = result
     // 1. Remove spaces before punctuation ("입니다 ." -> "입니다.")
-    .replace(/\s+([.!?。！？])/g, '$1')
+    .replace(/[ \t]+([.!?。！？,])/g, '$1')
     // 2. Sentence-ending punctuation followed by a letter ("입니다.다음" -> "입니다. 다음")
-    .replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2')
-    // 3. Emoji followed by Korean/English text
+    .replace(/([.!?。！？,])([A-Za-z가-힣])/g, '$1 $2')
+    // 3. Punctuation followed by dash ("버렐 (Stanley- 출생일" -> "버렐 (Stanley - 출생일")
+    .replace(/(\))(-)/g, '$1 $2')
+    // 4. Emoji followed by Korean/English text
     .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2')
-    // 4. Closing bracket/paren followed by a letter
+    // 5. Closing bracket/paren followed by a letter
     .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2')
-    // 5. Korean particles - remove space before ("포함 하는" -> "포함하는")
-    .replace(/([가-힣])\s+(는|은|이|가|을|를|와|과|로|으로|의|에|에서|부터|까지)(?=[\s\n]|$)/g, '$1$2')
-    // 6. Korean auxiliary verbs - remove space ("포함 되어" -> "포함되어")
-    .replace(/([가-힣])\s+(되어|하여|되어서|하면서|하기|함으로|되며|하며|되고|하고|되어야|해야|되면|하면|됩니다|합니다|됨|함)(?=[\s\n.!?]|$)/g, '$1$2');
+    // 6. Korean particles - remove space before ("포함 하는" -> "포함하는")
+    .replace(/([가-힣])[ \t]+(는|은|이|가|을|를|와|과|로|으로|의|에|에서|부터|까지)(?=[\s\n]|$)/g, '$1$2')
+    // 7. Korean auxiliary verbs - remove space ("포함 되어" -> "포함되어")
+    .replace(/([가-힣])[ \t]+(되어|하여|되어서|하면서|하기|함으로|되며|하며|되고|하고|되어야|해야|되면|하면|됩니다|합니다|됨|함)(?=[\s\n.!?]|$)/g, '$1$2');
 
   // Restore protected regions (reverse order)
   urls.forEach((url, i) => {
