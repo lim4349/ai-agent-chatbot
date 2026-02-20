@@ -6,7 +6,7 @@ LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전�
 
 **체험하기**: [https://ai-agent-chatbot-iota.vercel.app/chat](https://ai-agent-chatbot-iota.vercel.app/chat)
 
-> **사용량 제한**: 무료 서버라 하루 50회까지만 사용 가능합니다.
+> **사용량 제한**: 무료 서버라 하루 200회까지만 사용 가능합니다.
 
 > **서버 켜지는 중**: 우측 상단이 빨간색이면 서버가 깨어나는 중이에요. 초록색으로 바뀌면 사용하실 수 있습니다. (최대 30초 소요)
 
@@ -44,8 +44,8 @@ LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전�
 |--------|------|
 | **프론트엔드** | Next.js 16 + TypeScript + Tailwind CSS 4 + Zustand |
 | **백엔드** | Python 3.12 + FastAPI |
-| **AI 오케스트레이션** | LangGraph + LangChain |
-| **LLM** | OpenRouter (Gemini Flash / GPT-4o / Claude) |
+| **AI 오케스트레이션** | LangGraph |
+| **LLM** | OpenRouter (GPT-4o-mini) |
 | **Vector DB** | Pinecone (multilingual-e5-large 임베딩) |
 | **세션 메모리** | Upstash Redis (프로덕션) / In-Memory (로컬) |
 | **인증** | Supabase Auth |
