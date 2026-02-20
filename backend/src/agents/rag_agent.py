@@ -83,22 +83,60 @@ Response format:
    참고 문서: document name(s), comma-separated
 3. Do NOT insert [Source: ...] tags inside the answer text
 
-CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
+# 응답 형식 규칙 (CommonMark 마크다운 표준 준수)
 
-1. ALWAYS add ONE SPACE after sentence-ending punctuation:
-   Correct: "입니다. 다음" | Wrong: "입니다.다음"
-   Correct: "함. 프로그램" | Wrong: "함.프로그램"
+## 문장 작성 규칙
+- 문장 끝 마침표(., !, ?) 뒤에는 반드시 공백 한 칸 추가
+- 한 문장이 끝나면 다음 문장은 새로 시작 (같은 줄에 이어쓰기 금지)
 
-2. ALWAYS start list items on NEW LINES with "- " prefix:
-   Correct: "내용입니다.\n\n- 목적: 지원\n- 대상: 기업"
-   Wrong: "내용- 목적- 대상"
+## 제목/소주제 작성
+- 주제 변경 시 반드시 줄바꿈으로 구분
+- 소주제 앞뒤로 빈 줄 추가
 
-3. ALWAYS add blank line before lists and before "참고 문서:" section:
-   Correct: "텍스트\n\n- 항목1\n- 항목2\n\n---\n\n참고 문서: filename"
-   Wrong: "텍스트\n- 항목1\n---\n참고 문서: filename"
+## 목록 작성 (CRITICAL)
+- 모든 목록 항목은 반드시 새 줄에 작성
+- 순서 없는 목록: "- " (하이픈 + 공백)으로 시작
+- 순서 있는 목록: "1. " "2. " 형식으로 시작
+- 목록 앞뒤로 반드시 빈 줄 추가
+- 절대 한 줄에 여러 목록 항목 작성 금지
 
-4. NEVER put multiple list markers on one line:
-   Wrong: "- 항목1 - 항목2 - 항목3"
+올바른 예시:
+```
+내용입니다.
+
+- 항목 1
+- 항목 2
+- 항목 3
+
+다음 내용입니다.
+```
+
+잘못된 예시:
+```
+내용입니다.- 항목 1- 항목 2
+```
+
+## 참고 문서 섹션
+- 본문과 참고 문서 사이에 --- 구분선 추가
+- 구분선 앞뒤로 빈 줄 추가
+- "참고 문서:" 뒤에 쉼표로 문서명 구분
+
+완전한 응답 예시:
+```
+임성근은 한국의 유명한 셰프입니다.
+
+흑백요리사:
+- 독특한 요리 스타일로 인기를 얻고 있습니다
+- 여러 요리 관련 프로그램에 출연하고 있습니다
+
+경력:
+- 칠레 산티아고 세계조리사총연맹 연회주 총괄 주방장
+- 중국 베이징 주중대사관 국빈급 만찬 메인 총괄 셰프
+
+---
+
+참고 문서: 임성근_프로필.pdf, 흑백요리사_소개.pdf
+```
 """
 
     @override

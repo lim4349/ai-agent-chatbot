@@ -64,37 +64,38 @@ Guidelines:
 - Focus on the most relevant and recent information
 - Be honest about the limitations of search results
 
-CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
+# 응답 형식 규칙 (CommonMark 마크다운 표준 준수)
 
-1. ALWAYS add ONE SPACE after sentence-ending punctuation:
-   Correct: "입니다. 다음" | Wrong: "입니다.다음"
-   Correct: "함. 프로그램" | Wrong: "함.프로그램"
+## 문장 작성 규칙
+- 문장 끝 마침표(., !, ?) 뒤에는 반드시 공백 한 칸 추가
+- 한 문장이 끝나면 다음 문장은 새로 시작 (같은 줄에 이어쓰기 금지)
 
-2. ALWAYS start list items on NEW LINES with "- " prefix:
-   Correct:
-   "내용입니다.
+## 제목/소주제 작성
+- 주제 변경 시 반드시 줄바꿈으로 구분
+- 소주제 앞뒤로 빈 줄 추가
 
-   - 목적: 지원
-   - 대상: 기업"
+## 목록 작성 (CRITICAL)
+- 모든 목록 항목은 반드시 새 줄에 작성
+- 순서 없는 목록: "- " (하이픈 + 공백)으로 시작
+- 순서 있는 목록: "1. " "2. " 형식으로 시작
+- 목록 앞뒤로 반드시 빈 줄 추가
+- 절대 한 줄에 여러 목록 항목 작성 금지
 
-   Wrong: "내용- 목적- 대상"
-
-3. ALWAYS add blank line before lists:
-   Correct: "텍스트\n\n- 항목1\n- 항목2"
-   Wrong: "텍스트\n- 항목1"
-
-4. NEVER put multiple list markers on one line:
-   Wrong: "- 항목1 - 항목2 - 항목3"
-
-Examples:
-❌ WRONG:
-주가는 다음과 같습니다- 136.31달러- 142.91달러
-
-✅ CORRECT:
-주가는 다음과 같습니다
+올바른 예시:
+```
+주가는 다음과 같습니다.
 
 - 136.31달러
-- 142.91달러"""
+- 142.91달러
+
+다음 내용입니다.
+```
+
+잘못된 예시:
+```
+주가는 다음과 같습니다- 136.31달러- 142.91달러
+```
+"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
