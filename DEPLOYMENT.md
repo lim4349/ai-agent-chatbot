@@ -267,4 +267,4 @@ curl https://your-app.onrender.com/api/v1/health
 ---
 
 *배포 가이드*
-*마지막 업데이트: 2026-02-17*
+*마지막 업데이트: 2026-02-20*
