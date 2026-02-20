@@ -220,8 +220,28 @@ function fixSpacingInSentence(text: string): string {
  */
 export function formatLLMOutput(text: string): string {
   if (!text || typeof text !== 'string') return text;
+
+  // DEBUG: Log input
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DEBUG formatLLMOutput] Input:', JSON.stringify(text.slice(0, 150)));
+  }
+
   const segments = segmentText(text);
-  return joinSegments(segments);
+
+  // DEBUG: Log segments
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DEBUG formatLLMOutput] Segments count:', segments.length);
+    console.log('[DEBUG formatLLMOutput] First few segments:', segments.slice(0, 3).map(s => ({ type: s.type, content: s.content.slice(0, 50) })));
+  }
+
+  const result = joinSegments(segments);
+
+  // DEBUG: Log output
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DEBUG formatLLMOutput] Output:', JSON.stringify(result.slice(0, 150)));
+  }
+
+  return result;
 }
 
 /**
