@@ -926,10 +926,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
   const fixedContent = useMemo(() => {
     if (!content) return '';
 
-    // DEBUG: Log original content
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DEBUG] Original content:', JSON.stringify(content.slice(0, 200)));
-    }
+    // DEBUG: Log original content (always log for now)
+    console.log('[DEBUG] Original content:', JSON.stringify(content.slice(0, 200)));
 
     let result = content;
     // Step 1: Aggressive URL repair (most severe issues first)
@@ -940,25 +938,19 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     result = formatLLMOutput(result);
 
     // DEBUG: Log after formatLLMOutput
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DEBUG] After formatLLMOutput:', JSON.stringify(result.slice(0, 200)));
-    }
+    console.log('[DEBUG] After formatLLMOutput:', JSON.stringify(result.slice(0, 200)));
 
     // Step 4: Fix list formatting
     result = fixListFormatting(result);
 
     // DEBUG: Log after fixListFormatting
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DEBUG] After fixListFormatting:', JSON.stringify(result.slice(0, 200)));
-    }
+    console.log('[DEBUG] After fixListFormatting:', JSON.stringify(result.slice(0, 200)));
 
     // Step 5: Fix sentence spacing
     result = fixSentenceSpacing(result);
 
     // DEBUG: Log final result
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[DEBUG] After fixSentenceSpacing:', JSON.stringify(result.slice(0, 200)));
-    }
+    console.log('[DEBUG] After fixSentenceSpacing (FINAL):', JSON.stringify(result.slice(0, 200)));
 
     return result;
   }, [content]);
