@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Trash2, MessageSquare, Loader2 } from 'lucide-react';
 import type { Session } from '@/types';
+import { useTranslation } from '@/lib/i18n';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,7 @@ export function SessionItem({
 }: SessionItemProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { locale } = useTranslation();
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -48,11 +50,25 @@ export function SessionItem({
     }
   };
 
-  // Get message count for delete dialog
+  // Get last message for preview (limited to 50 chars)
   const messageCount = session.messages?.length || 0;
   const lastMessage = messageCount > 0
-    ? session.messages[messageCount - 1].content.slice(0, 60)
+    ? session.messages[messageCount - 1].content.slice(0, 50)
     : null;
+
+  // Translations
+  const isKorean = locale === 'ko';
+  const title = isKorean ? '세션 삭제' : 'Delete session?';
+  const description = isKorean
+    ? `"${session.title}"을(를) 삭제하시겠습니까?`
+    : `Are you sure you want to delete "${session.title}"?`;
+  const lastPrefix = isKorean ? '마지막: ' : 'Last: ';
+  const warning = isKorean
+    ? '이 작업은 되돌릴 수 없습니다.'
+    : 'This action cannot be undone.';
+  const cancelLabel = isKorean ? '취소' : 'Cancel';
+  const deleteLabel = isKorean ? '삭제' : 'Delete';
+  const deletingLabel = isKorean ? '삭제 중...' : 'Deleting...';
 
   return (
     <>
@@ -85,7 +101,7 @@ export function SessionItem({
             e.stopPropagation();
             setIsDeleteDialogOpen(true);
           }}
-          aria-label={`Delete session "${session.title}"`}
+          aria-label={isKorean ? `"${session.title}" 세션 삭제` : `Delete session "${session.title}"`}
           disabled={isDeleting}
         >
           {isDeleting ? (
@@ -99,24 +115,19 @@ export function SessionItem({
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete session?</AlertDialogTitle>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>Are you sure you want to delete &quot;{session.title}&quot;?</p>
-              {messageCount > 0 && (
-                <p className="text-muted-foreground">
-                  This session contains {messageCount} {messageCount === 1 ? 'message' : 'messages'}.
-                </p>
-              )}
+              <p>{description}</p>
               {lastMessage && (
-                <p className="text-muted-foreground text-sm truncate border-l-2 border-border pl-2">
-                  Last: {lastMessage}...
+                <p className="text-muted-foreground text-sm break-words border-l-2 border-border pl-2 max-w-full">
+                  {lastPrefix}{lastMessage}...
                 </p>
               )}
-              <p className="text-destructive font-medium">This action cannot be undone.</p>
+              <p className="text-destructive font-medium">{warning}</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{cancelLabel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-500 hover:bg-red-600"
@@ -125,10 +136,10 @@ export function SessionItem({
               {isDeleting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Deleting...
+                  {deletingLabel}
                 </>
               ) : (
-                'Delete'
+                deleteLabel
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
