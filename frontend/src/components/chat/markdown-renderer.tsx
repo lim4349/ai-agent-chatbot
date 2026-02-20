@@ -422,11 +422,13 @@ function fixSentenceSpacing(text: string): string {
 
   // Fix spacing patterns
   result = result
-    // Sentence-ending punctuation followed by a letter
+    // 1. Remove spaces before punctuation ("입니다 ." -> "입니다.")
+    .replace(/\s+([.!?。！？])/g, '$1')
+    // 2. Sentence-ending punctuation followed by a letter ("입니다.다음" -> "입니다. 다음")
     .replace(/([.!?。！？])([A-Za-z가-힣])/g, '$1 $2')
-    // Emoji followed by Korean/English text
+    // 3. Emoji followed by Korean/English text
     .replace(/([\u{1F300}-\u{1F9FF}])([가-힣A-Za-z])/gu, '$1 $2')
-    // Closing bracket/paren followed by a letter
+    // 4. Closing bracket/paren followed by a letter
     .replace(/([)\]])([A-Za-z가-힣])/g, '$1 $2');
 
   // Restore protected regions (reverse order)
