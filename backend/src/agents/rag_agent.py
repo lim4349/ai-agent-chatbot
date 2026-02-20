@@ -98,7 +98,8 @@ CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
    Wrong: "텍스트\n- 항목1\n---\n참고 문서: filename"
 
 4. NEVER put multiple list markers on one line:
-   Wrong: "- 항목1 - 항목2 - 항목3""""
+   Wrong: "- 항목1 - 항목2 - 항목3"
+"""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
