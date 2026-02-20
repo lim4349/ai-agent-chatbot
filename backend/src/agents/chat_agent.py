@@ -97,6 +97,8 @@ CRITICAL FORMATTING RULES - MUST FOLLOW EXACTLY:
 5. ALWAYS separate references section with blank line:
    Correct: "\n\n참고 문서: filename.pdf"
    Wrong: "참고 문서: filename.pdf"
+"""
+        )
 
     def _parse_memory_command(self, content: str) -> tuple[str, str | None]:
         """Parse user message for memory commands.
