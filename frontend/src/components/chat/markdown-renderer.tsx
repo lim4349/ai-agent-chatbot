@@ -7,7 +7,6 @@ import rehypeHighlight from 'rehype-highlight';
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import DOMPurify from 'dompurify';
-import { formatLLMOutput } from '@/lib/text-formatter';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -897,82 +896,24 @@ const markdownComponents = {
 };
 
 const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: string }) {
-  // Preprocess content in order:
-  // 1. aggressiveUrlRepair - fix severely malformed URLs
-  // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 3. formatLLMOutput - AST-based text formatting (sentences, lists)
-  // 4. fixListFormatting - separate inline list items with newlines
-  // 5. wrapBareUrls - wrap bare URLs in markdown link syntax
-  const sanitizedContent = useMemo(() => {
-    if (!content) return '';
-
-    let result = content;
-    // Step 1: Aggressive URL repair (most severe issues first)
-    result = aggressiveUrlRepair(result);
-    // Step 2: Fix URL spaces
-    result = fixUrlSpaces(result);
-    // Step 3: AST-based formatting for sentences and lists
-    result = formatLLMOutput(result);
-    // Step 4: Fix list formatting
-    result = fixListFormatting(result);
-    // Step 5: Wrap bare URLs in markdown links
-    result = wrapBareUrls(result);
-
-    return result;
-  }, [content]);
-
+  // NOTE: All post-processing removed. Showing LLM output as-is.
+  // Previous processing was causing more harm than good.
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={markdownComponents}
     >
-      {sanitizedContent}
+      {content || ''}
     </ReactMarkdown>
   );
 });
 
 export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRendererProps) {
-  // Apply all text fixes in order:
-  // 1. aggressiveUrlRepair - fix severely malformed URLs
-  // 2. fixUrlSpaces - remove spaces inside URLs (LLM artifact)
-  // 3. formatLLMOutput - NEW: AST-based text formatting (sentences, lists)
-  // 4. fixListFormatting - separate inline list items with newlines
-  // 5. fixSentenceSpacing - fix sentence spacing after punctuation
+  // NOTE: All post-processing removed. Showing LLM output as-is.
+  // Previous processing was causing more harm than good.
   const fixedContent = useMemo(() => {
-    if (!content) return '';
-
-    // DEBUG: Log original content (always log for now) - FULL CONTENT
-    console.log('[DEBUG] Original content:', JSON.stringify(content));
-
-    let result = content;
-    // Step 1: Aggressive URL repair (most severe issues first)
-    result = aggressiveUrlRepair(result);
-    // Step 2: Fix URL spaces
-    result = fixUrlSpaces(result);
-
-    // DEBUG: Log before sentence formatting - FULL CONTENT
-    console.log('[DEBUG] Before sentence formatting:', JSON.stringify(result));
-
-    // Step 3: Fix sentence spacing (handles Korean sentence breaks)
-    result = fixSentenceSpacing(result);
-
-    // DEBUG: Log after sentence formatting - FULL CONTENT
-    console.log('[DEBUG] After sentence formatting:', JSON.stringify(result));
-
-    // Step 4: Fix list formatting
-    result = fixListFormatting(result);
-
-    // DEBUG: Log after list formatting - FULL CONTENT
-    console.log('[DEBUG] After list formatting:', JSON.stringify(result));
-
-    // Step 5: Additional Korean text normalization
-    result = fixKoreanSpacing(result);
-
-    // DEBUG: Log final result - FULL CONTENT
-    console.log('[DEBUG] After fixSentenceSpacing (FINAL):', JSON.stringify(result));
-
-    return result;
+    return content || '';
   }, [content]);
 
   // For smooth streaming: render as plain text during streaming
