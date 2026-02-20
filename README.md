@@ -1,127 +1,94 @@
 # AI Agent Chatbot
 
-LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전문 에이전트를 오케스트레이션하며, Protocol 기반 의존성 주입과 확장 가능한 아키텍처를 적용한 프로젝트.
+LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전문 에이전트를 오케스트레이션합니다.
 
 ## 데모
 
 **체험하기**: [https://ai-agent-chatbot-iota.vercel.app/chat](https://ai-agent-chatbot-iota.vercel.app/chat)
 
-> ⚠️ **무료 티어 운영**: 일일 요청 제한 50회. 제한 도달 시 다음 날 자동 초기화됩니다.
+> **묣가 티어 운영**: 일일 요청 제한 50회. 제한 도달 시 다음 날 자동 초기화됩니다.
 
-> ⚠️ **Cold start**: 우측 상단 빨간불이 떴다면 서버가 연결되서 초록불이 될 때까지 잠시 대기해주세요.
+> **Cold start**: 우측 상단 빨간불이 떴다면 서버가 연결되서 초록불이 될 때까지 잠시 대기해주세요.
 
-## 빠른 시작
+---
 
-### 1. 백엔드 설정
+## 사용 방법
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+### 채팅 모드
 
-cp .env.example .env
-# .env 파일에 API 키 설정 (OPENAI_API_KEY 또는 ANTHROPIC_API_KEY)
-```
+1. 일반 질문: 자유롭게 질문하면 Supervisor가 적절한 에이전트로 라우팅합니다
+2. 문서 기반 Q&A: PDF/DOCX 업로드 후 문서에 대해 질문 (RAG 에이전트)
+3. 웹 검색: 실시간 정보가 필요한 질문 (Web Search 에이전트)
+4. 코드 작성: 프로그래밍 관련 질문 (Code 에이전트)
 
-### 2. 프론트엔드 설정
+### 메모리 명령
 
-```bash
-cd frontend
-npm install
+| 명령 | 예시 | 설명 |
+|------|------|------|
+| `기억해:` | `기억해: 나는 커피를 좋아해` | 사용자 정보 저장 |
+| `알고 있니?` | `내가 좋아하는 게 뭐야?` | 저장된 메모리 검색 |
+| `잊어줘:` | `잊어줘: 커피` | 메모리 삭제 |
+| `요약해줘` | `지금까지 대화 요약해줘` | 즉시 요약 생성 |
 
-cp .env.example .env.local
-# NEXT_PUBLIC_API_URL 기본값: http://localhost:8000
-```
+### 문서 업로드
 
-### 3. 개발 서버 실행
+- 지원 형식: PDF, DOCX, TXT, MD, CSV, JSON
+- 최대 크기: 10MB
+- 업로드 후 자동으로 문서 내용을 기반으로 질문 가능
 
-```bash
-# 백엔드 (8000번 포트)
-cd backend
-uvicorn src.main:app --reload
-
-# 프론트엔드 (3000번 포트)
-cd frontend
-npm run dev
-
-# 또는 Docker로 전체 실행
-docker compose up -d
-```
-
-### 4. 접속
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API 문서: http://localhost:8000/docs
-
-## 환경 변수 설정
-
-`backend/.env`:
-
-```bash
-# OpenAI 사용 시
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-LLM_OPENAI_API_KEY=sk-...
-
-# Anthropic 사용 시
-LLM_PROVIDER=anthropic
-LLM_MODEL=claude-sonnet-4-20250514
-LLM_ANTHROPIC_API_KEY=sk-ant-...
-```
-
-## 개발 명령어
-
-```bash
-# 백엔드
-cd backend
-uvicorn src.main:app --reload        # 개발 서버
-pytest tests/ -v                      # 테스트
-ruff check src/ tests/                # 린트
-ruff format src/ tests/               # 포맷팅
-
-# 프론트엔드
-cd frontend
-npm run dev                           # 개발 서버
-npm run build                         # 빌드
-npm run lint                          # 린트
-
-# Docker
-docker compose up -d                  # 전체 서비스 시작
-docker compose down                   # 중지
-docker compose logs -f                # 로그
-```
+---
 
 ## 기술 스택
 
-**Backend**: Python 3.12, FastAPI, LangGraph, LangChain, dependency-injector, Pinecone, Supabase, Redis
+| 레이어 | 기술 |
+|--------|------|
+| **프론트엔드** | Next.js 16 + TypeScript + Tailwind CSS 4 + Zustand |
+| **백엔드** | Python 3.12 + FastAPI |
+| **AI 오케스트레이션** | LangGraph + LangChain |
+| **LLM** | OpenRouter (Gemini Flash / GPT-4o / Claude) |
+| **Vector DB** | Pinecone (multilingual-e5-large 임베딩) |
+| **세션 메모리** | Upstash Redis (프로덕션) / In-Memory (로컬) |
+| **인증** | Supabase Auth |
+| **배포** | Render (백엔드) + Vercel (프론트엔드) |
 
-**Frontend**: Next.js 16, TypeScript, Tailwind CSS 4, Zustand, shadcn/ui
-
-**Infrastructure**: Docker, Render.com, Vercel, Pinecone, Supabase, Upstash
+---
 
 ## 프로젝트 구조
 
 ```
 ai-agent-chatbot/
 ├── backend/           # FastAPI + LangGraph
-│   ├── src/           # 소스 코드
-│   ├── tests/         # 테스트
-│   └── Dockerfile
+│   ├── src/
+│   │   ├── agents/    # 멀티 에이전트 시스템 (Chat, RAG, WebSearch, Code)
+│   │   ├── api/       # REST API
+│   │   ├── core/      # DI 컨테이너, 설정, 보안
+│   │   ├── documents/ # 문서 처리 (파서, 청커)
+│   │   ├── graph/     # LangGraph 상태 머신
+│   │   ├── llm/       # LLM 프로바이더
+│   │   └── memory/    # 메모리 저장소
+│   └── tests/
+│
 ├── frontend/          # Next.js
-│   ├── src/           # 소스 코드
-│   └── Dockerfile
-├── docker-compose.yml # 로컬 개발 환경
-└── README.md
+│   ├── src/
+│   │   ├── app/       # App Router
+│   │   ├── components/# React 컴포넌트
+│   │   ├── lib/       # 유틸리티
+│   │   └── stores/    # Zustand 상태관리
+│   └── package.json
+│
+├── ARCHITECTURE.md    # 아키텍처 문서
+├── DEPLOYMENT.md      # 배포 가이드
+└── README.md          # 프로젝트 소개
 ```
+
+---
 
 ## 문서
 
-- [아키텍처 문서](./ARCHITECTURE.md) — 시스템 설계 및 아키텍처
+- [아키텍처 문서](./ARCHITECTURE.md) — 시스템 설계 및 아키텍처 상세
 - [배포 가이드](./DEPLOYMENT.md) — Render.com + Vercel 배포 방법
-- [백엔드 가이드](./backend/AGENTS.md) — 백엔드 개발 가이드 및 프로젝트 룰
-- [프론트엔드 가이드](./frontend/AGENTS.md) — 프론트엔드 개발 가이드
+
+---
 
 ## 라이선스
 

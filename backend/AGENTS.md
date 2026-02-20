@@ -519,4 +519,4 @@ docker run -p 8000:8000 --env-file .env ai-agent-backend
 ---
 
 *Backend AGENTS.md*
-*마지막 업데이트: 2026-02-17*
+*마지막 업데이트: 2026-02-20*
