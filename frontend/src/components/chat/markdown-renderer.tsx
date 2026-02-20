@@ -435,7 +435,9 @@ function fixSentenceSpacing(text: string): string {
     // 6. Korean particles - remove space before ("포함 하는" -> "포함하는")
     .replace(/([가-힣])[ \t]+(는|은|이|가|을|를|와|과|로|으로|의|에|에서|부터|까지)(?=[\s\n]|$)/g, '$1$2')
     // 7. Korean auxiliary verbs - remove space ("포함 되어" -> "포함되어")
-    .replace(/([가-힣])[ \t]+(되어|하여|되어서|하면서|하기|함으로|되며|하며|되고|하고|되어야|해야|되면|하면|됩니다|합니다|됨|함)(?=[\s\n.!?]|$)/g, '$1$2');
+    .replace(/([가-힣])[ \t]+(되어|하여|되어서|하면서|하기|함으로|되며|하며|되고|하고|되어야|해야|되면|하면|됩니다|합니다|됨|함)(?=[\s\n.!?]|$)/g, '$1$2')
+    // 8. Insert period between Korean sentences without punctuation ("사용됩니다주요 특징" -> "사용됩니다. 주요 특징")
+    .replace(/(습니다|입니다|함|등|있습니다|없습니다|됩니다|했습니다)([가-힣]{2,})/g, '$1. $2');
 
   // Restore protected regions (reverse order)
   urls.forEach((url, i) => {
