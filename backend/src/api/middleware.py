@@ -79,9 +79,11 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
 
             # Check if it's our custom exception
             if hasattr(e, "to_dict"):
-                return JSONResponse(status_code=500, content=e.to_dict())
+                # Use the exception's status_code if available, default to 500
+                status = getattr(e, "status_code", 500)
+                return JSONResponse(status_code=status, content=e.to_dict())
 
             return JSONResponse(
                 status_code=500,
-                content={"error": {"code": "INTERNAL_ERROR", "message": str(e)}},
+                content={"error": {"code": "INTERNAL_ERROR", "message": "An internal error occurred"}},
             )

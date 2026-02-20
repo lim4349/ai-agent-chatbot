@@ -9,6 +9,7 @@ import { CombinedDocumentUpload } from '@/components/documents/combined-document
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-media-query';
 
 export default function ChatPage() {
   const sidebarOpen = useChatStore((state) => state.sidebarOpen);
@@ -22,6 +23,9 @@ export default function ChatPage() {
   // Mobile sidebar state (separate from desktop sidebar)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Use media query for responsive detection (syncs with CSS)
+  const isMobile = useIsMobile();
+
   // Create initial session only after hydration is complete
   useEffect(() => {
     if (hasHydrated && sessions.length === 0) {
@@ -31,7 +35,7 @@ export default function ChatPage() {
 
   // Handle menu click - different behavior for mobile vs desktop
   const handleMenuClick = () => {
-    if (window.innerWidth < 768) {
+    if (isMobile) {
       // Mobile: toggle Sheet
       setMobileSidebarOpen(true);
     } else {

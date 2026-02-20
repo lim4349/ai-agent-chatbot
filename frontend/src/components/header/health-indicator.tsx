@@ -26,9 +26,27 @@ export function HealthIndicator() {
       }
     };
 
+    // Initial check
     checkHealth();
     const interval = setInterval(checkHealth, HEALTH_CHECK_INTERVAL);
-    return () => clearInterval(interval);
+
+    // Pause polling when tab is hidden to save resources
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, interval continues but we could reduce frequency
+        // For now, we just let it run - the browser will throttle it
+      } else {
+        // Tab is visible again, check immediately
+        checkHealth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [setHealth]);
 
   const isHealthy = health?.status === 'ok';
