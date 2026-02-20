@@ -1,19 +1,17 @@
 # 배포 가이드 (Render.com + Vercel)
 
-> 묣가 티어(Free Tier)로 AI Agent Chatbot 배포하기
+> 물가 서버로 AI Agent Chatbot 배포하기
 
 ---
 
 ## 개요
 
-이 프로젝트는 다음 무료 서비스들로 구성됩니다:
-
 | 서비스 | 용도 | 제공량 |
 |--------|------|--------|
 | **Render.com** | 백엔드 API | 512MB RAM, 0.1 CPU |
-| **Pinecone** | 벡터 DB (RAG) | 무료 티어 |
-| **Supabase** | 인증 + 세션 DB + 장기 메모리 | 무료 티어 |
-| **Upstash Redis** | 단기 세션 메모리 | 무료 티어 |
+| **Pinecone** | 벡터 DB (RAG) | 물가 티어 |
+| **Supabase** | 인증 + 세션 DB + 장기 메모리 | 물가 티어 |
+| **Upstash Redis** | 단기 세션 메모리 | 물가 티어 |
 | **Vercel** | 프론트엔드 | 100GB/월 트래픽 |
 | **GitHub Actions** | CI/CD | 무제한 (Public repo) |
 
@@ -21,79 +19,50 @@
 
 ---
 
-## Git Flow 배포 프로세스
-
-이 프로젝트는 **Git Flow**를 따릅니다:
+## 배포 프로세스
 
 ```
-feature/my-feature  ──PR──→  dev  ──PR──→  main
-     │                      │              │
-     ▼                      ▼              ▼
- CI (테스트/린트)      CI (최종 확인)   CD (자동 배포)
-                                            │
-                          ┌─────────────────┼─────────────────┐
-                          ▼                 ▼                 ▼
-                     [Pinecone]        [Backend]         [Frontend]
+dev ──PR──→ main ──CD──→ [Render] + [Vercel]
 ```
 
-### 브랜치 전략
-
-| 브랜치 | 용도 | 보호 규칙 |
-|--------|------|-----------|
-| `main` | 프로덕션 | PR 필수, CI 통과 필수 |
-| `dev` | 개발 통합 | PR 필수 |
-| `feature/*` | 기능 개발 | - |
-| `fix/*` | 버그 수정 | - |
-| `docs/*` | 문서 수정 | - |
-
-### PR 워크플로우
-
-1. **작업 브랜치 생성**: `git checkout -b feature/my-feature`
-2. **코드 작성 및 커밋**: `git commit -m "feat: ..."`
-3. **dev에 PR 생성**: `gh pr create --base dev`
-4. **CI 자동 실행**: 테스트, 린트, 보안 스캔
-5. **코드 리뷰**: 팀원 리뷰 및 승인
-6. **dev에 머지**: `dev` 브랜치로 머지
-7. **main에 PR 생성**: `gh pr create --base main --head dev`
-8. **main에 머지**: CD 자동 실행 → 프로덕션 배포
+1. `dev` 브랜치에서 개발 완료
+2. `dev` → `main` PR 생성 및 머지
+3. GitHub Actions 자동 배포
 
 ---
 
 ## 사전 준비
 
-### 1. GitHub Secrets 설정
+### GitHub Secrets 설정
 
-Repository → Settings → Secrets and variables → Actions → New repository secret
+Repository → Settings → Secrets and variables → Actions
 
-| Secret Name | 값 | 설명 |
-|-------------|-----|------|
-| `RENDER_API_KEY` | rdp_xxxxxxxx | Render API 키 |
-| `RENDER_BACKEND_SERVICE_ID` | srv-xxxxxxxx | 백엔드 서비스 ID |
-| `RENDER_URL` | https://your-app.onrender.com | 헬스 체크용 URL |
-| `VERCEL_TOKEN` | xxxxxxxx | Vercel 토큰 |
-| `VERCEL_ORG_ID` | team_xxxxxxxx | Vercel 조직 ID |
-| `VERCEL_PROJECT_ID` | prj_xxxxxxxx | Vercel 프로젝트 ID |
-| `PINECONE_API_KEY` | xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx | Pinecone API 키 |
-| `SUPABASE_URL` | https://xxx.supabase.co | Supabase 프로젝트 URL |
-| `SUPABASE_SERVICE_KEY` | eyJ... | Supabase Service Role Key |
-| `UPSTASH_REDIS_URL` | rediss://default:xxx@xxx.upstash.io:6379 | Upstash Redis URL |
-| `UPSTASH_REDIS_TOKEN` | xxxxx | Upstash Redis Token |
+| Secret Name | 설명 |
+|-------------|------|
+| `RENDER_API_KEY` | Render API 키 |
+| `RENDER_BACKEND_SERVICE_ID` | 백엔드 서비스 ID |
+| `RENDER_URL` | 헬스 체크용 URL |
+| `VERCEL_TOKEN` | Vercel 토큰 |
+| `VERCEL_ORG_ID` | Vercel 조직 ID |
+| `VERCEL_PROJECT_ID` | Vercel 프로젝트 ID |
+| `PINECONE_API_KEY` | Pinecone API 키 |
+| `SUPABASE_URL` | Supabase 프로젝트 URL |
+| `SUPABASE_SERVICE_KEY` | Supabase Service Role Key |
+| `UPSTASH_REDIS_URL` | Upstash Redis URL |
+| `UPSTASH_REDIS_TOKEN` | Upstash Redis Token |
 
 ---
 
-## Render.com 배포 방법
+## Render.com 배포
 
-### 방법 1: Blueprint로 한 번에 생성 (추천)
+### 방법 1: Blueprint (추천)
 
-1. Render Dashboard → Blueprinters → New Blueprint Instance
+1. Render Dashboard → Blueprints → New Blueprint Instance
 2. GitHub 저장소 연결
-3. `render.yaml` 파일이 자동으로 인식됨
-4. 다음 서비스가 생성됨:
-   - `ai-agent-backend` (웹 서비스)
+3. `render.yaml` 파일 자동 인식
 
-### 방법 2: 수동으로 서비스 생성
+### 방법 2: 수동 생성
 
-#### Backend 서비스
 1. Dashboard → New → Web Service
 2. GitHub 저장소 선택
 3. 설정:
@@ -104,65 +73,26 @@ Repository → Settings → Secrets and variables → Actions → New repository
 4. Environment Variables 설정
 5. Create Web Service
 
-#### Pinecone 설정
-1. [Pinecone 콘솔](https://app.pinecone.io)에서 계정 생성
-2. 새 인덱스 생성:
-   - **Index Name**: ai-agent-index
-   - **Dimensions**: 1024 (multilingual-e5-large)
-   - **Metric**: cosine
-3. API Key 발급 및 Render Environment Variables에 추가
-
-#### Supabase 설정 (인증 + 세션 DB + 장기 메모리)
-1. [Supabase 콘솔](https://supabase.com)에서 계정 생성
-2. 새 프로젝트 생성
-3. Settings → API에서 다음 정보 복사:
-   - **Project URL**: `https://xxx.supabase.co`
-   - **Service Role Key**: `eyJ...` (anon key가 아님!)
-4. Render Environment Variables에 추가:
-   - `SUPABASE_URL` = (프로젝트 URL)
-   - `SUPABASE_SERVICE_KEY` = (Service Role Key)
-
-#### Upstash Redis 설정 (단기 세션 메모리)
-1. [Upstash 콘솔](https://upstash.com)에서 계정 생성
-2. 새 Redis 데이터베이스 생성:
-   - **Name**: ai-agent-session
-   - **Region**: 가까운 리전 선택
-3. 연결 정보 복사:
-   - Dashboard에서 "Rediss URL" 복사
-   - 형식: `rediss://default:<password>@<endpoint>.upstash.io:6379`
-4. Render Environment Variables에 추가:
-   - `MEMORY_BACKEND` = `redis`
-   - `UPSTASH_REDIS_URL` = (복사한 URL)
-   - `UPSTASH_REDIS_TOKEN` = (복사한 Token)
-
 ---
 
-## Vercel 배포 방법
-
-### 1. Vercel CLI 설치 및 로그인
+## Vercel 배포
 
 ```bash
+# 1. Vercel CLI 설치
 npm i -g vercel
+
+# 2. 로그인
 vercel login
-```
 
-### 2. 프로젝트 연결
-
-```bash
+# 3. 프로젝트 연결
 cd frontend
 vercel link
-```
 
-### 3. 환경 변수 설정
-
-```bash
+# 4. 환경 변수 설정
 vercel env add NEXT_PUBLIC_API_URL
 # 값: https://your-backend.onrender.com
-```
 
-### 4. 수동 배포
-
-```bash
+# 5. 배포
 vercel --prod
 ```
 
@@ -172,24 +102,21 @@ vercel --prod
 
 ### Render.com (Backend)
 
-| 변수 | 예시 값 | 설명 |
-|------|---------|------|
-| `OPENAI_API_KEY` | sk-... | OpenAI API 키 |
-| `ANTHROPIC_API_KEY` | sk-ant-... | Anthropic API 키 |
-| `TAVILY_API_KEY` | tvly-... | Tavily 검색 API |
-| `PINECONE_API_KEY` | xxx-xxx-xxx | Pinecone API 키 |
-| `PINECONE_INDEX_NAME` | ai-agent-index | Pinecone 인덱스 이름 |
-| `SUPABASE_URL` | https://xxx.supabase.co | Supabase 프로젝트 URL |
-| `SUPABASE_SERVICE_KEY` | eyJ... | Supabase Service Role Key |
-| `UPSTASH_REDIS_URL` | rediss://default:xxx@... | Upstash Redis URL |
-| `UPSTASH_REDIS_TOKEN` | xxxxx | Upstash Redis Token |
-| `MEMORY_BACKEND` | redis | 메모리 백엔드 (in_memory/redis) |
+| 변수 | 예시 값 |
+|------|---------|
+| `LLM_OPENAI_API_KEY` | sk-or-v1-... (OpenRouter) |
+| `LLM_BASE_URL` | https://openrouter.ai/api/v1 |
+| `RAG_PINECONE_API_KEY` | xxx-xxx-xxx |
+| `SUPABASE_URL` | https://xxx.supabase.co |
+| `SUPABASE_SERVICE_KEY` | eyJ... |
+| `UPSTASH_REDIS_URL` | rediss://default:xxx@... |
+| `MEMORY_BACKEND` | redis |
 
 ### Vercel (Frontend)
 
-| 변수 | 예시 값 | 설명 |
-|------|---------|------|
-| `NEXT_PUBLIC_API_URL` | https://api.example.com | 백엔드 API URL |
+| 변수 | 예시 값 |
+|------|---------|
+| `NEXT_PUBLIC_API_URL` | https://api.example.com |
 
 ---
 
@@ -198,26 +125,21 @@ vercel --prod
 ```
 Push to main
     │
-    ├──→ Test Backend (pytest, ruff, mypy)
+    ├──→ Test Backend (ruff, pytest)
     │
-    ├──→ Test Frontend (npm test, build)
+    ├──→ Test Frontend (npm lint, build)
     │
     ├──→ Security Scan (Trivy, npm audit)
     │
     └──→ Deploy (병렬)
          │
-         ├──→ Render
-         │   └──→ Deploy Backend
-         │
-         └──→ Vercel
-              └──→ Deploy Frontend
+         ├──→ Render (Backend)
+         └──→ Vercel (Frontend)
 ```
 
 ---
 
-## 주의사항
-
-### 묣가 티어 한계
+## 물가 티어 한계
 
 1. **15분 슬립**: 15분간 요청 없으면 서버 슬립
    - 첫 요청 시 자동으로 깨어남 (10-30초 소요)
@@ -225,12 +147,7 @@ Push to main
 2. **512MB RAM**: 메모리 부족 주의
    - 해결책: `WEB_CONCURRENCY=1` 설정
 
-3. **Cold Start**: 슬립 후 첫 요청 시 느림 (10-30초)
-
-### 서비스 의존성
-
-- Backend는 Pinecone API에 의존
-- Pinecone은 외부 SaaS로 별도 배포 불필요
+3. **Cold Start**: 슬립 후 첫 요청 시 느림
 
 ---
 
@@ -242,19 +159,15 @@ Push to main
 # Render 로그 확인
 render logs --id srv-xxxxxxxx
 
-# 서비스 상태 확인
+# 헬스 체크
 curl https://your-app.onrender.com/api/v1/health
 ```
 
 ### Pinecone 연결 오류
 
-```bash
-# Pinecone API 키 확인 (Render Dashboard Environment Variables)
-# PINECONE_API_KEY, PINECONE_INDEX_NAME 확인
-
-# Pinecone 콘솔에서 인덱스 상태 확인
-# https://app.pinecone.io
-```
+- Pinecone API 키 확인 (Render Dashboard)
+- `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` 확인
+- [Pinecone 콘솔](https://app.pinecone.io)에서 인덱스 상태 확인
 
 ---
 
@@ -266,5 +179,4 @@ curl https://your-app.onrender.com/api/v1/health
 
 ---
 
-*배포 가이드*
 *마지막 업데이트: 2026-02-20*
