@@ -310,25 +310,25 @@ export function fixListFormatting(text: string): string {
   );
 
   // Pattern 4: Numbered list items without preceding newline
-  // Example: "입니다1. 136.31달러" -> "입니다\n1. 136.31달러"
-  // Example: "order2. 142.91달러" -> "order\n2. 142.91달러"
-  // Handles punctuation, whitespace, brackets, AND Korean/English letters
+  // Example: "입니다1. 내용" -> "입니다\n1. 내용"
+  // Example: "내용 1. 항목" -> "내용\n1. 항목"
+  // Matches any number followed by dot and space, with content after
   result = result.replace(
-    /([:.。！？\s\])}]|[a-zA-Z가-힣])(\d+\.\s+)(?=[\d가-힣])/g,
-    '$1\n$2'
-  );
-
-  // Pattern 5: Consecutive numbered list items
-  // Example: "1. item 2. item" -> "1. item\n2. item"
-  result = result.replace(
-    /([^\n])\s+(\d+\.\s+)(?=[\d가-힣])/g,
+    /([^\n])(\d+\.\s+)(?=\S)/g,
     (match, prev, numList) => {
-      // Don't split if prev is alphanumeric (part of a word/number)
-      if (/[a-zA-Z0-9]/.test(prev)) {
+      // Don't split if prev is part of a number (e.g., "1.5.0")
+      if (/\d$/.test(prev)) {
         return match;
       }
       return `${prev}\n${numList}`;
     }
+  );
+
+  // Pattern 5: Ensure numbered lists at line start are properly separated from previous content
+  // This handles cases where the previous pattern didn't catch due to specific conditions
+  result = result.replace(
+    /([:.。！？\s\])}])(\d+\.\s+)/g,
+    '$1\n$2'
   );
 
   // Pattern 6: Add newline before bullet points (•, ‣, ○ 등)

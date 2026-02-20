@@ -12,7 +12,8 @@ from src.documents.pinecone_store import PineconeVectorStore
 logger = get_logger(__name__)
 
 # Minimum relevance score threshold to filter low-quality matches
-MIN_RELEVANCE_SCORE = 0.5
+# Lowered to 0.3 to catch more potential matches (was 0.5)
+MIN_RELEVANCE_SCORE = 0.3
 # Score threshold for low-confidence warning
 LOW_CONFIDENCE_THRESHOLD = 0.7
 
@@ -76,15 +77,33 @@ class PineconeDocumentRetriever(DocumentRetriever):
             device_id=device_id,
         )
 
+        logger.info(
+            "vector_search_completed",
+            raw_results_count=len(results),
+            device_id=device_id,
+            session_id=session_id,
+        )
+
+        # Log each raw result for debugging
+        for i, result in enumerate(results):
+            logger.debug(
+                "raw_search_result",
+                index=i,
+                score=result.score,
+                document_id=result.document_id,
+                content_preview=result.chunk_content[:100] if result.chunk_content else "",
+            )
+
         # Format results for RAGAgent with confidence filtering
         formatted_results = []
         for result in results:
             # Skip low-relevance results (anti-hallucination)
             if result.score < MIN_RELEVANCE_SCORE:
-                logger.debug(
+                logger.info(
                     "skipping_low_relevance_result",
                     score=result.score,
                     threshold=MIN_RELEVANCE_SCORE,
+                    document_id=result.document_id,
                 )
                 continue
 
