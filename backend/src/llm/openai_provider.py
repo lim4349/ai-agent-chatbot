@@ -1,8 +1,10 @@
 """OpenAI LLM Provider."""
 
+import warnings
 from collections.abc import AsyncIterator
 
 from langchain_openai import ChatOpenAI
+from pydantic import PydanticSerializationUnexpectedValue
 
 from src.core.config import LLMConfig
 from src.core.di_container import container
@@ -68,10 +70,47 @@ class OpenAIProvider:
         if result is None:
             return None
 
+        # Suppress Pydantic serialization warnings for LangChain wrapper objects
+        # that have a 'parsed' field with unexpected types
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message=".*PydanticSerializationUnexpectedValue.*",
+            )
+            return self._extract_structured_result(result)
+
+    def _extract_structured_result(self, result) -> dict | None:
+        """Extract structured result, handling LangChain wrapper objects.
+
+        LangChain's with_structured_output may return a wrapper object with a
+        'parsed' field containing the actual Pydantic model. This method safely
+        extracts the inner value while suppressing serialization warnings.
+        """
+        if hasattr(result, "parsed") and result.parsed is not None:
+            # LangChain wrapper - extract inner Pydantic model
+            inner = result.parsed
+            if hasattr(inner, "model_dump"):
+                return inner.model_dump()
+            elif isinstance(inner, dict):
+                return inner
+            else:
+                # Fallback: convert to dict manually
+                return dict(inner)
+
         if hasattr(result, "model_dump"):
-            # Handle LangChain wrapper with 'parsed' field (suppresses Pydantic UserWarning)
-            if hasattr(result, "parsed") and result.parsed is not None:
-                inner = result.parsed
-                return inner.model_dump() if hasattr(inner, "model_dump") else dict(inner)
             return result.model_dump()
-        return result
+
+        if isinstance(result, dict):
+            return result
+
+        # Last resort: try to serialize and suppress any warnings
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning)
+                if hasattr(result, "__dict__"):
+                    return result.__dict__
+        except Exception:
+            pass
+
+        return None

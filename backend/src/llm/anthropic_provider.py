@@ -1,5 +1,6 @@
 """Anthropic LLM Provider."""
 
+import warnings
 from collections.abc import AsyncIterator
 
 from langchain_anthropic import ChatAnthropic
@@ -72,10 +73,30 @@ class AnthropicProvider:
         if result is None:
             return None
 
+        # Suppress Pydantic serialization warnings for LangChain wrapper objects
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message=".*PydanticSerializationUnexpectedValue.*",
+            )
+            return self._extract_structured_result(result)
+
+    def _extract_structured_result(self, result) -> dict | None:
+        """Extract structured result, handling LangChain wrapper objects."""
+        if hasattr(result, "parsed") and result.parsed is not None:
+            inner = result.parsed
+            if hasattr(inner, "model_dump"):
+                return inner.model_dump()
+            elif isinstance(inner, dict):
+                return inner
+            else:
+                return dict(inner)
+
         if hasattr(result, "model_dump"):
-            # Handle LangChain wrapper with 'parsed' field (suppresses Pydantic UserWarning)
-            if hasattr(result, "parsed") and result.parsed is not None:
-                inner = result.parsed
-                return inner.model_dump() if hasattr(inner, "model_dump") else dict(inner)
             return result.model_dump()
-        return result
+
+        if isinstance(result, dict):
+            return result
+
+        return None

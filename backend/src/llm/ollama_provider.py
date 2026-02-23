@@ -1,6 +1,7 @@
 """Ollama LLM Provider for local models."""
 
 import json
+import warnings
 from collections.abc import AsyncIterator
 
 from langchain_ollama import ChatOllama
@@ -50,13 +51,15 @@ class OllamaProvider:
             # Try native structured output first
             structured = self.client.with_structured_output(output_schema)
             result = await structured.ainvoke(messages, **kwargs)
-            if hasattr(result, "model_dump"):
-                # Handle LangChain wrapper with 'parsed' field (suppresses Pydantic UserWarning)
-                if hasattr(result, "parsed") and result.parsed is not None:
-                    inner = result.parsed
-                    return inner.model_dump() if hasattr(inner, "model_dump") else dict(inner)
-                return result.model_dump()
-            return result
+
+            # Suppress Pydantic serialization warnings for LangChain wrapper objects
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    category=UserWarning,
+                    message=".*PydanticSerializationUnexpectedValue.*",
+                )
+                return self._extract_structured_result(result)
         except Exception as e:
             logger.warning("ollama_structured_output_fallback", error=str(e))
             # Fallback: use JSON mode with explicit instructions
@@ -89,3 +92,22 @@ Respond ONLY with the JSON object, no additional text."""
                 raise ValueError(
                     f"Failed to parse structured output: {parse_error}"
                 ) from parse_error
+
+    def _extract_structured_result(self, result) -> dict | None:
+        """Extract structured result, handling LangChain wrapper objects."""
+        if hasattr(result, "parsed") and result.parsed is not None:
+            inner = result.parsed
+            if hasattr(inner, "model_dump"):
+                return inner.model_dump()
+            elif isinstance(inner, dict):
+                return inner
+            else:
+                return dict(inner)
+
+        if hasattr(result, "model_dump"):
+            return result.model_dump()
+
+        if isinstance(result, dict):
+            return result
+
+        return result

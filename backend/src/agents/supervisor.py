@@ -33,18 +33,50 @@ AGENT_DESCRIPTIONS = {
     "chat": "For general conversation, greetings, casual questions, opinions, creative writing, or any query that doesn't fit the other categories.",
 }
 
+# Workflow pattern hints for multi-step tasks
+WORKFLOW_PATTERNS = """
+## Multi-Step Workflow Detection
+
+When a user request involves multiple sequential steps, break it down and route to agents one by one.
+
+Common patterns:
+1. "Search web → Summarize in code → Write report with RAG"
+   - Step 1: web_search (get information)
+   - Step 2: code (summarize/transform data)
+   - Step 3: rag (combine with documents) or chat (final report)
+   - Step 4: done
+
+2. "Analyze this code → Search for similar solutions → Explain"
+   - Step 1: code (analyze)
+   - Step 2: web_search (find similar)
+   - Step 3: chat (explain)
+
+3. "Find documents about X → Write code to process them"
+   - Step 1: rag (retrieve documents)
+   - Step 2: code (write processing code)
+
+Always set remaining_tasks to track what's left to do.
+Return 'done' when all tasks are complete.
+"""
+
 
 def create_route_decision_model(available_agents: set[str]):
     """Create a RouteDecision model with dynamic agent choices."""
     agent_literal = Literal[tuple(available_agents)]  # type: ignore
+    # Include "done" as a valid option for workflow completion
+    agent_or_done = Literal[tuple(available_agents | {"done"})]  # type: ignore
 
     class SupervisorRoutingDecision(BaseModel):
         """Supervisor's decision for routing user queries to specialist agents."""
 
-        selected_agent: agent_literal = Field(
-            description="The name of the agent to route the query to"
+        selected_agent: agent_or_done = Field(
+            description="The name of the agent to route the query to, or 'done' if workflow is complete"
         )
         reasoning: str = Field(description="Brief explanation of why this agent was selected")
+        remaining_tasks: list[str] = Field(
+            default_factory=list,
+            description="List of remaining tasks after this step (e.g., ['code_summarize', 'rag_report'])",
+        )
 
     return SupervisorRoutingDecision
 
@@ -120,8 +152,13 @@ class SupervisorAgent(BaseAgent):
 Available agents:
 {chr(10).join(agent_list)}
 
+{WORKFLOW_PATTERNS}
+
 Analyze the user's intent and select the SINGLE most appropriate agent.
-Consider the context of the conversation when making your decision."""
+Consider the context of the conversation when making your decision.
+
+IMPORTANT: If previous steps have been completed (check completed_steps and workflow_context),
+continue with the next logical step. Return 'done' only when the entire workflow is complete."""
 
     def _contains_reference_to_previous(self, content: str) -> bool:
         """Check if query contains references to previous conversation.
@@ -216,8 +253,16 @@ Consider the context of the conversation when making your decision."""
 
     @override
     async def process(self, state: AgentState) -> AgentState:
-        """Analyze query and determine routing."""
+        """Analyze query and determine routing.
+
+        Supports multi-step workflows by tracking completed_steps and remaining_tasks.
+        """
         session_id = state.get("metadata", {}).get("session_id", "default")
+
+        # Get workflow state
+        completed_steps = state.get("completed_steps", [])
+        remaining_tasks = state.get("remaining_tasks", [])
+        workflow_context = state.get("workflow_context", "")
 
         # Inject document context into system prompt for better routing
         has_documents = state.get("has_documents", False)
@@ -229,7 +274,20 @@ Consider the context of the conversation when making your decision."""
             "Do NOT route to 'rag' unless the user explicitly asks about uploading or using documents. "
             "Prefer 'chat' or 'web_search' for informational queries."
         )
-        messages = [{"role": "system", "content": self.system_prompt + doc_context}]
+
+        # Build workflow context message for multi-step scenarios
+        workflow_info = ""
+        if completed_steps:
+            workflow_info = f"""
+
+## Current Workflow Status
+- Completed steps: {completed_steps}
+- Remaining tasks: {remaining_tasks if remaining_tasks else 'None - ready to complete'}
+- Context from previous steps: {workflow_context[:500] if workflow_context else 'None'}
+
+Continue with the next logical step or return 'done' if all tasks are complete."""
+
+        messages = [{"role": "system", "content": self.system_prompt + doc_context + workflow_info}]
 
         # Include conversation history if memory is available
         if self.memory:
@@ -258,17 +316,33 @@ Consider the context of the conversation when making your decision."""
             output_schema=route_decision,
         )
 
-        # Handle None response from LLM (fallback to chat)
+        # Handle None response from LLM (fallback to chat or done)
         if not decision:
             logger.warning("supervisor_llm_returned_none", session_id=session_id)
-            decision = {
-                "selected_agent": "chat",
-                "reasoning": "LLM response was empty, defaulting to chat",
-            }
+            # If we have completed steps, consider workflow done
+            if completed_steps:
+                decision = {
+                    "selected_agent": "done",
+                    "reasoning": "LLM response was empty, but steps were completed",
+                    "remaining_tasks": [],
+                }
+            else:
+                decision = {
+                    "selected_agent": "chat",
+                    "reasoning": "LLM response was empty, defaulting to chat",
+                    "remaining_tasks": [],
+                }
 
         # Safe access with defaults
         selected_agent = decision.get("selected_agent", "chat")
         reasoning = decision.get("reasoning", "No reasoning provided")
+        new_remaining_tasks = decision.get("remaining_tasks", [])
+
+        # Update completed steps if this is a continuation (not initial entry)
+        updated_completed_steps = completed_steps.copy()
+        if completed_steps and selected_agent != "done":
+            # Previous step was completed, this is the next step
+            pass  # Will be updated after agent execution
 
         # Store the routing exchange in memory if available
         if self.memory:
@@ -282,9 +356,18 @@ Consider the context of the conversation when making your decision."""
                 },
             )
 
+        logger.info(
+            "supervisor_routing",
+            session_id=session_id,
+            selected_agent=selected_agent,
+            completed_steps=completed_steps,
+            remaining_tasks=new_remaining_tasks,
+        )
+
         return {
             **state,
             "next_agent": selected_agent,
+            "remaining_tasks": new_remaining_tasks,
             "metadata": {
                 **state.get("metadata", {}),
                 "route_reasoning": reasoning,

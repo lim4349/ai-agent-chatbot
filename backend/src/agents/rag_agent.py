@@ -248,10 +248,14 @@ Example output structure:
         # Note: Memory storage is handled by chat_agent to avoid duplication
         # RAG agent only adds response to state, not to memory
 
+        # Update workflow state for multi-step pipelines
+        workflow_updates = self._update_workflow_state(state, response)
+
         return {
             **state,
             "messages": [*state["messages"], {"role": "assistant", "content": response}],
             "tool_results": [*state.get("tool_results", []), *tool_results],
+            **workflow_updates,
         }
 
     def _format_structured_response(self, data: dict) -> str:

@@ -386,12 +386,16 @@ Guidelines:
         if self.topic_memory and user_id:
             await self._process_topics(session_id, current_messages)
 
+        # Update workflow state for multi-step pipelines
+        workflow_updates = self._update_workflow_state(state, response)
+
         return {
             **state,
             "messages": [
                 *state["messages"],
                 {"role": "assistant", "content": response},
             ],
+            **workflow_updates,
         }
 
     async def _get_user_profile(self, user_id: str):

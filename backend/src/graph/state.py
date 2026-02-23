@@ -13,6 +13,10 @@ class AgentState(TypedDict, total=False):
         next_agent: Agent selected by supervisor for routing
         tool_results: Accumulated tool execution results
         metadata: Session metadata (session_id, user_id, routing info)
+        has_documents: Whether documents are available for RAG
+        remaining_tasks: List of pending tasks for multi-step workflows
+        completed_steps: List of completed agent names in current workflow
+        workflow_context: Accumulated context from previous steps (e.g., web search results)
     """
 
     messages: Annotated[list, add_messages]
@@ -20,6 +24,9 @@ class AgentState(TypedDict, total=False):
     tool_results: list[dict[str, Any]]
     metadata: dict[str, Any]
     has_documents: bool
+    remaining_tasks: list[str]
+    completed_steps: list[str]
+    workflow_context: str
 
 
 def create_initial_state(
@@ -45,4 +52,7 @@ def create_initial_state(
         "tool_results": [],
         "metadata": metadata,
         "has_documents": False,
+        "remaining_tasks": [],
+        "completed_steps": [],
+        "workflow_context": "",
     }

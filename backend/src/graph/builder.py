@@ -88,6 +88,7 @@ def build_graph(container):
     edge_mapping = {
         "chat": "chat",
         "code": "code",
+        "__end__": END,  # For completed workflows
     }
     if rag:
         edge_mapping["rag"] = "rag"
@@ -101,13 +102,14 @@ def build_graph(container):
         edge_mapping,
     )
 
-    # All specialist agents go to END
-    graph.add_edge("chat", END)
-    graph.add_edge("code", END)
+    # All specialist agents return to supervisor for next step
+    # This enables multi-step workflows (e.g., web_search → code → rag)
+    graph.add_edge("chat", "supervisor")
+    graph.add_edge("code", "supervisor")
     if rag:
-        graph.add_edge("rag", END)
+        graph.add_edge("rag", "supervisor")
     if web_search:
-        graph.add_edge("web_search", END)
+        graph.add_edge("web_search", "supervisor")
 
     # Compile with memory saver for state persistence
     checkpointer = MemorySaver()
