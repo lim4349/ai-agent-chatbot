@@ -4,7 +4,6 @@ import warnings
 from collections.abc import AsyncIterator
 
 from langchain_openai import ChatOpenAI
-from pydantic import PydanticSerializationUnexpectedValue
 
 from src.core.config import LLMConfig
 from src.core.di_container import container
