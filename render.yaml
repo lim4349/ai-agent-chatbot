@@ -70,7 +70,7 @@ services:
       - key: CODE_EXECUTION_TIMEOUT
         value: "30"
     healthCheckPath: /api/v1/health
-    autoDeploy: false  # Controlled by GitHub Actions
+    autoDeploy: true  # Auto-deploy on main branch push
     port: 8000
     plan: free
 
