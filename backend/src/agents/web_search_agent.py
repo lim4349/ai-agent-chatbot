@@ -142,8 +142,12 @@ Guidelines:
             await self.memory.add_message(session_id, message_to_dict(last_msg))
             await self.memory.add_message(session_id, {"role": "assistant", "content": response})
 
+        # Update workflow state for multi-step pipelines
+        workflow_updates = self._update_workflow_state(state, response)
+
         return {
             **state,
             "messages": [*state["messages"], {"role": "assistant", "content": response}],
             "tool_results": [*state.get("tool_results", []), *tool_results],
+            **workflow_updates,
         }
