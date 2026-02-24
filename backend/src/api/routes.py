@@ -327,12 +327,21 @@ async def chat_stream(
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
+                        # DEBUG: Log what we receive
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"DEBUG non_streaming node={node_name}, messages_count={len(messages)}, last_msg_type={type(messages[-1]) if messages else None}"
+                        )
                         if messages:
                             last_msg = messages[-1]
                             content = (
                                 last_msg.get("content", "")
                                 if isinstance(last_msg, dict)
                                 else getattr(last_msg, "content", "")
+                            )
+                            # DEBUG: Log content
+                            logging.getLogger(__name__).warning(
+                                f"DEBUG content_length={len(content) if content else 0}, content_preview={content[:100] if content else None}"
                             )
                             if content:
                                 yield {"event": "token", "data": content}
