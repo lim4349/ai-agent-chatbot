@@ -9,6 +9,15 @@ from src.core.config import LLMConfig
 from src.core.di_container import container
 from src.llm.factory import LLMFactory
 
+# Suppress Pydantic serialization warnings emitted by LangChain's
+# with_structured_output() wrapper. The warning fires inside async callbacks
+# where context-manager-based suppression is unreliable.
+warnings.filterwarnings(
+    "ignore",
+    message="Pydantic serializer warnings",
+    category=UserWarning,
+)
+
 
 @LLMFactory.register("openai")
 class OpenAIProvider:
