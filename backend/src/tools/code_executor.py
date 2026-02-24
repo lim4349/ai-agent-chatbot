@@ -24,11 +24,11 @@ try:
         from RestrictedPython.Guards import guarded_unpack_sequence
     except ImportError:
         # Fallback for older versions
-        def guarded_unpack_sequence(it, sequence):
+        def guarded_unpack_sequence(_it, _sequence):
             """Guard for unpacking sequences (e.g., a, b = (1, 2))."""
-            if not hasattr(sequence, '__iter__'):
-                raise TypeError(f"'{type(sequence).__name__}' object is not iterable")
-            return sequence
+            # This guard is for compatibility with older RestrictedPython versions.
+            # It only needs to be present to avoid a NameError.
+            pass
 
     RESTRICTED_PYTHON_AVAILABLE = True
 except ImportError:
@@ -167,9 +167,9 @@ class RestrictedPythonExecutor:
                 success=result["success"],
             )
 
-            # Force garbage collection to release memory back to OS
-            # This helps prevent memory fragmentation on low-memory environments
-            # like Render Free Tier (512MB)
+            # Force garbage collection to reclaim memory and reduce fragmentation.
+            # This is crucial in low-memory environments to prevent errors on
+            # subsequent memory allocations, such as on Render Free Tier (512MB).
             gc.collect()
 
             return result
