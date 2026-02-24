@@ -3,6 +3,7 @@
 import warnings
 from collections.abc import AsyncIterator
 
+import httpx
 from langchain_openai import ChatOpenAI
 
 from src.core.config import LLMConfig
@@ -25,11 +26,24 @@ class OpenAIProvider:
 
     def __init__(self, config: LLMConfig):
         self.config = config
+
+        # Configure httpx client with memory-efficient limits for Render Free Tier
+        # Limits prevent excessive memory usage from connection pooling
+        limits = httpx.Limits(
+            max_connections=10,
+            max_keepalive_connections=5,
+        )
+        http_client = httpx.AsyncClient(
+            limits=limits,
+            timeout=httpx.Timeout(30.0, connect=5.0),
+        )
+
         client_kwargs = {
             "model": config.model,
             "api_key": config.openai_api_key,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
+            "http_client": http_client,
         }
         if config.base_url:
             client_kwargs["openai_api_base"] = config.base_url

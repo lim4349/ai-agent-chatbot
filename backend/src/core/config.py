@@ -70,6 +70,7 @@ class ToolsConfig(BaseSettings):
     tavily_api_key: str | None = None
     code_execution_enabled: bool = True
     code_execution_timeout: int = 10
+    code_execution_memory_limit_mb: int = 50  # Reduced from 100MB for Render Free Tier
 
     model_config = SettingsConfigDict(env_prefix="TOOLS_")
 
