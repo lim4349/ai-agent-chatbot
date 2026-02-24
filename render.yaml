@@ -66,9 +66,9 @@ services:
         value: default
       # Code execution - DISABLED on Render Free Tier due to memory constraints (512MB)
       # Code Agent causes SSL MemoryError after execution. Enable only for local development.
-      - key: CODE_EXECUTION_ENABLED
+      - key: TOOLS_CODE_EXECUTION_ENABLED
         value: "false"
-      - key: CODE_EXECUTION_TIMEOUT
+      - key: TOOLS_CODE_EXECUTION_TIMEOUT
         value: "30"
     healthCheckPath: /api/v1/health
     autoDeploy: false  # Disabled: Use GitHub Actions for deployment control
