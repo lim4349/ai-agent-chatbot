@@ -1,5 +1,6 @@
 """Code agent for programming tasks."""
 
+import re
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
@@ -7,8 +8,11 @@ from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
+from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
+
+logger = get_logger(__name__)
 
 
 def message_to_dict(msg) -> dict:
@@ -86,11 +90,26 @@ Formatting Rules (IMPORTANT):
 
         tool_results = []
 
-        # If code executor is available and the response contains Python code,
-        # we could optionally execute it here (commented out for safety)
-        # if self.code_executor and "```python" in response:
-        #     # Extract and execute code
-        #     pass
+        # Extract and execute Python code blocks if code executor is available
+        if self.code_executor:
+            code_blocks = self._extract_python_code(response)
+            if code_blocks:
+                logger.info("code_agent_executing_code", blocks_count=len(code_blocks))
+                for i, code in enumerate(code_blocks, 1):
+                    result = await self.code_executor.execute(code)
+                    tool_results.append({
+                        "tool": "code_executor",
+                        "block_number": i,
+                        "result": result,
+                    })
+                    # Append execution result to response
+                    exec_output = self._format_execution_result(result, i)
+                    response = response + exec_output
+                    logger.info(
+                        "code_agent_execution_complete",
+                        block_number=i,
+                        success=result.get("success", False),
+                    )
 
         # Store the code exchange in memory if available
         if self.memory:
@@ -107,3 +126,59 @@ Formatting Rules (IMPORTANT):
             "tool_results": [*state.get("tool_results", []), *tool_results],
             **workflow_updates,
         }
+
+    def _extract_python_code(self, text: str) -> list[str]:
+        """Extract Python code blocks from markdown text.
+
+        Args:
+            text: The response text containing code blocks
+
+        Returns:
+            List of extracted Python code strings
+        """
+        # Match ```python ... ``` blocks
+        python_pattern = r"```python\n(.*?)\n```"
+        matches = re.findall(python_pattern, text, re.DOTALL)
+
+        # Also match ```py ... ``` blocks
+        py_pattern = r"```py\n(.*?)\n```"
+        matches.extend(re.findall(py_pattern, text, re.DOTALL))
+
+        # Clean up and return non-empty blocks
+        code_blocks = []
+        for match in matches:
+            code = match.strip()
+            if code and not code.startswith("#"):  # Skip empty or comment-only blocks
+                code_blocks.append(code)
+
+        return code_blocks
+
+    def _format_execution_result(self, result: dict, block_number: int) -> str:
+        """Format code execution result for display.
+
+        Args:
+            result: The execution result dict with success, stdout, stderr
+            block_number: The code block number for reference
+
+        Returns:
+            Formatted result string to append to response
+        """
+        output = [f"\n\n---\n**코드 실행 결과 #{block_number}:**"]
+
+        if result.get("success"):
+            output.append("✅ 실행 성공")
+        else:
+            output.append("❌ 실행 실패")
+
+        stdout = result.get("stdout", "").strip()
+        if stdout:
+            output.append(f"\n**출력:**\n```\n{stdout}\n```")
+
+        stderr = result.get("stderr", "").strip()
+        if stderr:
+            output.append(f"\n**오류:**\n```\n{stderr}\n```")
+
+        if not stdout and not stderr:
+            output.append("\n(출력 없음)")
+
+        return "\n".join(output)

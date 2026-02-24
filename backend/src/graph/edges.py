@@ -7,7 +7,7 @@ from src.graph.state import AgentState
 
 def route_by_next_agent(
     state: AgentState,
-) -> Literal["rag", "web_search", "code", "chat", "__end__"]:
+) -> Literal["rag", "web_search", "code", "chat", "report", "__end__"]:
     """Route based on supervisor's decision.
 
     Args:
@@ -22,7 +22,7 @@ def route_by_next_agent(
         return "__end__"
 
     # Validate the agent name
-    valid_agents = {"rag", "web_search", "code", "chat"}
+    valid_agents = {"rag", "web_search", "code", "chat", "report"}
     if next_agent not in valid_agents:
         return "chat"
 

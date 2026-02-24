@@ -6,7 +6,7 @@
 
 ## 프로젝트 개요
 
-Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Chat 에이전트 중 적절한 것으로 라우팅합니다.
+Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Report, Chat 에이전트 중 적절한 것으로 라우팅합니다.
 
 **핵심 특징**:
 - 멀티 에이전트 오케스트레이션 (LangGraph)
@@ -195,6 +195,22 @@ npm run build
 ---
 
 ## 학습한 내용 (Lessons Learned)
+
+### 2026-02-24
+
+1. **Report Agent 구현**
+   - 멀티소스 연구 결과 종합 보고서 작성 에이전트 추가
+   - Supervisor의 `remaining_tasks`를 활용한 워크플로우: web_search → rag → report
+   - workflow_context에서 연구 결과 추출 및 분류 (웹검색/문서/코드실행)
+
+2. **Code Agent 코드 실행 기능**
+   - 주석 처리되었던 코드 실행 로직 활성화
+   - 응답 내 Python 코드 블록 자동 감지 및 실행
+   - 실행 결과를 응답에 자동 포함
+
+3. **Pydantic 직렬화 경고 수정**
+   - LLM provider의 `_extract_structured_result()`에서 warnings.catch_warnings() 적용
+   - LangChain wrapper 객체의 `parsed` 필드 접근 시 발생하던 경고 해결
 
 ### 2026-02-16
 

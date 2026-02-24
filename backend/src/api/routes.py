@@ -296,7 +296,7 @@ async def health(
 ) -> HealthResponse:
     """Check service health and configuration."""
     # Determine available agents based on configuration
-    available_agents = ["supervisor", "chat", "code"]
+    available_agents = ["supervisor", "chat", "code", "report"]
     if tool_registry.get("web_search"):
         available_agents.append("web_search")
     if retriever:

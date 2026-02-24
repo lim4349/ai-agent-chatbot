@@ -1,5 +1,9 @@
 """Factory for creating agent instances."""
 
+from typing import Any
+
+from langchain_core.tools import Tool
+
 from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 
 
@@ -28,7 +32,7 @@ class AgentFactory:
         """
         from src.agents.supervisor import SupervisorAgent
 
-        available_agents = {"chat", "code"}
+        available_agents = {"chat", "code", "report"}
         if retriever:
             available_agents.add("rag")
         if tool_registry and tool_registry.get("web_search"):
@@ -149,5 +153,32 @@ class AgentFactory:
         return WebSearchAgent(
             llm=llm,
             search_tool=search_tool,
+            memory=memory,
+        )
+
+    @staticmethod
+    def create_report(
+        llm: LLMProvider,
+        memory: MemoryStore,
+        retriever: Any | None,
+        search_tool: Tool | None,
+    ):
+        """Create report agent instance.
+
+        Args:
+            llm: LLM provider
+            memory: Memory store
+            retriever: Document retriever (optional)
+            search_tool: Search tool (optional)
+
+        Returns:
+            ReportAgent instance
+        """
+        from src.agents.report_agent import ReportAgent
+
+        # ReportAgent doesn't need retriever/search_tool in constructor
+        # It extracts results from workflow_context
+        return ReportAgent(
+            llm=llm,
             memory=memory,
         )
