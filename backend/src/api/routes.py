@@ -288,6 +288,19 @@ async def chat_stream(
                         output = event.get("data", {}).get("output", {})
                         agent = output.get("next_agent", "chat")
                         yield {"event": "agent", "data": json.dumps({"agent": agent})}
+                        # When supervisor responds directly (no specialist agent ran, e.g. greetings),
+                        # send the response as a token — no specialist on_chain_end will fire
+                        if agent == "done" and not output.get("completed_steps"):
+                            messages = output.get("messages", [])
+                            if messages:
+                                last_msg = messages[-1]
+                                content = (
+                                    last_msg.get("content", "")
+                                    if isinstance(last_msg, dict)
+                                    else getattr(last_msg, "content", "")
+                                )
+                                if content:
+                                    yield {"event": "token", "data": content}
                     elif node_name in non_streaming_nodes:
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
