@@ -82,6 +82,7 @@ async def chat(
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
+    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
@@ -137,8 +138,19 @@ async def chat(
                 error=f"Session store error (continuing without session): {e}",
             )
 
+    # Determine available agents for capability awareness
+    available_agents = ["supervisor", "chat", "report"]
+    if tool_registry.get("code_executor"):
+        available_agents.append("code")
+    if tool_registry.get("web_search"):
+        available_agents.append("web_search")
+    if vector_store:
+        available_agents.append("rag")
+
     # Create initial state with sanitized message and device_id
-    initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
+    initial_state = create_initial_state(
+        sanitized_message, request.session_id, device_id, available_agents
+    )
     initial_state["has_documents"] = has_docs
 
     # Configure with thread ID for state persistence
@@ -199,6 +211,7 @@ async def chat_stream(
     graph=Depends(Provide[DIContainer.graph]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
+    tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
@@ -256,8 +269,19 @@ async def chat_stream(
                 error=f"Session store error (continuing without session): {e}",
             )
 
+    # Determine available agents for capability awareness
+    available_agents = ["supervisor", "chat", "report"]
+    if tool_registry.get("code_executor"):
+        available_agents.append("code")
+    if tool_registry.get("web_search"):
+        available_agents.append("web_search")
+    if vector_store:
+        available_agents.append("rag")
+
     # Create initial state with device_id
-    initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
+    initial_state = create_initial_state(
+        sanitized_message, request.session_id, device_id, available_agents
+    )
     initial_state["has_documents"] = has_docs
 
     config = {"configurable": {"thread_id": request.session_id}}
