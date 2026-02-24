@@ -81,7 +81,8 @@ def build_graph(container):
     # Add nodes
     graph.add_node("supervisor", supervisor.as_node())
     graph.add_node("chat", chat.as_node())
-    graph.add_node("code", code.as_node())
+    if code:
+        graph.add_node("code", code.as_node())
 
     # Add optional nodes
     if rag:
@@ -97,9 +98,10 @@ def build_graph(container):
     # Build conditional edges mapping
     edge_mapping = {
         "chat": "chat",
-        "code": "code",
         "__end__": END,  # For completed workflows
     }
+    if code:
+        edge_mapping["code"] = "code"
     if rag:
         edge_mapping["rag"] = "rag"
     if web_search:
@@ -117,7 +119,8 @@ def build_graph(container):
     # All specialist agents return to supervisor for next step
     # This enables multi-step workflows (e.g., web_search → code → rag)
     graph.add_edge("chat", "supervisor")
-    graph.add_edge("code", "supervisor")
+    if code:
+        graph.add_edge("code", "supervisor")
     if rag:
         graph.add_edge("rag", "supervisor")
     if web_search:
@@ -130,7 +133,8 @@ def build_graph(container):
 
     logger.info(
         "graph_built",
-        nodes=["supervisor", "chat", "code"]
+        nodes=["supervisor", "chat"]
+        + (["code"] if code else [])
         + (["rag"] if rag else [])
         + (["web_search"] if web_search else [])
         + (["report"] if report else []),

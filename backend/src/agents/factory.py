@@ -32,11 +32,13 @@ class AgentFactory:
         """
         from src.agents.supervisor import SupervisorAgent
 
-        available_agents = {"chat", "code", "report"}
+        available_agents = {"chat", "report"}
         if retriever:
             available_agents.add("rag")
         if tool_registry and tool_registry.get("web_search"):
             available_agents.add("web_search")
+        if tool_registry and tool_registry.get("code_executor"):
+            available_agents.add("code")
 
         return SupervisorAgent(
             llm=llm,
@@ -97,6 +99,8 @@ class AgentFactory:
         from src.agents.code_agent import CodeAgent
 
         code_executor = tool_registry.get("code_executor") if tool_registry else None
+        if not code_executor:
+            return None
         return CodeAgent(
             llm=llm,
             code_executor=code_executor,
