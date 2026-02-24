@@ -64,9 +64,10 @@ services:
         value: documents
       - key: RAG_PINECONE_NAMESPACE
         value: default
-      # Code execution
+      # Code execution - DISABLED on Render Free Tier due to memory constraints (512MB)
+      # Code Agent causes SSL MemoryError after execution. Enable only for local development.
       - key: CODE_EXECUTION_ENABLED
-        value: "true"
+        value: "false"
       - key: CODE_EXECUTION_TIMEOUT
         value: "30"
     healthCheckPath: /api/v1/health
