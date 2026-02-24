@@ -165,20 +165,23 @@ class RestrictedPythonExecutor:
             bytecode = compile_restricted(code, "<user_code>", "exec")
 
             # Step 2: Prepare safe execution environment
+            # NOTE: Use safe_globals as both globals AND locals dict.
+            # If separate dicts are passed, functions defined at module-level land
+            # in locals, but Python resolves names (e.g. recursive calls) via
+            # globals — causing NameError for any self-referencing function.
             safe_globals = self._create_safe_globals()
-            safe_locals: dict[str, Any] = {}
 
             # Step 3: Execute with timeout and resource limits
             def run_code() -> None:
                 self._set_resource_limits()
-                exec(bytecode, safe_globals, safe_locals)
+                exec(bytecode, safe_globals)
 
             # Run with timeout
             await asyncio.wait_for(asyncio.to_thread(run_code), timeout=self.timeout)
 
             # Collect printed output from PrintCollector
             printed_output = ""
-            print_collector = safe_locals.get("_print")
+            print_collector = safe_globals.get("_print")
             if print_collector and isinstance(print_collector, PrintCollector):
                 # PrintCollector stores output in .txt attribute
                 printed_output = "".join(str(x) for x in print_collector.txt)
@@ -309,15 +312,15 @@ class RestrictedPythonExecutor:
                     }
 
             # Execute with restrictions
+            # Use safe_globals as both globals and locals to allow recursive functions.
             safe_globals = {"__builtins__": SAFE_BUILTINS, "__name__": "__main__"}
-            safe_locals: dict[str, Any] = {}
 
             try:
                 sys.stdout = stdout_buffer
 
                 def run_code() -> None:
                     self._set_resource_limits()
-                    exec(code, safe_globals, safe_locals)
+                    exec(code, safe_globals)
 
                 await asyncio.wait_for(asyncio.to_thread(run_code), timeout=self.timeout)
 
