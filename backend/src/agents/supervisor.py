@@ -29,7 +29,7 @@ def message_to_dict(msg) -> dict:
 AGENT_DESCRIPTIONS = {
     "rag": "For questions about uploaded documents, knowledge bases, or when the user needs information from stored documents. Use when the query might be answered by internal knowledge.",
     "web_search": "For real-time information, current events, weather, news, latest technology updates, or anything requiring up-to-date information from the internet.",
-    "code": "For code writing, debugging, code explanation, algorithm implementation, programming questions, or any task involving programming languages.",
+    "code": "For code writing, debugging, code explanation, algorithm implementation, programming questions, code execution, running Python scripts, executing code and showing results, or any task involving programming languages.",
     "chat": "For general conversation, greetings, casual questions, opinions, creative writing, or any query that doesn't fit the other categories.",
     "report": "For comprehensive research reports that synthesize information from multiple sources (web search, documents, and code execution). Creates structured reports with sections, citations, and executive summaries.",
 }
