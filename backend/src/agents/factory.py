@@ -160,8 +160,8 @@ class AgentFactory:
     def create_report(
         llm: LLMProvider,
         memory: MemoryStore,
-        retriever: Any | None,
-        search_tool: Tool | None,
+        retriever: Any | None = None,
+        search_tool: Tool | None = None,
     ):
         """Create report agent instance.
 
