@@ -28,12 +28,12 @@ class OpenAIProvider:
         self.config = config
 
         # Configure httpx client with memory-efficient limits for Render Free Tier
-        # Limits prevent excessive memory usage from connection pooling
+        # Note: ChatOpenAI requires sync httpx.Client, not AsyncClient
         limits = httpx.Limits(
             max_connections=10,
             max_keepalive_connections=5,
         )
-        http_client = httpx.AsyncClient(
+        http_client = httpx.Client(
             limits=limits,
             timeout=httpx.Timeout(30.0, connect=5.0),
         )
