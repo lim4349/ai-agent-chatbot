@@ -122,9 +122,7 @@ jobs:
   cd-render:
     name: CD - Deploy to Render
     runs-on: ubuntu-latest
-    # Disabled: Render Auto-Deploy handles this automatically
-    if: false
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: []  # main 직접 푸시 시에도 실행되도록 (선택사항)
     steps:
       - name: Deploy Redis
