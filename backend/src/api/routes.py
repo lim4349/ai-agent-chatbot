@@ -245,6 +245,12 @@ async def chat_stream(
             # Yield metadata first
             yield {"event": "metadata", "data": json.dumps({"session_id": request.session_id})}
 
+            # Nodes that use non-streaming LLM calls (ainvoke) — handled via on_chain_end
+            # because ainvoke() does not emit on_chat_model_stream events
+            non_streaming_nodes = {"code", "report"}
+            # Track which nodes actually sent streaming tokens (for fallback detection)
+            streamed_nodes: set[str] = set()
+
             # Stream events from graph
             async for event in graph.astream_events(initial_state, config=config, version="v2"):
                 kind = event.get("event")
@@ -255,6 +261,9 @@ async def chat_stream(
                     metadata = event.get("metadata", {})
                     langgraph_node = metadata.get("langgraph_node", "")
                     if langgraph_node == "supervisor":
+                        continue
+                    # code/report use non-streaming LLM calls; their output is sent via on_chain_end
+                    if langgraph_node in non_streaming_nodes:
                         continue
 
                     chunk = event.get("data", {}).get("chunk")
@@ -270,14 +279,41 @@ async def chat_stream(
                         else:
                             text = content
                         if text:
+                            streamed_nodes.add(langgraph_node)
                             yield {"event": "token", "data": text}
 
                 elif kind == "on_chain_end":
-                    # Send metadata about which agent was used
-                    if event.get("name") == "supervisor":
+                    node_name = event.get("name", "")
+                    if node_name == "supervisor":
                         output = event.get("data", {}).get("output", {})
                         agent = output.get("next_agent", "chat")
                         yield {"event": "agent", "data": json.dumps({"agent": agent})}
+                    elif node_name in non_streaming_nodes:
+                        # code/report: always send full response (includes exec output) via on_chain_end
+                        output = event.get("data", {}).get("output", {})
+                        messages = output.get("messages", [])
+                        if messages:
+                            last_msg = messages[-1]
+                            content = (
+                                last_msg.get("content", "")
+                                if isinstance(last_msg, dict)
+                                else getattr(last_msg, "content", "")
+                            )
+                            if content:
+                                yield {"event": "token", "data": content}
+                    elif node_name in {"chat", "rag", "web_search"} and node_name not in streamed_nodes:
+                        # Fallback: if a normally-streaming node didn't stream, send its output now
+                        output = event.get("data", {}).get("output", {})
+                        messages = output.get("messages", [])
+                        if messages:
+                            last_msg = messages[-1]
+                            content = (
+                                last_msg.get("content", "")
+                                if isinstance(last_msg, dict)
+                                else getattr(last_msg, "content", "")
+                            )
+                            if content:
+                                yield {"event": "token", "data": content}
 
             yield {"event": "done", "data": ""}
 

@@ -44,15 +44,25 @@ class AnthropicProvider:
 
         response = await self.client.ainvoke(messages, **kwargs)
 
+        # Normalize content: Anthropic returns a list of content blocks
+        content = response.content
+        if isinstance(content, list):
+            content = "".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
+
         # Cache the response
         await self._cache.set(
             messages=messages,
             model=self.config.model,
             temperature=self.config.temperature,
-            response=response.content,
+            response=result,
         )
 
-        return response.content
+        return result
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
@@ -68,19 +78,16 @@ class AnthropicProvider:
         Returns None if the LLM fails to generate structured output.
         """
         structured = self.client.with_structured_output(output_schema)
-        result = await structured.ainvoke(messages, **kwargs)
+
+        # Suppress Pydantic warnings during both invocation and result extraction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            result = await structured.ainvoke(messages, **kwargs)
 
         if result is None:
             return None
 
-        # Suppress Pydantic serialization warnings for LangChain wrapper objects
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message=".*PydanticSerializationUnexpectedValue.*",
-            )
-            return self._extract_structured_result(result)
+        return self._extract_structured_result(result)
 
     def _extract_structured_result(self, result) -> dict | None:
         """Extract structured result, handling LangChain wrapper objects."""

@@ -138,12 +138,12 @@ Formatting Rules (IMPORTANT):
         Returns:
             List of extracted Python code strings
         """
-        # Match ```python ... ``` blocks
-        python_pattern = r"```python\n(.*?)\n```"
+        # Match ```python ... ``` blocks (allow optional trailing whitespace after language tag)
+        python_pattern = r"```python[ \t]*\n(.*?)\n```"
         matches = re.findall(python_pattern, text, re.DOTALL)
 
         # Also match ```py ... ``` blocks
-        py_pattern = r"```py\n(.*?)\n```"
+        py_pattern = r"```py[ \t]*\n(.*?)\n```"
         matches.extend(re.findall(py_pattern, text, re.DOTALL))
 
         # Clean up and return non-empty blocks
