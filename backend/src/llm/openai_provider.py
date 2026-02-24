@@ -64,20 +64,20 @@ class OpenAIProvider:
         Returns None if the LLM fails to generate structured output.
         """
         structured = self.client.with_structured_output(output_schema)
-        result = await structured.ainvoke(messages, **kwargs)
 
-        if result is None:
-            return None
-
-        # Suppress Pydantic serialization warnings for LangChain wrapper objects
-        # that have a 'parsed' field with unexpected types
+        # Suppress Pydantic warnings during structured output generation
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
                 message=".*PydanticSerializationUnexpectedValue.*",
             )
-            return self._extract_structured_result(result)
+            result = await structured.ainvoke(messages, **kwargs)
+
+        if result is None:
+            return None
+
+        return self._extract_structured_result(result)
 
     def _extract_structured_result(self, result) -> dict | None:
         """Extract structured result, handling LangChain wrapper objects.
