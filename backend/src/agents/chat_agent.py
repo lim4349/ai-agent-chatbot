@@ -58,6 +58,46 @@ class ChatAgent(BaseAgent):
         self.summarizer = summarizer
         self._user_profiles: dict[str, dict] = {}
 
+    def _get_capability_context(self, available_agents: list[str] | None) -> str:
+        """Generate capability context based on available agents.
+
+        Args:
+            available_agents: List of available agent names
+
+        Returns:
+            Capability context string for system prompt
+        """
+        if not available_agents:
+            return ""
+
+        has_code = "code" in available_agents
+        has_web_search = "web_search" in available_agents
+
+        context_parts = []
+
+        if not has_code:
+            context_parts.append("""
+## Code Execution Unavailable
+- Code execution is disabled in this environment
+- When users ask for code execution, calculations, or programming tasks:
+  - Offer to explain the algorithm or logic instead
+  - Suggest using web search for reference implementations
+  - Provide manual calculations when feasible
+  - Example response: "코드 실행 기능이 현재 비활성화되어 있습니다. 대신 알고리즘을 설명해 드릴까요? 또는 웹 검색으로 관련 자료를 찾아드릴까요?"
+""")
+
+        if not has_web_search:
+            context_parts.append("""
+## Web Search Unavailable
+- Web search is disabled in this environment
+- When users ask for current information or real-time data:
+  - Acknowledge the limitation
+  - Provide general knowledge if available
+  - Suggest alternative sources
+""")
+
+        return "\n".join(context_parts)
+
     @property
     @override
     def system_prompt(self) -> str:
@@ -340,6 +380,12 @@ Guidelines:
 
         # Build messages with system prompt
         system_content = self.system_prompt
+
+        # Add capability context based on available agents
+        available_agents = state.get("available_agents")
+        capability_context = self._get_capability_context(available_agents)
+        if capability_context:
+            system_content += f"\n\n{capability_context}"
 
         # Load user profile and add personalization
         if user_id and self.user_profiler:
