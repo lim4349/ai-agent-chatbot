@@ -97,7 +97,10 @@ def _create_tool_registry(config, retriever):
         registry.register(RetrieverTool(retriever))
 
     if config.tools.code_execution_enabled:
-        registry.register(CodeExecutorTool(config.tools.code_execution_timeout))
+        registry.register(CodeExecutorTool(
+            timeout=config.tools.code_execution_timeout,
+            memory_limit_mb=config.tools.code_execution_memory_limit_mb,
+        ))
 
     return registry
 
