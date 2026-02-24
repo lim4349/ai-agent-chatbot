@@ -1,6 +1,7 @@
 """Sandboxed code execution tool using RestrictedPython."""
 
 import asyncio
+import gc
 import resource
 import sys
 import traceback
@@ -165,6 +166,12 @@ class RestrictedPythonExecutor:
                 "code_executor_completed",
                 success=result["success"],
             )
+
+            # Force garbage collection to release memory back to OS
+            # This helps prevent memory fragmentation on low-memory environments
+            # like Render Free Tier (512MB)
+            gc.collect()
+
             return result
 
         finally:
