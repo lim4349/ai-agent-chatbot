@@ -201,25 +201,20 @@ class SupabaseSessionStore:
         self._client: object | None = None
 
         try:
-            from httpx import Client, Limits
-            from supabase import create_client  # type: ignore[attr-defined]
-            from supabase.lib.client_options import ClientOptions  # type: ignore[attr-defined]
+            from httpx import AsyncClient, Limits
+            from supabase import ClientOptions, create_client  # type: ignore[attr-defined]
 
             # Limit connection pool to reduce memory usage on Render Free Tier (512MB)
-            # Default httpx limits are too high for constrained environments
+            # Use AsyncClient for non-blocking async operations
             limits = Limits(
                 max_connections=5,          # Total concurrent connections
                 max_keepalive_connections=2,  # Keep-alive pool size
             )
-            http_client = Client(
+            http_client = AsyncClient(
                 limits=limits,
                 timeout=10.0,  # Connection timeout
             )
-            options = ClientOptions(
-                postgrest_client=http_client,
-                storage_client=http_client,
-                functions_client=http_client,
-            )
+            options = ClientOptions(http_client=http_client)
             self._client = create_client(supabase_url, supabase_key, options=options)
         except ImportError:
             # supabase-py not installed, will use fallback
