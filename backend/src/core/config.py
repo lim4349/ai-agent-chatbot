@@ -21,7 +21,7 @@ class LLMConfig(BaseSettings):
     provider: str = "openai"
     model: str = "gpt-4o-mini"
     temperature: float = 0.7
-    max_tokens: int = 4096
+    max_tokens: int = 2048  # Reduced from 4096 for Render Free Tier memory constraints
     base_url: str | None = None
 
     # API keys (used based on provider)
