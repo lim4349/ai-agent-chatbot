@@ -86,30 +86,35 @@ class OpenAIProvider:
         'parsed' field containing the actual Pydantic model. This method safely
         extracts the inner value while suppressing serialization warnings.
         """
-        if hasattr(result, "parsed") and result.parsed is not None:
-            # LangChain wrapper - extract inner Pydantic model
-            inner = result.parsed
-            if hasattr(inner, "model_dump"):
-                return inner.model_dump()
-            elif isinstance(inner, dict):
-                return inner
-            else:
-                # Fallback: convert to dict manually
-                return dict(inner)
+        # Suppress Pydantic serialization warnings when accessing wrapper attributes
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
 
-        if hasattr(result, "model_dump"):
-            return result.model_dump()
+            if hasattr(result, "parsed") and result.parsed is not None:
+                # LangChain wrapper - extract inner Pydantic model
+                inner = result.parsed
+                if hasattr(inner, "model_dump"):
+                    return inner.model_dump()
+                elif isinstance(inner, dict):
+                    return inner
+                else:
+                    # Fallback: convert to dict manually
+                    try:
+                        return dict(inner)
+                    except (TypeError, ValueError):
+                        return {"result": str(inner)}
 
-        if isinstance(result, dict):
-            return result
+            if hasattr(result, "model_dump"):
+                return result.model_dump()
 
-        # Last resort: try to serialize and suppress any warnings
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=UserWarning)
+            if isinstance(result, dict):
+                return result
+
+            # Last resort: try to access __dict__
+            try:
                 if hasattr(result, "__dict__"):
                     return result.__dict__
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         return None

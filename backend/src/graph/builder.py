@@ -67,6 +67,14 @@ def build_graph(container):
         tool_registry=tool_registry,
     )
 
+    # Create report agent with factory if available
+    report = None
+    if hasattr(AgentFactory, 'create_report'):
+        report = AgentFactory.create_report(
+            llm=llm,
+            memory=memory,
+        )
+
     # Build graph
     graph = StateGraph(AgentState)
 
@@ -80,6 +88,8 @@ def build_graph(container):
         graph.add_node("rag", rag.as_node())
     if web_search:
         graph.add_node("web_search", web_search.as_node())
+    if report:
+        graph.add_node("report", report.as_node())
 
     # Set entry point
     graph.set_entry_point("supervisor")
@@ -94,6 +104,8 @@ def build_graph(container):
         edge_mapping["rag"] = "rag"
     if web_search:
         edge_mapping["web_search"] = "web_search"
+    if report:
+        edge_mapping["report"] = "report"
 
     # Add conditional edges from supervisor
     graph.add_conditional_edges(
@@ -110,6 +122,8 @@ def build_graph(container):
         graph.add_edge("rag", "supervisor")
     if web_search:
         graph.add_edge("web_search", "supervisor")
+    if report:
+        graph.add_edge("report", "supervisor")
 
     # Compile with memory saver for state persistence
     checkpointer = MemorySaver()
@@ -118,7 +132,8 @@ def build_graph(container):
         "graph_built",
         nodes=["supervisor", "chat", "code"]
         + (["rag"] if rag else [])
-        + (["web_search"] if web_search else []),
+        + (["web_search"] if web_search else [])
+        + (["report"] if report else []),
     )
 
     return graph.compile(checkpointer=checkpointer)

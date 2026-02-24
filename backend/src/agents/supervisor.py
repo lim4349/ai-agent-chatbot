@@ -31,6 +31,7 @@ AGENT_DESCRIPTIONS = {
     "web_search": "For real-time information, current events, weather, news, latest technology updates, or anything requiring up-to-date information from the internet.",
     "code": "For code writing, debugging, code explanation, algorithm implementation, programming questions, or any task involving programming languages.",
     "chat": "For general conversation, greetings, casual questions, opinions, creative writing, or any query that doesn't fit the other categories.",
+    "report": "For comprehensive research reports that synthesize information from multiple sources (web search, documents, and code execution). Creates structured reports with sections, citations, and executive summaries.",
 }
 
 # Workflow pattern hints for multi-step tasks
@@ -54,6 +55,12 @@ Common patterns:
 3. "Find documents about X → Write code to process them"
    - Step 1: rag (retrieve documents)
    - Step 2: code (write processing code)
+
+4. "Research report on topic X"
+   - Step 1: web_search (get latest information from web)
+   - Step 2: rag (retrieve relevant documents if available)
+   - Step 3: report (synthesize findings into structured report)
+   - Step 4: done
 
 Always set remaining_tasks to track what's left to do.
 Return 'done' when all tasks are complete.
