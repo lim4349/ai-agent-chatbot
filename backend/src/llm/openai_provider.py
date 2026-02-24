@@ -40,15 +40,25 @@ class OpenAIProvider:
 
         response = await self.client.ainvoke(messages, **kwargs)
 
+        # Normalize content: some models (Anthropic/Gemini via OpenRouter) return a list of blocks
+        content = response.content
+        if isinstance(content, list):
+            content = "".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
+
         # Cache the response
         await self._cache.set(
             messages=messages,
             model=self.config.model,
             temperature=self.config.temperature,
-            response=response.content,
+            response=result,
         )
 
-        return response.content
+        return result
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""

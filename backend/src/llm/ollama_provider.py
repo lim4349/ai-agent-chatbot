@@ -31,7 +31,14 @@ class OllamaProvider:
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
         response = await self.client.ainvoke(messages, **kwargs)
-        return response.content
+        content = response.content
+        if isinstance(content, list):
+            content = "".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        return str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
@@ -50,16 +57,13 @@ class OllamaProvider:
         try:
             # Try native structured output first
             structured = self.client.with_structured_output(output_schema)
-            result = await structured.ainvoke(messages, **kwargs)
 
-            # Suppress Pydantic serialization warnings for LangChain wrapper objects
+            # Suppress Pydantic warnings during both invocation and result extraction
             with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore",
-                    category=UserWarning,
-                    message=".*PydanticSerializationUnexpectedValue.*",
-                )
-                return self._extract_structured_result(result)
+                warnings.filterwarnings("ignore", category=UserWarning)
+                result = await structured.ainvoke(messages, **kwargs)
+
+            return self._extract_structured_result(result)
         except Exception as e:
             logger.warning("ollama_structured_output_fallback", error=str(e))
             # Fallback: use JSON mode with explicit instructions
