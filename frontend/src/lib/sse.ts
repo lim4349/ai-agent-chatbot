@@ -94,19 +94,10 @@ export function streamChat(
                   }
                   break;
                 case 'token':
+                  // Token events always contain plain text content from the LLM
+                  // (may include markdown, code blocks, etc. that start with '{' or '[')
                   if (eventData) {
-                    let isInternalJson = false;
-                    if (eventData.startsWith('{') || eventData.startsWith('[')) {
-                      try {
-                        JSON.parse(eventData);
-                        isInternalJson = true;
-                      } catch {
-                        // Incomplete/non-JSON = normal text token (e.g. markdown link starting with '[')
-                      }
-                    }
-                    if (!isInternalJson) {
-                      callbacks.onToken(eventData);
-                    }
+                    callbacks.onToken(eventData);
                   }
                   break;
                 case 'agent':
