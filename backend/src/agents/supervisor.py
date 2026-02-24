@@ -161,7 +161,19 @@ Available agents:
 
 {WORKFLOW_PATTERNS}
 
+## Routing Rules
+
 Analyze the user's intent and select the SINGLE most appropriate agent.
+
+CRITICAL: Do NOT return 'done' unless the user query is a simple greeting/farewell or the workflow is truly complete.
+
+Examples:
+- "코드 실행해서 결과 알려줘" → select "code" agent
+- "파이썬으로 2+2 계산해줘" → select "code" agent
+- "검색해서 정리해줘" → select "web_search" agent
+- "안녕" → select "chat" agent
+- "고마워" → select "done"
+
 Consider the context of the conversation when making your decision.
 
 IMPORTANT: If previous steps have been completed (check completed_steps and workflow_context),
