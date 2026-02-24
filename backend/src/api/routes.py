@@ -327,15 +327,20 @@ async def chat_stream(
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
+                        logger.warning(f"CODE_DEBUG: node={node_name}, messages_count={len(messages)}, output_keys={list(output.keys())}")
                         if messages:
                             last_msg = messages[-1]
+                            logger.warning(f"CODE_DEBUG: last_msg_type={type(last_msg)}, last_msg={str(last_msg)[:200]}")
                             content = (
                                 last_msg.get("content", "")
                                 if isinstance(last_msg, dict)
                                 else getattr(last_msg, "content", "")
                             )
+                            logger.warning(f"CODE_DEBUG: content_length={len(content) if content else 0}")
                             if content:
                                 yield {"event": "token", "data": content}
+                        else:
+                            logger.warning(f"CODE_DEBUG: no messages in output")
                     elif node_name in {"chat", "rag", "web_search"} and node_name not in streamed_nodes:
                         # Fallback: if a normally-streaming node didn't stream, send its output now
                         output = event.get("data", {}).get("output", {})
