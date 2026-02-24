@@ -25,14 +25,21 @@ REQUEST_LOG_FILE = LOG_DIR / "request.log"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 # PII patterns for detection and masking
-PII_PATTERNS = {
+# NOTE: Patterns are pre-compiled to avoid recompilation overhead.
+# The credit_card pattern uses a simple alternation to avoid catastrophic backtracking.
+_PII_RAW_PATTERNS = {
     "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
     "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
     "ssn": r"\b\d{3}-?\d{2}-?\d{4}\b",
-    "credit_card": r"\b(?:\d[ -]*?){13,16}\b",
+    # Simple credit card pattern: 13-16 digits with optional spaces/dashes
+    # Avoids nested quantifiers that cause exponential backtracking
+    "credit_card": r"\b(?:\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}|\d{13,16})\b",
     "api_key": r"\b(sk-|AKIA|ghp_)[A-Za-z0-9_-]{20,}\b",
     "ip_address": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
 }
+
+# Pre-compiled patterns for efficiency
+PII_PATTERNS = {k: re.compile(v, re.IGNORECASE) for k, v in _PII_RAW_PATTERNS.items()}
 
 # Additional pattern for URLs with credentials (checked separately)
 URL_WITH_CREDENTIALS_PATTERN = re.compile(r"https?://[^\s]+:[^\s]+@[^\s]+", re.IGNORECASE)
@@ -63,7 +70,8 @@ def mask_pii_in_message(message: str, full_mask: bool = False) -> tuple[str, lis
     masked = message
 
     for pii_type, pattern in PII_PATTERNS.items():
-        for match in re.finditer(pattern, message, re.IGNORECASE):
+        # pattern is a pre-compiled regex object
+        for match in pattern.finditer(message):
             original = match.group()
             detected.append(
                 {
