@@ -17,10 +17,23 @@ try:
     )
     from RestrictedPython.PrintCollector import PrintCollector
 
+    # Tuple unpacking helper for RestrictedPython
+    # Import guarded_unpack_sequence if available (RestrictedPython 7.0+)
+    try:
+        from RestrictedPython.Guards import guarded_unpack_sequence
+    except ImportError:
+        # Fallback for older versions
+        def guarded_unpack_sequence(it, sequence):
+            """Guard for unpacking sequences (e.g., a, b = (1, 2))."""
+            if not hasattr(sequence, '__iter__'):
+                raise TypeError(f"'{type(sequence).__name__}' object is not iterable")
+            return sequence
+
     RESTRICTED_PYTHON_AVAILABLE = True
 except ImportError:
     RESTRICTED_PYTHON_AVAILABLE = False
     PrintCollector = None  # type: ignore
+    guarded_unpack_sequence = None  # type: ignore
 
 from src.core.logging import get_logger
 
@@ -94,6 +107,7 @@ class RestrictedPythonExecutor:
                 **SAFE_BUILTINS,
                 "_getiter_": iter,
                 "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
+                "_unpack_sequence_": guarded_unpack_sequence,  # Tuple unpacking: a, b = (1, 2)
                 "_write_": lambda x: x,  # Safe write guard
                 "_getattr_": safer_getattr,  # Safe attribute access
                 "_setattr_": guarded_setattr,  # Safe attribute setting
