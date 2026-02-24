@@ -118,13 +118,24 @@ async def chat(
     device_id = None
     has_docs = False
     if session_store:
-        session = await session_store.get(request.session_id)
-        if session:
-            device_id = session.user_id  # In guest mode, user_id is device_id
-            if vector_store:
-                has_docs = await vector_store.has_documents_for_session(
-                    device_id=device_id, session_id=request.session_id
-                )
+        try:
+            session = await session_store.get(request.session_id)
+            if session:
+                device_id = session.user_id  # In guest mode, user_id is device_id
+                if vector_store:
+                    has_docs = await vector_store.has_documents_for_session(
+                        device_id=device_id, session_id=request.session_id
+                    )
+        except Exception as e:
+            log_request(
+                method="POST",
+                path="/api/v1/chat",
+                session_id=request.session_id,
+                user_message="[session_store unavailable]",
+                duration_ms=0,
+                status="warning",
+                error=f"Session store error (continuing without session): {e}",
+            )
 
     # Create initial state with sanitized message and device_id
     initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
@@ -226,13 +237,24 @@ async def chat_stream(
     device_id = None
     has_docs = False
     if session_store:
-        session = await session_store.get(request.session_id)
-        if session:
-            device_id = session.user_id  # In guest mode, user_id is device_id
-            if vector_store:
-                has_docs = await vector_store.has_documents_for_session(
-                    device_id=device_id, session_id=request.session_id
-                )
+        try:
+            session = await session_store.get(request.session_id)
+            if session:
+                device_id = session.user_id  # In guest mode, user_id is device_id
+                if vector_store:
+                    has_docs = await vector_store.has_documents_for_session(
+                        device_id=device_id, session_id=request.session_id
+                    )
+        except Exception as e:
+            log_request(
+                method="POST",
+                path="/api/v1/chat/stream",
+                session_id=request.session_id,
+                user_message="[session_store unavailable]",
+                duration_ms=0,
+                status="warning",
+                error=f"Session store error (continuing without session): {e}",
+            )
 
     # Create initial state with device_id
     initial_state = create_initial_state(sanitized_message, request.session_id, device_id)
