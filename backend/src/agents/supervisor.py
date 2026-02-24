@@ -69,7 +69,6 @@ Return 'done' when all tasks are complete.
 
 def create_route_decision_model(available_agents: set[str]):
     """Create a RouteDecision model with dynamic agent choices."""
-    agent_literal = Literal[tuple(available_agents)]  # type: ignore
     # Include "done" as a valid option for workflow completion
     agent_or_done = Literal[tuple(available_agents | {"done"})]  # type: ignore
 
@@ -357,11 +356,6 @@ Continue with the next logical step or return 'done' if all tasks are complete."
         reasoning = decision.get("reasoning", "No reasoning provided")
         new_remaining_tasks = decision.get("remaining_tasks", [])
 
-        # Update completed steps if this is a continuation (not initial entry)
-        updated_completed_steps = completed_steps.copy()
-        if completed_steps and selected_agent != "done":
-            # Previous step was completed, this is the next step
-            pass  # Will be updated after agent execution
 
         # Store the routing exchange in memory if available
         if self.memory:
@@ -375,19 +369,37 @@ Continue with the next logical step or return 'done' if all tasks are complete."
                 },
             )
 
-        # If selected_agent is 'done', generate a final response based on workflow context
+        # If selected_agent is 'done', decide whether supervisor needs to respond directly
         if selected_agent == "done":
-            final_response = await self._generate_final_response(state, reasoning)
-            return {
-                **state,
-                "next_agent": "done",
-                "remaining_tasks": [],
-                "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
-                "metadata": {
-                    **state.get("metadata", {}),
-                    "route_reasoning": reasoning,
-                },
-            }
+            if not completed_steps:
+                # No specialist agent ran — supervisor must respond directly (e.g., greetings/farewells)
+                final_response = await self._generate_final_response(state, reasoning)
+                return {
+                    **state,
+                    "next_agent": "done",
+                    "remaining_tasks": [],
+                    "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
+                    "metadata": {
+                        **state.get("metadata", {}),
+                        "route_reasoning": reasoning,
+                    },
+                }
+            else:
+                # Specialist agent(s) already responded — skip redundant LLM call
+                logger.info(
+                    "supervisor_done",
+                    session_id=session_id,
+                    completed_steps=completed_steps,
+                )
+                return {
+                    **state,
+                    "next_agent": "done",
+                    "remaining_tasks": [],
+                    "metadata": {
+                        **state.get("metadata", {}),
+                        "route_reasoning": reasoning,
+                    },
+                }
 
         logger.info(
             "supervisor_routing",

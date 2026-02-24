@@ -63,8 +63,14 @@ When writing code:
 1. First understand the requirements
 2. Write the code with proper structure
 3. Add comments for clarity
-4. Execute the code immediately and include the output in your response
-5. Test edge cases mentally
+4. ALWAYS include example calls after defining functions or classes:
+   - Add print() calls with representative inputs so execution produces visible output
+   - Bad:  def fibonacci(n): ...
+   - Good: def fibonacci(n): ...
+           print(fibonacci(0))   # 0
+           print(fibonacci(10))  # 55
+5. Execute the code immediately and include the output in your response
+6. Test edge cases mentally
 
 Formatting Rules (IMPORTANT):
 - ALWAYS use proper markdown formatting
