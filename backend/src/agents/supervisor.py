@@ -375,6 +375,20 @@ Continue with the next logical step or return 'done' if all tasks are complete."
                 },
             )
 
+        # If selected_agent is 'done', generate a final response based on workflow context
+        if selected_agent == "done":
+            final_response = await self._generate_final_response(state, reasoning)
+            return {
+                **state,
+                "next_agent": "done",
+                "remaining_tasks": [],
+                "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
+                "metadata": {
+                    **state.get("metadata", {}),
+                    "route_reasoning": reasoning,
+                },
+            }
+
         logger.info(
             "supervisor_routing",
             session_id=session_id,
@@ -392,3 +406,42 @@ Continue with the next logical step or return 'done' if all tasks are complete."
                 "route_reasoning": reasoning,
             },
         }
+
+    async def _generate_final_response(self, state: AgentState, reasoning: str) -> str:
+        """Generate a final response when workflow is complete.
+
+        Args:
+            state: Current agent state
+            reasoning: Routing reasoning
+
+        Returns:
+            Final response string
+        """
+        workflow_context = state.get("workflow_context", "")
+        messages = state.get("messages", [])
+
+        # If there's workflow context, summarize it
+        if workflow_context:
+            prompt = f"""Based on the following workflow results, provide a concise summary response:
+
+Workflow Context:
+{workflow_context[:2000]}
+
+Provide a helpful response summarizing the results."""
+
+            try:
+                response = await self.llm.generate([
+                    {"role": "system", "content": "You are a helpful assistant summarizing workflow results."},
+                    {"role": "user", "content": prompt}
+                ])
+                return response
+            except Exception as e:
+                logger.error("final_response_generation_failed", error=str(e))
+                return "작업이 완료되었습니다. 추가로 도움이 필요하시면 말씀해 주세요."
+
+        # If no context but has messages, provide generic completion message
+        if messages and len(messages) > 1:
+            return "도움이 되셨나요? 추가로 궁금하신 점이 있으면 말씀해 주세요."
+
+        # Default fallback
+        return "안녕하세요! 무엇을 도와드릴까요?"
