@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
 from src.core.logging import get_logger
-from src.graph.edges import route_by_next_agent
+from src.graph.edges import route_after_agent, route_by_next_agent
 from src.graph.state import AgentState
 
 logger = get_logger(__name__)
@@ -116,17 +116,22 @@ def build_graph(container):
         edge_mapping,
     )
 
-    # All specialist agents return to supervisor for next step
-    # This enables multi-step workflows (e.g., web_search → code → rag)
-    graph.add_edge("chat", "supervisor")
+    # Conditional edges from specialist agents
+    # Optimization: Go directly to END if no remaining tasks (skips supervisor call)
+    agent_return_mapping = {
+        "supervisor": "supervisor",
+        "__end__": END,
+    }
+
+    graph.add_conditional_edges("chat", route_after_agent, agent_return_mapping)
     if code:
-        graph.add_edge("code", "supervisor")
+        graph.add_conditional_edges("code", route_after_agent, agent_return_mapping)
     if rag:
-        graph.add_edge("rag", "supervisor")
+        graph.add_conditional_edges("rag", route_after_agent, agent_return_mapping)
     if web_search:
-        graph.add_edge("web_search", "supervisor")
+        graph.add_conditional_edges("web_search", route_after_agent, agent_return_mapping)
     if report:
-        graph.add_edge("report", "supervisor")
+        graph.add_conditional_edges("report", route_after_agent, agent_return_mapping)
 
     # Compile with memory saver for state persistence
     checkpointer = MemorySaver()

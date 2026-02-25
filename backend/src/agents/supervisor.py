@@ -116,6 +116,36 @@ class SupervisorAgent(BaseAgent):
         r"질문한",
     ]
 
+    # Simple query patterns for fast-path routing (no LLM call needed)
+    SIMPLE_PATTERNS = {
+        "greeting": [
+            r"^안녕[\s!?.]*$",
+            r"^안녕하세요[\s!?.]*$",
+            r"^반가워[\s!?.]*$",
+            r"^반갑습니다[\s!?.]*$",
+            r"^헬로[\s!?.]*$",
+            r"^하이[\s!?.]*$",
+            r"^hello[\s!?.]*$",
+            r"^hi[\s!?.]*$",
+            r"^hey[\s!?.]*$",
+        ],
+        "thanks": [
+            r"^고마워[\s!?.]*$",
+            r"^감사[\s!?.]*$",
+            r"^감사합니다[\s!?.]*$",
+            r"^땡큐[\s!?.]*$",
+            r"^thanks[\s!?.]*$",
+            r"^thank you[\s!?.]*$",
+        ],
+        "farewell": [
+            r"^잘가[\s!?.]*$",
+            r"^잘가요[\s!?.]*$",
+            r"^바이[\s!?.]*$",
+            r"^bye[\s!?.]*$",
+            r"^再见[\s!?.]*$",
+        ],
+    }
+
     @inject
     def __init__(
         self,
@@ -177,6 +207,27 @@ Consider the context of the conversation when making your decision.
 
 IMPORTANT: If previous steps have been completed (check completed_steps and workflow_context),
 continue with the next logical step. Return 'done' only when the entire workflow is complete."""
+
+    def _is_simple_query(self, content: str) -> tuple[str | None, str | None]:
+        """Check if query is simple enough to skip LLM routing.
+
+        Args:
+            content: The user query content
+
+        Returns:
+            Tuple of (agent_name, reasoning) if simple query, (None, None) otherwise
+        """
+        content_lower = content.lower().strip()
+
+        for pattern_type, patterns in self.SIMPLE_PATTERNS.items():
+            for pattern in patterns:
+                if re.match(pattern, content_lower, re.IGNORECASE):
+                    if pattern_type == "greeting":
+                        return ("chat", "Simple greeting detected via pattern matching")
+                    else:  # thanks, farewell
+                        return ("done", f"Simple {pattern_type} detected via pattern matching")
+
+        return (None, None)
 
     def _contains_reference_to_previous(self, content: str) -> bool:
         """Check if query contains references to previous conversation.
@@ -281,6 +332,45 @@ continue with the next logical step. Return 'done' only when the entire workflow
         completed_steps = state.get("completed_steps", [])
         remaining_tasks = state.get("remaining_tasks", [])
         workflow_context = state.get("workflow_context", "")
+
+        # Fast path: Check for simple queries that don't need LLM routing
+        # Only apply if this is the first step (no completed_steps yet)
+        if not completed_steps:
+            last_msg = state["messages"][-1] if state["messages"] else None
+            if last_msg:
+                content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+                simple_agent, simple_reasoning = self._is_simple_query(content)
+                if simple_agent:
+                    logger.info(
+                        "simple_query_fast_path",
+                        session_id=session_id,
+                        agent=simple_agent,
+                        reasoning=simple_reasoning,
+                    )
+                    if simple_agent == "done":
+                        # Simple thanks/farewell - respond directly
+                        final_response = await self._generate_final_response(state, simple_reasoning)
+                        return {
+                            **state,
+                            "next_agent": "done",
+                            "remaining_tasks": [],
+                            "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
+                            "metadata": {
+                                **state.get("metadata", {}),
+                                "route_reasoning": simple_reasoning,
+                            },
+                        }
+                    else:
+                        # Simple greeting - route directly to chat
+                        return {
+                            **state,
+                            "next_agent": simple_agent,
+                            "remaining_tasks": [],
+                            "metadata": {
+                                **state.get("metadata", {}),
+                                "route_reasoning": simple_reasoning,
+                            },
+                        }
 
         # Inject document context into system prompt for better routing
         has_documents = state.get("has_documents", False)
