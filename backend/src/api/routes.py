@@ -167,7 +167,16 @@ async def chat(
         # Security: Filter potential prompt leaks from output
         response_message = filter_llm_output(response_message)
 
-        agent_used = result.get("next_agent", "chat")
+        # Determine which agent actually processed the request
+        # Use completed_steps (tracks actual processing agents) over next_agent (routing state)
+        completed_steps = result.get("completed_steps", [])
+        if completed_steps:
+            agent_used = completed_steps[-1]  # Last agent that actually processed
+        else:
+            agent_used = result.get("next_agent", "chat")
+            if agent_used == "done":
+                agent_used = "chat"  # Default for greetings/simple responses
+
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Log request/response (PII masking handled by logging module)
