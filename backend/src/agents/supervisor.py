@@ -344,7 +344,13 @@ continue with the next logical step. Return 'done' only when the entire workflow
         if not completed_steps:
             last_msg = state["messages"][-1] if state["messages"] else None
             if last_msg:
-                content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+                # Extract content from dict, LangChain message, or string
+                if isinstance(last_msg, dict):
+                    content = last_msg.get("content", "")
+                elif hasattr(last_msg, "content"):
+                    content = last_msg.content  # LangChain message
+                else:
+                    content = str(last_msg)
                 logger.info("fast_path_check", session_id=session_id, content=content[:50])
                 simple_agent, simple_reasoning = self._is_simple_query(content)
                 logger.info("fast_path_result", session_id=session_id, agent=simple_agent, reasoning=simple_reasoning)
