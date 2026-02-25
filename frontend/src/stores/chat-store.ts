@@ -10,6 +10,27 @@ import { useToastStore } from './toast-store';
 // Device ID for guest mode (no login required)
 const DEVICE_ID_KEY = 'device_id';
 
+// Calculate time until rate limit reset (UTC 00:00 = KST 09:00)
+function getRateLimitResetTime(): string {
+  const now = new Date();
+  const utcNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+  const resetTime = new Date(utcNow);
+  resetTime.setUTCHours(24, 0, 0, 0); // Next UTC midnight
+
+  const diffMs = resetTime.getTime() - utcNow.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  // KST reset time (UTC+9)
+  const kstResetHour = 9;
+  const resetHour12 = kstResetHour > 12 ? kstResetHour - 12 : kstResetHour;
+
+  if (diffHours > 0) {
+    return `오전 ${resetHour12}시에 리셋됩니다. (약 ${diffHours}시간 ${diffMinutes}분 남음)`;
+  }
+  return `오전 ${resetHour12}시에 리셋됩니다. (약 ${diffMinutes}분 남음)`;
+}
+
 // Error classification utility
 function classifyError(error: string): ChatError {
   const lowerError = error.toLowerCase();
@@ -35,11 +56,14 @@ function classifyError(error: string): ChatError {
     };
   }
 
-  // Rate limiting
+  // Rate limiting (429) and Payment Required (402 - OpenRouter free tier quota)
   if (lowerError.includes('rate limit') || lowerError.includes('too many requests') ||
-      lowerError.includes('429')) {
+      lowerError.includes('429') || lowerError.includes('402') ||
+      lowerError.includes('payment required') || lowerError.includes('more credits') ||
+      lowerError.includes('resource_exhausted')) {
+    const resetInfo = getRateLimitResetTime();
     return {
-      message: '너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해주세요.',
+      message: `API 요청 한도에 도달했습니다. ${resetInfo}`,
       type: 'rate_limit',
       retryable: true,
       originalError: error,
