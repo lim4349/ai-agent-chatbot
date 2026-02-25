@@ -27,3 +27,27 @@ def route_by_next_agent(
         return "chat"
 
     return next_agent
+
+
+def route_after_agent(
+    state: AgentState,
+) -> Literal["supervisor", "__end__"]:
+    """Route after specialist agent completes.
+
+    Optimization: Skip supervisor call if no remaining tasks.
+    This reduces LLM calls from 3 to 2 for simple single-step queries.
+
+    Args:
+        state: Current graph state
+
+    Returns:
+        "supervisor" if there are remaining tasks, "__end__" otherwise
+    """
+    remaining_tasks = state.get("remaining_tasks", [])
+
+    # If there are remaining tasks, go back to supervisor for next step
+    if remaining_tasks:
+        return "supervisor"
+
+    # No remaining tasks - workflow is complete, skip supervisor call
+    return "__end__"
