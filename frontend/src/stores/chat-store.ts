@@ -13,22 +13,20 @@ const DEVICE_ID_KEY = 'device_id';
 // Calculate time until rate limit reset (UTC 00:00 = KST 09:00)
 function getRateLimitResetTime(): string {
   const now = new Date();
-  const utcNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
-  const resetTime = new Date(utcNow);
+  const resetTime = new Date(now);
   resetTime.setUTCHours(24, 0, 0, 0); // Next UTC midnight
 
-  const diffMs = resetTime.getTime() - utcNow.getTime();
+  const diffMs = resetTime.getTime() - now.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-  // KST reset time (UTC+9)
+  // KST reset time (UTC+9) is 9 AM
   const kstResetHour = 9;
-  const resetHour12 = kstResetHour > 12 ? kstResetHour - 12 : kstResetHour;
 
   if (diffHours > 0) {
-    return `오전 ${resetHour12}시에 리셋됩니다. (약 ${diffHours}시간 ${diffMinutes}분 남음)`;
+    return `오전 ${kstResetHour}시에 리셋됩니다. (약 ${diffHours}시간 ${diffMinutes}분 남음)`;
   }
-  return `오전 ${resetHour12}시에 리셋됩니다. (약 ${diffMinutes}분 남음)`;
+  return `오전 ${kstResetHour}시에 리셋됩니다. (약 ${diffMinutes}분 남음)`;
 }
 
 // Error classification utility
