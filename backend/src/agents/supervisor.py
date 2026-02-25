@@ -335,11 +335,19 @@ continue with the next logical step. Return 'done' only when the entire workflow
 
         # Fast path: Check for simple queries that don't need LLM routing
         # Only apply if this is the first step (no completed_steps yet)
+        logger.info(
+            "supervisor_process_start",
+            session_id=session_id,
+            completed_steps=completed_steps,
+            messages_count=len(state.get("messages", [])),
+        )
         if not completed_steps:
             last_msg = state["messages"][-1] if state["messages"] else None
             if last_msg:
                 content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+                logger.info("fast_path_check", session_id=session_id, content=content[:50])
                 simple_agent, simple_reasoning = self._is_simple_query(content)
+                logger.info("fast_path_result", session_id=session_id, agent=simple_agent, reasoning=simple_reasoning)
                 if simple_agent:
                     logger.info(
                         "simple_query_fast_path",
