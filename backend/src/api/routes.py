@@ -305,6 +305,8 @@ async def chat_stream(
             non_streaming_nodes = {"code", "report"}
             # Track which nodes actually sent streaming tokens (for fallback detection)
             streamed_nodes: set[str] = set()
+            # Track content sent to avoid duplicates
+            sent_content_hashes: set[int] = set()
 
             # Stream events from graph
             async for event in graph.astream_events(initial_state, config=config, version="v2"):
@@ -355,7 +357,10 @@ async def chat_stream(
                                     else getattr(last_msg, "content", "")
                                 )
                                 if content:
-                                    yield {"event": "token", "data": content}
+                                    content_hash = hash(content[:100])
+                                    if content_hash not in sent_content_hashes:
+                                        sent_content_hashes.add(content_hash)
+                                        yield {"event": "token", "data": content}
                     elif node_name in non_streaming_nodes:
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
@@ -368,7 +373,10 @@ async def chat_stream(
                                 else getattr(last_msg, "content", "")
                             )
                             if content:
-                                yield {"event": "token", "data": content}
+                                content_hash = hash(content[:100])
+                                if content_hash not in sent_content_hashes:
+                                    sent_content_hashes.add(content_hash)
+                                    yield {"event": "token", "data": content}
                     elif node_name in {"chat", "rag", "web_search"} and node_name not in streamed_nodes:
                         # Fallback: if a normally-streaming node didn't stream, send its output now
                         output = event.get("data", {}).get("output", {})
@@ -381,7 +389,10 @@ async def chat_stream(
                                 else getattr(last_msg, "content", "")
                             )
                             if content:
-                                yield {"event": "token", "data": content}
+                                content_hash = hash(content[:100])
+                                if content_hash not in sent_content_hashes:
+                                    sent_content_hashes.add(content_hash)
+                                    yield {"event": "token", "data": content}
 
             yield {"event": "done", "data": ""}
 
