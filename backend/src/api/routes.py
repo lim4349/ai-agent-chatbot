@@ -45,8 +45,8 @@ from src.core.validators import (
 )
 from src.documents.models import Document
 from src.documents.pinecone_store import PineconeVectorStore
-from src.memory.long_term_memory import LongTermMemory
 from src.graph.state import create_initial_state
+from src.memory.long_term_memory import LongTermMemory
 from src.tools.registry import ToolRegistry
 
 router = APIRouter()
