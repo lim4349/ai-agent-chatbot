@@ -31,7 +31,7 @@ services:
       - key: LLM_PROVIDER
         value: openai
       - key: LLM_MODEL
-        value: gemini-1.5-flash
+        value: gemini-2.5-flash
       - key: LLM_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai
       # Secrets - Set these in Render Dashboard
