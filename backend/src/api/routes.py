@@ -45,6 +45,7 @@ from src.core.validators import (
 )
 from src.documents.models import Document
 from src.documents.pinecone_store import PineconeVectorStore
+from src.memory.long_term_memory import LongTermMemory
 from src.graph.state import create_initial_state
 from src.tools.registry import ToolRegistry
 
@@ -115,14 +116,16 @@ async def chat(
     # Security: Sanitize input for LLM
     sanitized_message = sanitize_for_llm(request.message)
 
-    # Get session to retrieve device_id
-    device_id = None
+    # Get device_id: prefer request parameter, then session store
+    device_id = request.device_id
     has_docs = False
     if session_store:
         try:
             session = await session_store.get(request.session_id)
             if session:
-                device_id = session.user_id  # In guest mode, user_id is device_id
+                # Use session's user_id if request doesn't have device_id
+                if not device_id:
+                    device_id = session.user_id  # In guest mode, user_id is device_id
                 if vector_store:
                     has_docs = await vector_store.has_documents_for_session(
                         device_id=device_id, session_id=request.session_id
@@ -581,12 +584,15 @@ async def delete_session(
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     memory: MemoryStore = Depends(Provide[DIContainer.memory]),  # noqa: B008
+    long_term_memory: LongTermMemory = Depends(Provide[DIContainer.long_term_memory]),  # noqa: B008
 ):
     """Delete a session and all its associated documents.
 
     This will:
     1. Delete all document vectors from Pinecone for this session
-    2. Remove the session from storage (documents cascade deleted)
+    2. Clear session memory (Redis)
+    3. Delete topic summaries for this session
+    4. Remove the session from storage
     """
     # Check if session exists - if it does, verify ownership
     # If session doesn't exist (isLocalOnly), still run cleanup for Pinecone/Redis
@@ -596,14 +602,14 @@ async def delete_session(
 
     try:
         # 1. Delete vectors from Pinecone (always run - idempotent)
-        deleted_count = 0
+        deleted_vectors = 0
         if vector_store:
-            deleted_count = await vector_store.delete_session_documents(device_id, session_id)
+            deleted_vectors = await vector_store.delete_session_documents(device_id, session_id)
             log_request(
                 method="DELETE",
                 path=f"/api/v1/sessions/{session_id}/full",
                 session_id=session_id,
-                user_message=f"Deleted {deleted_count} vectors from Pinecone",
+                user_message=f"Deleted {deleted_vectors} vectors from Pinecone",
                 duration_ms=0,
                 status="success",
             )
@@ -611,13 +617,20 @@ async def delete_session(
         # 2. Clear Redis memory (always run - idempotent)
         await memory.clear(session_id)
 
-        # 3. Delete session from storage (only if it exists)
+        # 3. Delete topic summaries for this session (always run - idempotent)
+        deleted_topics = 0
+        if long_term_memory:
+            deleted_topics = await long_term_memory.delete_session_topics(session_id)
+
+        # 4. Delete session from storage (only if it exists)
         if session:
             await session_store.delete(session_id)
 
         return {
             "status": "deleted",
             "session_id": session_id,
+            "deleted_vectors": deleted_vectors,
+            "deleted_topics": deleted_topics,
             "message": "Session and associated resources deleted successfully",
         }
 

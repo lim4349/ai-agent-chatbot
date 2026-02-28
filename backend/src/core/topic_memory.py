@@ -43,15 +43,15 @@ Extract 1-5 main topics from this conversation. For each topic:
 3. Assess the relevance/importance (0.0-1.0)
 
 Respond in JSON format:
-{
+{{
     "topics": [
-        {
+        {{
             "topic": "topic name",
             "summary": "brief summary",
             "relevance": 0.8
-        }
+        }}
     ]
-}
+}}
 
 Respond with valid JSON only."""
 
@@ -92,13 +92,31 @@ Summary:"""
                 output_schema=dict,
             )
 
+            if not result:
+                logger.warning("topic_extraction_empty_result")
+                return []
+
             topics = result.get("topics", [])
 
-            # Sort by relevance
-            topics.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+            # Handle different response formats from LLM
+            normalized_topics = []
+            for item in topics:
+                if isinstance(item, dict):
+                    # Expected format: {"topic": "...", "summary": "...", "relevance": 0.8}
+                    normalized_topics.append(item)
+                elif isinstance(item, str):
+                    # Fallback format: just topic name as string
+                    normalized_topics.append({
+                        "topic": item,
+                        "summary": item,
+                        "relevance": 0.5
+                    })
 
-            logger.debug("topics_extracted", topic_count=len(topics))
-            return topics
+            # Sort by relevance
+            normalized_topics.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+
+            logger.debug("topics_extracted", topic_count=len(normalized_topics))
+            return normalized_topics
 
         except Exception as e:
             logger.error("topic_extraction_failed", error=str(e))

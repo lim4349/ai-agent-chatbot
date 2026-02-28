@@ -545,3 +545,49 @@ class LongTermMemory:
                 logger.error("failed_to_clear_user_data", error=str(e))
 
         logger.info("user_data_cleared", user_id=user_id)
+
+    async def delete_session_topics(self, session_id: str) -> int:
+        """Delete all topic summaries for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Number of deleted entries
+        """
+        deleted_count = 0
+
+        # Clear from in-memory store
+        if session_id in self._session_topics:
+            topics = self._session_topics.pop(session_id)
+            for topic in topics:
+                # Remove this session from topic's session list
+                if topic in self._topic_sessions:
+                    self._topic_sessions[topic].discard(session_id)
+                # Remove summaries for this session from memory
+                if topic in self._topic_summaries:
+                    self._topic_summaries[topic] = [
+                        s for s in self._topic_summaries[topic]
+                        if s.get("session_id") != session_id
+                    ]
+            deleted_count = len(topics)
+
+        # Delete from Supabase
+        if self._use_supabase and self._client:
+            try:
+                result = (
+                    self._client.table("topic_summaries")
+                    .delete()
+                    .eq("session_id", session_id)
+                    .execute()
+                )
+                deleted_count = max(deleted_count, len(result.data))
+            except Exception as e:
+                logger.error("failed_to_delete_session_topics", error=str(e))
+
+        logger.info(
+            "session_topics_deleted",
+            session_id=session_id,
+            count=deleted_count,
+        )
+        return deleted_count

@@ -159,7 +159,7 @@ export const tokenManager = {
 
     try {
       // Import API_BASE_URL dynamically to avoid circular dependencies
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const { API_BASE_URL } = await import('./constants');
 
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',

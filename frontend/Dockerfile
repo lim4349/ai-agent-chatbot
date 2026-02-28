@@ -12,6 +12,12 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Enable standalone output for Docker
+ENV OUTPUT_MODE=docker
+
+# Build argument for API URL (can be overridden at build time)
+ARG NEXT_PUBLIC_API_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build
 

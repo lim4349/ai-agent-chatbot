@@ -17,6 +17,9 @@ class ChatRequest(BaseModel):
         default_factory=lambda: str(uuid4()),
         description="Session ID for conversation continuity",
     )
+    device_id: str | None = Field(
+        default=None, description="Device ID for guest mode cross-session continuity"
+    )
     stream: bool = Field(default=False, description="Enable streaming response")
 
 

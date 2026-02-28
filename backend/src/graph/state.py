@@ -42,7 +42,7 @@ def create_initial_state(
     Args:
         message: User's message
         session_id: Session identifier
-        device_id: Device identifier (guest mode)
+        device_id: Device identifier (guest mode) - also used as user_id for cross-session continuity
         available_agents: List of available agent names
 
     Returns:
@@ -51,6 +51,7 @@ def create_initial_state(
     metadata = {"session_id": session_id}
     if device_id:
         metadata["device_id"] = device_id
+        metadata["user_id"] = device_id  # Use device_id as user_id for cross-session continuity
 
     return {
         "messages": [{"role": "user", "content": message}],

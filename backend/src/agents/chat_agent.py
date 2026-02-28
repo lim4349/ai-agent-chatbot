@@ -429,8 +429,9 @@ Guidelines:
             await self._extract_user_facts(user_id, current_messages)
 
         # Process topics for cross-session linking
+        # Use full conversation history (messages includes history from memory)
         if self.topic_memory and user_id:
-            await self._process_topics(session_id, current_messages)
+            await self._process_topics(session_id, messages)
 
         # Update workflow state for multi-step pipelines
         workflow_updates = self._update_workflow_state(state, response)
@@ -481,6 +482,12 @@ Guidelines:
         try:
             # Process topics periodically (every 5 messages)
             if len(messages) >= 5 and len(messages) % 5 == 0:
+                logger.info(
+                    "topic_extraction_triggered",
+                    session_id=session_id,
+                    message_count=len(messages),
+                )
                 await self.topic_memory.process_session_topics(session_id, messages)
+                logger.info("topic_extraction_completed", session_id=session_id)
         except Exception as e:
             logger.error("topic_processing_failed", error=str(e), session_id=session_id)

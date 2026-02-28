@@ -179,6 +179,56 @@ git merge origin/main  # dev가 main보다 뒤처진 경우 필수
 
 ---
 
+## Memory 시스템
+
+### 3-Tier Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Tier 1: Session Memory (Short-term)                    │
+│  - 저장소: Redis / Upstash / In-Memory                  │
+│  - 내용: 현재 대화 메시지 (user/assistant)              │
+│  - TTL: 1시간 (활동 시 리셋)                            │
+│  - 삭제: 비활동 1시간 후 자동 삭제                      │
+├─────────────────────────────────────────────────────────┤
+│  Tier 2: Long-term Memory (User-level)                  │
+│  - 저장소: Supabase PostgreSQL                          │
+│  - 내용: user_profiles, user_facts                      │
+│  - 수명: 영구 (세션 삭제와 무관)                        │
+│  - 삭제: 사용자 직접 요청 시만                          │
+├─────────────────────────────────────────────────────────┤
+│  Tier 3: Topic Memory (Session-linked)                  │
+│  - 저장소: Supabase PostgreSQL                          │
+│  - 내용: topic_summaries (대화 주제)                    │
+│  - 수명: 세션과 연결됨                                  │
+│  - 삭제: 세션 삭제 시 함께 삭제                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 세션 삭제 시 동작
+
+**DELETE `/sessions/{session_id}/full`**
+
+1. ✅ Pinecone: 해당 세션의 문서 벡터 삭제
+2. ✅ Redis: 세션 메모리 즉시 삭제
+3. ✅ Supabase topic_summaries: 세션 관련 토픽 삭제
+4. ✅ Supabase sessions: 세션 레코드 삭제
+5. ⚠️ Supabase user_profiles: **유지** (사용자 레벨)
+6. ⚠️ Supabase user_facts: **유지** (사용자 레벨)
+
+### 메모리 명령어 (Chat Agent)
+
+사용자가 대화 중 사용할 수 있는 명령어:
+
+| 명령어 | 동작 | 저장 위치 |
+|--------|------|----------|
+| `기억해:`, `기억해줘:` | 사용자 정보 저장 | user_facts (영구) |
+| `알고 있니?` | 저장된 정보 검색 | user_facts |
+| `잊어줘:` | 특정 정보 삭제 | user_facts |
+| `요약해줘` | 대화 요약 생성 | Redis (TTL 적용) |
+
+---
+
 ## 개발 서버 실행
 
 ```bash

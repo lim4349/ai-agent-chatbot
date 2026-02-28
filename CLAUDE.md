@@ -196,6 +196,34 @@ npm run build
 
 ## 학습한 내용 (Lessons Learned)
 
+### 2026-02-27
+
+1. **GLM-5 (z.ai) 연동**
+   - Anthropic-compatible API 사용: `https://api.z.ai/api/anthropic`
+   - `.env` 설정:
+     ```
+     LLM_PROVIDER=anthropic
+     LLM_MODEL=glm-5
+     LLM_ANTHROPIC_API_KEY=your_z.ai_api_key
+     LLM_BASE_URL=https://api.z.ai/api/anthropic
+     ```
+   - Structured output은 JSON mode 사용 (function calling 미지원)
+
+2. **Supabase Service Role Key vs Anon Key**
+   - **service_role** (eyJ...): RLS 우회, 서버사이드 사용
+   - **anon** (sb_publishable...): RLS 적용, 클라이언트용
+   - 백엔드에서는 반드시 `SUPABASE_SERVICE_KEY` 사용해야 함
+
+3. **Session 삭제 시 topic_summaries 정리**
+   - 기존: 세션 삭제 시 `topic_summaries`가 남아있는 버그
+   - 수정: `LongTermMemory.delete_session_topics()` 메서드 추가
+   - `DELETE /sessions/{session_id}/full`에서 함께 삭제됨
+
+4. **3-Tier Memory 시스템**
+   - **단기 (Redis/Upstash)**: 대화 메시지, TTL 1시간
+   - **장기 (Supabase)**: user_profiles, user_facts (영구)
+   - **토픽 (Supabase)**: topic_summaries (세션과 함께 삭제)
+
 ### 2026-02-24
 
 1. **Report Agent 구현**
@@ -236,4 +264,4 @@ npm run build
 
 ---
 
-*마지막 업데이트: 2026-02-20*
+*마지막 업데이트: 2026-02-27*
