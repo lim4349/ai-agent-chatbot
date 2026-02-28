@@ -928,7 +928,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           className
         )}
       >
-        <p className="mb-4 last:mb-0 leading-[1.8] whitespace-pre-wrap">{fixedContent}</p>
+        {/* Use div instead of p to avoid nested <p> hydration errors */}
+        <div className="mb-4 last:mb-0 leading-[1.8] whitespace-pre-wrap">{fixedContent}</div>
       </div>
     );
   }
