@@ -69,7 +69,9 @@ When writing code:
    - Good: def fibonacci(n): ...
            print(fibonacci(0))   # 0
            print(fibonacci(10))  # 55
-5. Execute the code immediately and include the output in your response
+5. Write the code only - DO NOT include execution results in your response
+   - The system will automatically execute your code and display results separately
+   - Including results in your response causes duplicate output
 6. Test edge cases mentally
 
 Formatting Rules (IMPORTANT):
@@ -101,23 +103,16 @@ Formatting Rules (IMPORTANT):
         # Extract and execute Python code blocks if code executor is available
         if self.code_executor:
             code_blocks = self._extract_python_code(response)
-            if code_blocks:
-                logger.info("code_agent_executing_code", blocks_count=len(code_blocks))
-                for i, code in enumerate(code_blocks, 1):
-                    result = await self.code_executor.execute(code)
-                    tool_results.append({
-                        "tool": "code_executor",
-                        "block_number": i,
-                        "result": result,
-                    })
-                    # Append execution result to response
-                    exec_output = self._format_execution_result(result, i)
-                    response = response + exec_output
-                    logger.info(
-                        "code_agent_execution_complete",
-                        block_number=i,
-                        success=result.get("success", False),
-                    )
+            for i, code in enumerate(code_blocks, 1):
+                result = await self.code_executor.execute(code)
+                tool_results.append({
+                    "tool": "code_executor",
+                    "block_number": i,
+                    "result": result,
+                })
+                # Append execution result to response
+                exec_output = self._format_execution_result(result, i)
+                response = response + exec_output
 
         # Store the code exchange in memory if available
         if self.memory:
