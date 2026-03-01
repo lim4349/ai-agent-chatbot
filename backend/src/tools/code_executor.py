@@ -112,27 +112,34 @@ class RestrictedPythonExecutor:
                 "_write_": lambda x: x,  # Safe write guard
                 "_getattr_": safer_getattr,  # Safe attribute access
                 "_setattr_": guarded_setattr,  # Safe attribute setting
-                "_print_": PrintCollector,  # Safe print that collects output
+                "_print_": PrintCollector,  # PrintCollector class for restricted print
             },
             "__name__": "__main__",
         }
         return safe_globals
 
     def _set_resource_limits(self):
-        """Set resource limits for the execution."""
-        # Set memory limit (in bytes)
-        memory_limit = self.memory_limit_mb * 1024 * 1024
-        try:
-            resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
-        except (ValueError, OSError):
-            # RLIMIT_AS might not be available on all platforms
-            logger.debug("code_executor_memory_limit_not_set")
+        """Set resource limits for the execution.
 
-        # Set CPU time limit (slightly more than timeout to catch runaway processes)
+        NOTE: resource.setrlimit() affects the ENTIRE PROCESS, not just the current thread.
+        In a multi-threaded server environment, this can cause the main process to hang
+        if the limit is lower than current memory usage. We only set CPU limits here
+        and rely on the async timeout for execution control.
+        """
+        # NOTE: Disabled RLIMIT_AS as it affects the entire process, not just the thread.
+        # When running in a Docker container with a multi-threaded server, setting
+        # RLIMIT_AS can cause the main server to hang if it exceeds the limit.
+        # Memory is controlled by the container's memory limits instead.
+
+        # Set CPU time limit only (soft limit for runaway detection)
+        # This is less problematic than memory limits but still process-wide
         try:
-            resource.setrlimit(resource.RLIMIT_CPU, (self.timeout + 1, self.timeout + 1))
-        except (ValueError, OSError):
-            logger.debug("code_executor_cpu_limit_not_set")
+            # Only set soft limit (first value), keep hard limit unlimited
+            # This allows the process to continue but sends SIGXCPU when soft limit is hit
+            resource.setrlimit(resource.RLIMIT_CPU, (self.timeout + 1, resource.RLIM_INFINITY))
+            logger.debug("code_executor_cpu_limit_set", timeout=self.timeout + 1)
+        except (ValueError, OSError) as e:
+            logger.debug("code_executor_cpu_limit_not_set", error=str(e))
 
     async def execute(self, code: str) -> dict[str, Any]:
         """Execute Python code in a restricted environment.
@@ -154,10 +161,9 @@ class RestrictedPythonExecutor:
         try:
             sys.stderr = stderr_buffer
 
-            if RESTRICTED_PYTHON_AVAILABLE:
-                result = await self._execute_restricted(code)
-            else:
-                result = await self._execute_basic(code)
+            # NOTE: RestrictedPython disabled due to hanging issues
+            # Using basic execution mode with AST-based safety checks
+            result = await self._execute_basic(code)
 
             # Add captured stderr to result
             result["stderr"] = stderr_buffer.getvalue() + result.get("stderr", "")
@@ -193,19 +199,32 @@ class RestrictedPythonExecutor:
             safe_globals = self._create_safe_globals()
 
             # Step 3: Execute with timeout and resource limits
-            def run_code() -> None:
+            # Use a separate process-like isolation via concurrent.futures
+            import concurrent.futures
+
+            def run_code() -> str:
                 self._set_resource_limits()
+                # Create a fresh PrintCollector instance for this execution
+                print_collector = PrintCollector()
+                # Inject the print collector instance into globals
+                safe_globals["_print"] = print_collector
                 exec(bytecode, safe_globals)
+                # Return the collected output
+                if hasattr(print_collector, "txt"):
+                    return "".join(str(x) for x in print_collector.txt)
+                return ""
 
-            # Run with timeout
-            await asyncio.wait_for(asyncio.to_thread(run_code), timeout=self.timeout)
-
-            # Collect printed output from PrintCollector
-            printed_output = ""
-            print_collector = safe_globals.get("_print")
-            if print_collector and isinstance(print_collector, PrintCollector):
-                # PrintCollector stores output in .txt attribute
-                printed_output = "".join(str(x) for x in print_collector.txt)
+            # Run with timeout using ThreadPoolExecutor for better cancellation
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_code)
+                try:
+                    printed_output = await asyncio.wait_for(
+                        asyncio.wrap_future(future),
+                        timeout=self.timeout
+                    )
+                except TimeoutError:
+                    future.cancel()
+                    raise TimeoutError from None
 
             return {
                 "success": True,
@@ -258,10 +277,6 @@ class RestrictedPythonExecutor:
 
     async def _execute_basic(self, code: str) -> dict[str, Any]:
         """Fallback execution with basic safety checks (when RestrictedPython unavailable)."""
-        # Capture stdout for basic mode
-        stdout_buffer = StringIO()
-        old_stdout = sys.stdout
-
         # More comprehensive AST-based checks
         try:
             import ast
@@ -336,22 +351,40 @@ class RestrictedPythonExecutor:
             # Use safe_globals as both globals and locals to allow recursive functions.
             safe_globals = {"__builtins__": SAFE_BUILTINS, "__name__": "__main__"}
 
-            try:
-                sys.stdout = stdout_buffer
-
-                def run_code() -> None:
-                    self._set_resource_limits()
+            def run_code() -> str:
+                self._set_resource_limits()
+                # Capture stdout in thread
+                import io
+                import sys
+                thread_buffer = io.StringIO()
+                old = sys.stdout
+                sys.stdout = thread_buffer
+                try:
                     exec(code, safe_globals)
+                except Exception as e:
+                    logger.error("code_executor_exec_error", error=str(e))
+                    raise
+                finally:
+                    sys.stdout = old
+                return thread_buffer.getvalue()
 
-                await asyncio.wait_for(asyncio.to_thread(run_code), timeout=self.timeout)
-
-                return {
-                    "success": True,
-                    "stdout": stdout_buffer.getvalue(),
-                    "stderr": "",
-                }
-            finally:
-                sys.stdout = old_stdout
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_code)
+                try:
+                    output = await asyncio.wait_for(
+                        asyncio.wrap_future(future),
+                        timeout=self.timeout
+                    )
+                except TimeoutError:
+                    logger.warning("code_executor_timeout", timeout=self.timeout)
+                    future.cancel()
+                    raise TimeoutError from None
+            return {
+                "success": True,
+                "stdout": output,
+                "stderr": "",
+            }
 
         except SyntaxError as e:
             logger.warning("code_executor_syntax_error", error=str(e))

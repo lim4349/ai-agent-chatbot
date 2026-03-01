@@ -26,9 +26,9 @@ from src.api.schemas import (
     SessionListResponse,
     SessionResponse,
 )
-from src.core.config import AppConfig
+from src.core.config import AppConfig, RateLimitConfig
 from src.core.di_container import DIContainer
-from src.core.logging import log_request
+from src.core.logging import get_logger, log_request
 from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
 from src.core.protocols import (
     DocumentChunker,
@@ -49,20 +49,21 @@ from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
 from src.tools.registry import ToolRegistry
 
+logger = get_logger(__name__)
+
 router = APIRouter()
 
 # Rate limiting: session_id -> call_count
 _rate_limits: dict[str, int] = {}
-RATE_LIMIT_PER_SESSION = 20
 
 
-def check_rate_limit(session_id: str) -> None:
+def check_rate_limit(session_id: str, config: RateLimitConfig) -> None:
     """Check if session has exceeded rate limit."""
     count = _rate_limits.get(session_id, 0)
-    if count >= RATE_LIMIT_PER_SESSION:
+    if count >= config.per_session:
         raise HTTPException(
             status_code=429,
-            detail=f"세션당 최대 {RATE_LIMIT_PER_SESSION}회 호출 가능합니다. 새 세션을 시작해주세요.",
+            detail=f"세션당 최대 {config.per_session}회 호출 가능합니다. 새 세션을 시작해주세요.",
         )
     _rate_limits[session_id] = count + 1
 
@@ -84,13 +85,14 @@ async def chat(
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
     The supervisor will route to the appropriate specialist agent.
     """
     # Rate limiting
-    check_rate_limit(request.session_id)
+    check_rate_limit(request.session_id, config.rate_limit)
 
     start_time = time.perf_counter()
 
@@ -157,11 +159,11 @@ async def chat(
     initial_state["has_documents"] = has_docs
 
     # Configure with thread ID for state persistence
-    config = {"configurable": {"thread_id": request.session_id}}
+    graph_config = {"configurable": {"thread_id": request.session_id}}
 
     try:
         # Execute graph
-        result = await graph.ainvoke(initial_state, config=config)
+        result = await graph.ainvoke(initial_state, config=graph_config)
 
         # Extract response
         messages = result.get("messages", [])
@@ -224,13 +226,14 @@ async def chat_stream(
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
     Yields tokens as they are generated.
     """
     # Rate limiting
-    check_rate_limit(request.session_id)
+    check_rate_limit(request.session_id, config.rate_limit)
 
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
@@ -296,7 +299,7 @@ async def chat_stream(
     )
     initial_state["has_documents"] = has_docs
 
-    config = {"configurable": {"thread_id": request.session_id}}
+    graph_config = {"configurable": {"thread_id": request.session_id}}
 
     async def event_generator():
         try:
@@ -312,7 +315,7 @@ async def chat_stream(
             sent_content_hashes: set[int] = set()
 
             # Stream events from graph
-            async for event in graph.astream_events(initial_state, config=config, version="v2"):
+            async for event in graph.astream_events(initial_state, config=graph_config, version="v2"):
                 kind = event.get("event")
 
                 if kind == "on_chat_model_stream":
@@ -368,6 +371,7 @@ async def chat_stream(
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
+                        logger.info("routes_on_chain_end", node_name=node_name, message_count=len(messages))
                         if messages:
                             last_msg = messages[-1]
                             content = (
@@ -377,6 +381,7 @@ async def chat_stream(
                             )
                             if content:
                                 content_hash = hash(content[:100])
+                                logger.info("routes_content_hash", node_name=node_name, content_hash=content_hash, already_sent=content_hash in sent_content_hashes)
                                 if content_hash not in sent_content_hashes:
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
@@ -625,6 +630,9 @@ async def delete_session(
         # 4. Delete session from storage (only if it exists)
         if session:
             await session_store.delete(session_id)
+
+        # 5. Clean up rate limit counter for this session
+        _rate_limits.pop(session_id, None)
 
         return {
             "status": "deleted",

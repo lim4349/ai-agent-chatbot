@@ -118,12 +118,13 @@ class AnthropicProvider:
         # Create a copy of messages
         enhanced = list(messages)
 
-        # Get schema description if available
-        schema_hint = ""
+        # Generate example from schema instead of sending raw schema
+        example_hint = ""
         if output_schema is not dict and hasattr(output_schema, "model_json_schema"):
             try:
                 schema = output_schema.model_json_schema()
-                schema_hint = f"\n\nExpected JSON schema:\n{json.dumps(schema, indent=2)}"
+                example = self._schema_to_example(schema)
+                example_hint = f"\n\nRespond with valid JSON in this format:\n{json.dumps(example, indent=2, ensure_ascii=False)}"
             except Exception:
                 pass
 
@@ -135,10 +136,47 @@ class AnthropicProvider:
             # Append JSON instruction to last message
             enhanced[-1] = {
                 "role": last_msg.get("role", "user"),
-                "content": f"{last_content}\n\nRespond with valid JSON only.{schema_hint}",
+                "content": f"{last_content}\n\nRespond with valid JSON only.{example_hint}",
             }
 
         return enhanced
+
+    def _schema_to_example(self, schema: dict) -> dict:
+        """Convert JSON schema to an example JSON object.
+
+        Args:
+            schema: JSON schema dict
+
+        Returns:
+            Example JSON object based on schema structure
+        """
+        example = {}
+        properties = schema.get("properties", {})
+
+        for key, prop in properties.items():
+            prop_type = prop.get("type", "string")
+
+            if prop_type == "string":
+                # Use description as example if available
+                desc = prop.get("description", "")
+                if key == "selected_agent":
+                    example[key] = "code"  # Common agent example
+                elif key == "reasoning":
+                    example[key] = "Brief explanation of the decision"
+                else:
+                    example[key] = desc or f"value for {key}"
+            elif prop_type == "array":
+                example[key] = []
+            elif prop_type == "object":
+                example[key] = {}
+            elif prop_type == "boolean":
+                example[key] = True
+            elif prop_type == "number" or prop_type == "integer":
+                example[key] = 0
+            else:
+                example[key] = None
+
+        return example
 
     def _parse_json_response(self, content: str) -> dict | None:
         """Parse JSON from LLM response, handling various formats."""

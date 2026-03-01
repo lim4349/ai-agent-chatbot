@@ -75,6 +75,14 @@ class ToolsConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TOOLS_")
 
 
+class RateLimitConfig(BaseSettings):
+    """Rate limiting configuration."""
+
+    per_session: int = 20  # Max requests per session
+
+    model_config = SettingsConfigDict(env_prefix="RATE_LIMIT_")
+
+
 class MCPConfig(BaseSettings):
     """MCP (Model Context Protocol) server configuration."""
 
@@ -137,6 +145,7 @@ class AppConfig(BaseSettings):
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
+    rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
 
     model_config = SettingsConfigDict(
         env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore"
