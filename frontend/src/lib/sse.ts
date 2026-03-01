@@ -25,7 +25,9 @@ export function streamChat(
   const promise = (async () => {
     const attemptStream = async (): Promise<void> => {
       try {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.chatStream}`, {
+        const url = `${API_BASE_URL}${API_ENDPOINTS.chatStream}`;
+
+        const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...request, stream: true }),
@@ -34,6 +36,7 @@ export function streamChat(
 
         if (!response.ok) {
           const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('[SSE] HTTP error:', error);
           callbacks.onError(error.error || `HTTP ${response.status}`);
           return;
         }
@@ -56,7 +59,8 @@ export function streamChat(
               break;
             }
 
-            buffer += decoder.decode(value, { stream: true });
+            const decoded = decoder.decode(value, { stream: true });
+            buffer += decoded;
 
             // Split by double newlines (handle both \n\n and \r\n\r\n)
             // The \r?\n\r?\n pattern matches both Unix and Windows line endings
@@ -79,7 +83,9 @@ export function streamChat(
                   // But we need to preserve the actual data content including leading spaces
                   const raw = line.substring(5);
                   // Only remove the single delimiter space, preserve any leading spaces in data
-                  eventData = raw.length > 0 && raw[0] === ' ' ? raw.substring(1) : raw;
+                  const dataValue = raw.length > 0 && raw[0] === ' ' ? raw.substring(1) : raw;
+                  // Multiple data: lines should be joined with newlines per SSE spec
+                  eventData = eventData ? eventData + '\n' + dataValue : dataValue;
                 }
               }
 

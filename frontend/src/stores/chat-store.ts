@@ -297,6 +297,12 @@ export const useChatStore = create<ChatStore>()(
         let flushInterval: NodeJS.Timeout | null = null;
         let lastFlushTime = Date.now();
 
+        // Constants for performance optimization
+        const BATCH_INTERVAL = 100; // Increased from 50ms to 100ms
+        const CHECK_INTERVAL = 32; // ~30fps instead of 60fps
+        const MAX_BUFFER_SIZE = 500; // Max characters to buffer before forced flush
+        const MAX_MESSAGE_SIZE = 10000; // 10KB - trim messages larger than this
+
         const flushTokens = () => {
           if (!tokenBuffer) return;
           const batch = tokenBuffer;
@@ -307,28 +313,32 @@ export const useChatStore = create<ChatStore>()(
               s.id === sessionId
                 ? {
                     ...s,
-                    messages: s.messages.map((m, idx) =>
-                      idx === s.messages.length - 1
-                        ? { ...m, content: m.content + batch }
-                        : m
-                    ),
+                    messages: s.messages.map((m, idx) => {
+                      if (idx !== s.messages.length - 1) return m;
+                      const newContent = m.content + batch;
+                      // Trim message if it exceeds max size to prevent memory issues
+                      const trimmedContent = newContent.length > MAX_MESSAGE_SIZE
+                        ? newContent.slice(0, MAX_MESSAGE_SIZE) + '\n\n[Message truncated due to length]'
+                        : newContent;
+                      return { ...m, content: trimmedContent };
+                    }),
                   }
                 : s
             ),
           }));
         };
 
-        // Flush every 50ms for smoother rendering, or when buffer gets large
+        // Flush every BATCH_INTERVAL (100ms) for smoother rendering, or when buffer gets large
         const scheduleFlush = () => {
           if (flushInterval) return;
           flushInterval = setInterval(() => {
             const now = Date.now();
             const timeSinceLastFlush = now - lastFlushTime;
-            // Flush if: buffer has content AND (50ms passed OR buffer > 100 chars)
-            if (tokenBuffer && (timeSinceLastFlush >= 50 || tokenBuffer.length > 100)) {
+            // Flush if: buffer has content AND (BATCH_INTERVAL passed OR buffer > MAX_BUFFER_SIZE)
+            if (tokenBuffer && (timeSinceLastFlush >= BATCH_INTERVAL || tokenBuffer.length > MAX_BUFFER_SIZE)) {
               flushTokens();
             }
-          }, 16); // ~60fps check
+          }, CHECK_INTERVAL); // ~30fps check
         };
 
         streamChat(
