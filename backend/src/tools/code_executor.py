@@ -222,9 +222,9 @@ class RestrictedPythonExecutor:
                         asyncio.wrap_future(future),
                         timeout=self.timeout
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     future.cancel()
-                    raise TimeoutError()
+                    raise TimeoutError from None
 
             return {
                 "success": True,
@@ -277,10 +277,6 @@ class RestrictedPythonExecutor:
 
     async def _execute_basic(self, code: str) -> dict[str, Any]:
         """Fallback execution with basic safety checks (when RestrictedPython unavailable)."""
-        # Capture stdout for basic mode
-        stdout_buffer = StringIO()
-        old_stdout = sys.stdout
-
         # More comprehensive AST-based checks
         try:
             import ast
@@ -380,10 +376,10 @@ class RestrictedPythonExecutor:
                         asyncio.wrap_future(future),
                         timeout=self.timeout
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("code_executor_timeout", timeout=self.timeout)
                     future.cancel()
-                    raise TimeoutError()
+                    raise TimeoutError from None
             return {
                 "success": True,
                 "stdout": output,
