@@ -29,8 +29,6 @@ from src.api.schemas import (
 from src.core.config import AppConfig, RateLimitConfig
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger, log_request
-
-logger = get_logger(__name__)
 from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
 from src.core.protocols import (
     DocumentChunker,
@@ -50,6 +48,8 @@ from src.documents.pinecone_store import PineconeVectorStore
 from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
 from src.tools.registry import ToolRegistry
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
