@@ -128,28 +128,26 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
         ) : (
           <div className="py-4 space-y-0">
             <div className="max-w-3xl mx-auto w-full">
-              {useMemo(() => {
-                return messages.map((message, index) => {
-                  // Don't render empty streaming assistant message
-                  const isEmptyStreaming =
-                    isStreaming &&
-                    index === messages.length - 1 &&
-                    message.role === 'assistant' &&
-                    message.content === '';
+              {messages.map((message, index) => {
+                // Don't render empty streaming assistant message
+                const isEmptyStreaming =
+                  isStreaming &&
+                  index === messages.length - 1 &&
+                  message.role === 'assistant' &&
+                  message.content === '';
 
-                  if (isEmptyStreaming) return null;
+                if (isEmptyStreaming) return null;
 
-                  return (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      isStreaming={
-                        isStreaming && index === messages.length - 1 && message.role === 'assistant'
-                      }
-                    />
-                  );
-                });
-              }, [messages, isStreaming])}
+                return (
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    isStreaming={
+                      isStreaming && index === messages.length - 1 && message.role === 'assistant'
+                    }
+                  />
+                );
+              })}
               {/* Typing indicator shown when streaming starts but no content yet */}
               {isStreaming && messages[messages.length - 1]?.content === '' && (
                 <div className="flex gap-3 px-4 py-5">
