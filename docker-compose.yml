@@ -71,21 +71,21 @@ services:
     networks:
       - ai-agent-network
 
-  # Ollama for local LLM (optional)
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - ai-agent-network
-    # Uncomment for GPU support
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - capabilities: [gpu]
+  # Ollama for local LLM (optional) - DISABLED
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - ai-agent-network
+  #   # Uncomment for GPU support
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - capabilities: [gpu]
 
 networks:
   ai-agent-network:
@@ -93,4 +93,4 @@ networks:
 
 volumes:
   redis_data:
-  ollama_data:
+  # ollama_data:  # Disabled - Ollama not in use
