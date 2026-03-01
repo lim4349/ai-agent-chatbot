@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Bot, MessageSquare, ArrowDown } from 'lucide-react';
 import type { Message } from '@/types';
 import { MessageBubble } from './message-bubble';
@@ -13,6 +13,9 @@ interface MessageListProps {
   isStreaming: boolean;
 }
 
+// Time to pause auto-scroll after user manually scrolls (ms)
+const SCROLL_PAUSE_DURATION = 2000;
+
 export function MessageList({ messages, isStreaming }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,8 +24,13 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const prevMessagesLengthRef = useRef(messages.length);
 
+  // Track user scroll interaction for pausing auto-scroll
+  const scrollPauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isScrollPaused, setIsScrollPaused] = useState(false);
+  const isUserScrollingRef = useRef(false);
+
   // Check if user is near bottom
-  const checkScrollPosition = () => {
+  const checkScrollPosition = useCallback(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
     const threshold = 100;
@@ -31,7 +39,32 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     const nearBottom = distanceFromBottom < threshold;
     setIsNearBottom(nearBottom);
     setShowScrollButton(!nearBottom);
-  };
+  }, []);
+
+  // Handle user scroll with pause mechanism
+  const handleScroll = useCallback(() => {
+    // Mark that user is actively scrolling
+    isUserScrollingRef.current = true;
+
+    // Pause auto-scroll for SCROLL_PAUSE_DURATION
+    if (!isScrollPaused) {
+      setIsScrollPaused(true);
+    }
+
+    // Clear existing timeout
+    if (scrollPauseTimeoutRef.current) {
+      clearTimeout(scrollPauseTimeoutRef.current);
+    }
+
+    // Set new timeout to resume auto-scroll
+    scrollPauseTimeoutRef.current = setTimeout(() => {
+      setIsScrollPaused(false);
+      isUserScrollingRef.current = false;
+    }, SCROLL_PAUSE_DURATION);
+
+    // Update scroll position state
+    checkScrollPosition();
+  }, [checkScrollPosition, isScrollPaused]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -43,18 +76,27 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     }
   }, [messages.length, isNearBottom]);
 
-  // Scroll during streaming
+  // Scroll during streaming - respects user scroll pause
   useEffect(() => {
-    if (!isStreaming || !isNearBottom) return;
+    if (!isStreaming || !isNearBottom || isScrollPaused) return;
 
     const interval = setInterval(() => {
-      if (scrollRef.current && isNearBottom) {
+      if (scrollRef.current && isNearBottom && !isScrollPaused) {
         scrollRef.current.scrollIntoView({ behavior: 'auto' });
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isStreaming, isNearBottom]);
+  }, [isStreaming, isNearBottom, isScrollPaused]);
+
+  // Cleanup scroll pause timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollPauseTimeoutRef.current) {
+        clearTimeout(scrollPauseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Scroll to bottom function
   const scrollToBottom = () => {
@@ -71,7 +113,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
       <div
         ref={containerRef}
         className="h-full overflow-y-auto overflow-x-hidden"
-        onScroll={checkScrollPosition}
+        onScroll={handleScroll}
       >
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 min-h-[400px] gap-3">

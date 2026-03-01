@@ -684,18 +684,50 @@ interface MarkdownRendererProps {
   isStreaming?: boolean;
 }
 
+interface CodeBlockProps extends React.HTMLAttributes<HTMLElement> {
+  children?: React.ReactNode;
+  isStreaming?: boolean;
+}
+
 function CodeBlock({
   className,
   children,
+  isStreaming,
   ...props
-}: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) {
+}: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const match = /language-(\w+)/.exec(className || '');
   const language = match ? match[1] : '';
-  const code = String(children).replace(/\n$/, '');
-  const lineCount = code.split('\n').length;
-  const isLongCode = lineCount > 30;
+  // Safely convert children to string - handle React elements, arrays, objects, etc.
+  const code = useMemo(() => {
+    const convertToString = (child: unknown): string => {
+      if (typeof child === 'string') return child;
+      if (typeof child === 'number') return String(child);
+      if (child === null || child === undefined) return '';
+      if (Array.isArray(child)) {
+        return child.map(convertToString).join('');
+      }
+      // Handle React elements and objects
+      if (typeof child === 'object') {
+        // Try to extract text from React element props
+        const element = child as { props?: { children?: unknown }; type?: unknown };
+        if (element.props?.children) {
+          return convertToString(element.props.children);
+        }
+        return '';
+      }
+      return String(child);
+    };
+    return convertToString(children).replace(/\n$/, '');
+  }, [children]);
+  const lines = code.split('\n');
+  const lineCount = lines.length;
+  // Lower threshold during streaming for better performance
+  const isLongCode = isStreaming ? lineCount > 20 : lineCount > 30;
+  const shouldTruncate = isStreaming && isLongCode && !showAll;
+  const displayCode = shouldTruncate ? lines.slice(0, 20).join('\n') : code;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -769,9 +801,21 @@ function CodeBlock({
       {!collapsed && (
         <pre className="!mt-0 !mb-0 !rounded-none overflow-x-auto !bg-transparent p-4 text-sm leading-relaxed">
           <code className={className} {...props}>
-            {children}
+            {displayCode}
           </code>
         </pre>
+      )}
+      {/* Show truncated indicator and button during streaming */}
+      {shouldTruncate && (
+        <div className="px-4 py-3 border-t border-border/30 bg-muted/10">
+          <button
+            onClick={() => setShowAll(true)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <span>Show all {lineCount} lines</span>
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
       )}
       {collapsed && (
         <div className="px-4 py-3 text-xs text-muted-foreground/60 italic select-none">
@@ -782,8 +826,26 @@ function CodeBlock({
   );
 }
 
-const markdownComponents = {
-  code: CodeBlock,
+// Memoized streaming markdown component for performance
+const StreamingBlock = memo(function StreamingBlock({ content }: { content: string }) {
+  // Use streaming-optimized components (code blocks limited to 20 lines)
+  const components = useMemo(() => createMarkdownComponents(true), []);
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeHighlight]}
+      components={components}
+    >
+      {content || ''}
+    </ReactMarkdown>
+  );
+});
+
+// Factory function to create markdown components with isStreaming context
+const createMarkdownComponents = (isStreaming = false) => ({
+  code: (props: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) => (
+    <CodeBlock {...props} isStreaming={isStreaming} />
+  ),
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="mb-4 last:mb-0 leading-[1.8]">{children}</p>
   ),
@@ -893,16 +955,17 @@ const markdownComponents = {
   em: ({ children }: { children?: React.ReactNode }) => (
     <em className="italic text-foreground/90">{children}</em>
   ),
-};
+});
 
 const FinalizedBlock = memo(function FinalizedBlock({ content }: { content: string }) {
   // NOTE: All post-processing removed. Showing LLM output as-is.
   // Previous processing was causing more harm than good.
+  const components = useMemo(() => createMarkdownComponents(false), []);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
-      components={markdownComponents}
+      components={components}
     >
       {content || ''}
     </ReactMarkdown>
@@ -916,9 +979,8 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
     return content || '';
   }, [content]);
 
-  // For smooth streaming: render as plain text during streaming
-  // Only apply markdown formatting after streaming is complete
-  // This avoids expensive re-renders on every token
+  // During streaming: render with markdown but with performance optimizations
+  // Code blocks are limited to 20 lines to prevent performance issues
   if (isStreaming) {
     return (
       <div
@@ -928,8 +990,7 @@ export function MarkdownRenderer({ content, className, isStreaming }: MarkdownRe
           className
         )}
       >
-        {/* Use div instead of p to avoid nested <p> hydration errors */}
-        <div className="mb-4 last:mb-0 leading-[1.8] whitespace-pre-wrap">{fixedContent}</div>
+        <StreamingBlock content={fixedContent} />
       </div>
     );
   }

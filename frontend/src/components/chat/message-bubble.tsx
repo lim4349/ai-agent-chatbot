@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { Bot, User, Copy, Check } from 'lucide-react';
 import type { Message } from '@/types';
@@ -18,21 +18,40 @@ interface MessageBubbleProps {
   onHeightChange?: (height: number) => void;
 }
 
-export function MessageBubble({ message, isStreaming, previousAgent, onHeightChange }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightChange }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const { t } = useTranslation();
   const elementRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Measure height and report to parent for react-window
+  // Debounced height measurement - max 100ms to reduce layout thrashing
   useEffect(() => {
-    if (elementRef.current && onHeightChange) {
-      const height = elementRef.current.offsetHeight;
-      if (height > 0) {
-        onHeightChange(height);
-      }
+    if (!elementRef.current || !onHeightChange) return;
+
+    // Clear existing debounce timer
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
     }
-  }, [elementRef, message.content, onHeightChange]);
+
+    // Debounce height measurement to max 100ms
+    debounceRef.current = setTimeout(() => {
+      if (elementRef.current) {
+        const height = elementRef.current.offsetHeight;
+        if (height > 0) {
+          onHeightChange(height);
+        }
+      }
+      debounceRef.current = null;
+    }, 100);
+
+    // Cleanup on unmount
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [message.content, onHeightChange]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -166,3 +185,16 @@ export function MessageBubble({ message, isStreaming, previousAgent, onHeightCha
     </div>
   );
 }
+
+// Export memoized version with custom comparison for performance optimization
+// Only re-renders when essential props change
+export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  // Skip re-render if message identity, content, and streaming state are unchanged
+  if (prevProps.message.id !== nextProps.message.id) return false;
+  if (prevProps.message.content !== nextProps.message.content) return false;
+  if (prevProps.isStreaming !== nextProps.isStreaming) return false;
+  if (prevProps.message.agent !== nextProps.message.agent) return false;
+
+  // Props are equal - skip re-render
+  return true;
+});

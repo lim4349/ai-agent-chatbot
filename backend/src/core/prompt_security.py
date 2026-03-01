@@ -169,7 +169,9 @@ INJECTION_PATTERNS: dict[InjectionType, list[tuple[str, str]]] = {
         (r"\b(rmdir|mkdir|chmod|chown)\s+", "medium"),
         (r"\b(touch|cat|echo)\s+.*\s*(>>|>)", "medium"),
         # Shell command patterns
-        (r"[;&|`$()]", "medium"),
+        # NOTE: Removed overly broad pattern (r"[;&|`$()]", "medium") to avoid false positives
+        # Legitimate code requests like "print(2+2)" were being blocked.
+        # More specific patterns below still catch dangerous shell commands.
         (r"\bcd\s+\.\.", "medium"),
         (r"\b(curl|wget|nc|netcat|ssh)\s+", "medium"),
         # SQL and other injections
