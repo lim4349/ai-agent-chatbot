@@ -6,6 +6,7 @@ import { Header } from '@/components/header/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { useTranslation } from '@/lib/i18n';
 import type { MetricsSummary, MetricsPeriod, AgentMetricItem } from '@/types';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -32,6 +33,7 @@ function SummaryCard({ title, value, description, color = 'text-primary' }: Summ
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +71,9 @@ export default function DashboardPage() {
 
   // Prepare data for bar chart (requests by status)
   const statusData = metrics ? [
-    { name: 'Success', value: metrics.successful_requests, color: '#10b981' },
-    { name: 'Failed', value: metrics.failed_requests, color: '#ef4444' },
-    { name: 'Blocked', value: metrics.blocked_requests, color: '#f59e0b' },
+    { name: t('dashboard.success'), value: metrics.successful_requests, color: '#10b981' },
+    { name: t('dashboard.failed'), value: metrics.failed_requests, color: '#ef4444' },
+    { name: t('dashboard.blocked'), value: metrics.blocked_requests, color: '#f59e0b' },
   ] : [];
 
   // Prepare data for line chart (tokens by agent)
@@ -95,9 +97,9 @@ export default function DashboardPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Observability Dashboard</h1>
+              <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
               <p className="text-muted-foreground mt-1">
-                System metrics and performance insights
+                {t('dashboard.description')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -127,21 +129,21 @@ export default function DashboardPage() {
 
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="text-muted-foreground">Loading metrics...</div>
+              <div className="text-muted-foreground">{t('dashboard.loading')}</div>
             </div>
           )}
 
           {error && (
             <Card className="border-destructive">
               <CardContent className="pt-6">
-                <p className="text-destructive">Error: {error}</p>
+                <p className="text-destructive">{t('dashboard.error')}: {error}</p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-4"
                   onClick={loadMetrics}
                 >
-                  Retry
+                  {t('dashboard.retry')}
                 </Button>
               </CardContent>
             </Card>
@@ -152,27 +154,27 @@ export default function DashboardPage() {
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <SummaryCard
-                  title="Total Requests"
+                  title={t('dashboard.totalRequests')}
                   value={metrics.total_requests.toLocaleString()}
-                  description={`Period: ${period}`}
+                  description={`${t('dashboard.period')}: ${period}`}
                   color="text-blue-500"
                 />
                 <SummaryCard
-                  title="Success Rate"
+                  title={t('dashboard.successRate')}
                   value={`${successRate}%`}
-                  description={`${metrics.successful_requests} of ${metrics.total_requests}`}
+                  description={`${metrics.successful_requests} ${t('dashboard.of')} ${metrics.total_requests}`}
                   color="text-green-500"
                 />
                 <SummaryCard
-                  title="Avg Duration"
+                  title={t('dashboard.avgDuration')}
                   value={`${Math.round(metrics.avg_duration_ms)}ms`}
-                  description="Average response time"
+                  description={t('dashboard.avgResponseTime')}
                   color="text-amber-500"
                 />
                 <SummaryCard
-                  title="Total Tokens"
+                  title={t('dashboard.totalTokens')}
                   value={metrics.total_tokens.toLocaleString()}
-                  description="Tokens processed"
+                  description={t('dashboard.tokensProcessed')}
                   color="text-purple-500"
                 />
               </div>
@@ -182,8 +184,8 @@ export default function DashboardPage() {
                 {/* Requests by Agent - Pie Chart */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Requests by Agent</CardTitle>
-                    <CardDescription>Distribution of requests across agents</CardDescription>
+                    <CardTitle>{t('dashboard.requestsByAgent')}</CardTitle>
+                    <CardDescription>{t('dashboard.requestsByAgentDescription')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {pieData.length > 0 ? (
@@ -208,7 +210,7 @@ export default function DashboardPage() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                        No data available
+                        {t('dashboard.noData')}
                       </div>
                     )}
                   </CardContent>
@@ -217,8 +219,8 @@ export default function DashboardPage() {
                 {/* Request Status - Bar Chart */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Request Status</CardTitle>
-                    <CardDescription>Success, failed, and blocked requests</CardDescription>
+                    <CardTitle>{t('dashboard.requestStatus')}</CardTitle>
+                    <CardDescription>{t('dashboard.requestStatusDescription')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -239,8 +241,8 @@ export default function DashboardPage() {
                 {/* Tokens by Agent */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Tokens by Agent</CardTitle>
-                    <CardDescription>Total tokens processed per agent</CardDescription>
+                    <CardTitle>{t('dashboard.tokensByAgent')}</CardTitle>
+                    <CardDescription>{t('dashboard.tokensByAgentDescription')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {tokenData.length > 0 ? (
@@ -255,7 +257,7 @@ export default function DashboardPage() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                        No data available
+                        {t('dashboard.noData')}
                       </div>
                     )}
                   </CardContent>
@@ -264,8 +266,8 @@ export default function DashboardPage() {
                 {/* Avg Duration by Agent */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Avg Duration by Agent</CardTitle>
-                    <CardDescription>Average response time per agent (ms)</CardDescription>
+                    <CardTitle>{t('dashboard.avgDurationByAgent')}</CardTitle>
+                    <CardDescription>{t('dashboard.avgDurationByAgentDescription')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {durationData.length > 0 ? (
@@ -280,7 +282,7 @@ export default function DashboardPage() {
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                        No data available
+                        {t('dashboard.noData')}
                       </div>
                     )}
                   </CardContent>
@@ -290,21 +292,21 @@ export default function DashboardPage() {
               {/* Agent Stats Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Agent Statistics</CardTitle>
-                  <CardDescription>Detailed metrics for each agent</CardDescription>
+                  <CardTitle>{t('dashboard.agentStatistics')}</CardTitle>
+                  <CardDescription>{t('dashboard.agentStatisticsDescription')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left p-2">Agent</th>
-                          <th className="text-right p-2">Total</th>
-                          <th className="text-right p-2">Success</th>
-                          <th className="text-right p-2">Failed</th>
-                          <th className="text-right p-2">Blocked</th>
-                          <th className="text-right p-2">Avg Duration</th>
-                          <th className="text-right p-2">Tokens</th>
+                          <th className="text-left p-2">{t('dashboard.agent')}</th>
+                          <th className="text-right p-2">{t('dashboard.total')}</th>
+                          <th className="text-right p-2">{t('dashboard.success')}</th>
+                          <th className="text-right p-2">{t('dashboard.failed')}</th>
+                          <th className="text-right p-2">{t('dashboard.blocked')}</th>
+                          <th className="text-right p-2">{t('dashboard.avgDuration')}</th>
+                          <th className="text-right p-2">{t('dashboard.tokens')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -323,7 +325,7 @@ export default function DashboardPage() {
                     </table>
                     {metrics.agent_stats.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
-                        No agent statistics available for this period
+                        {t('dashboard.noAgentStats')}
                       </div>
                     )}
                   </div>

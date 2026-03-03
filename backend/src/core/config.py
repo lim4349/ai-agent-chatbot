@@ -91,8 +91,6 @@ class ObservabilityConfig(BaseSettings):
     langsmith_project: str = "ai-agent-chatbot"
     langsmith_tracing: bool = False
 
-    model_config = SettingsConfigDict(env_prefix="LANGSMITH_")
-
 
 class MCPConfig(BaseSettings):
     """MCP (Model Context Protocol) server configuration."""
@@ -160,7 +158,10 @@ class AppConfig(BaseSettings):
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     model_config = SettingsConfigDict(
-        env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore"
+        env_file=str(_env_file),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        env_nested_delimiter="__",
     )
 
 

@@ -30,10 +30,10 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="w-5 h-5" />
         </Button>
 
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <Bot className="w-6 h-6 text-primary" />
           <h1 className="text-lg font-semibold">{t('header.title')}</h1>
-        </div>
+        </Link>
       </div>
 
       {/* Right section */}
