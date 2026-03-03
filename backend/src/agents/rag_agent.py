@@ -201,6 +201,7 @@ Example output structure:
 
                 response, usage = await self.llm.generate_with_usage(messages)
                 tool_results = [{"tool": "retriever", "query": query, "results": []}]
+                metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
             else:
                 # Check if all results are low confidence
                 has_low_confidence = any(doc.get("low_confidence", False) for doc in docs)

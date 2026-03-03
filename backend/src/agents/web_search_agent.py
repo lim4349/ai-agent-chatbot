@@ -146,7 +146,7 @@ Guidelines:
                 response, usage = await self.llm.generate_with_usage(messages)
                 metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
             except Exception as e:
-                response = f"I encountered an error while searching: {str(e)}. Please try again later."
+                response = "검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
                 tool_results.append({"tool": "web_search", "query": query, "error": str(e)})
                 metrics.set_error(e)
 

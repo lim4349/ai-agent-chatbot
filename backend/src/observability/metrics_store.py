@@ -1,10 +1,14 @@
 """Metrics store for recording and querying observability data."""
 
+from collections import deque
 from datetime import datetime, timedelta
 
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Maximum number of metrics to keep in memory (prevents memory leak)
+MAX_IN_MEMORY_METRICS = 10000
 
 
 class MetricsStore:
@@ -27,8 +31,8 @@ class MetricsStore:
         self._supabase_url = supabase_url
         self._supabase_key = supabase_key
 
-        # In-memory fallback
-        self._metrics: list[dict] = []
+        # In-memory fallback with size limit to prevent memory leak
+        self._metrics: deque = deque(maxlen=MAX_IN_MEMORY_METRICS)
 
         # Try to initialize Supabase client
         self._client = None

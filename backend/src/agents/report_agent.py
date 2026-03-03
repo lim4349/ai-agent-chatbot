@@ -414,7 +414,7 @@ Guidelines:
 
             except Exception as e:
                 logger.error("report_generation_failed", error=str(e), session_id=session_id)
-                response = f"보고서 생성 중 오류가 발생했습니다: {str(e)}"
+                response = "보고서 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
                 metrics.set_error(e)
 
         # Store in memory if available

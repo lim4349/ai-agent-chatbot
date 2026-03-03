@@ -1051,7 +1051,7 @@ async def get_metrics_summary(
         )
     except Exception as e:
         logger.error("metrics_summary_error", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to get metrics summary: {e}") from e
+        raise HTTPException(status_code=500, detail="Failed to retrieve metrics summary") from e
 
 
 @router.get("/metrics/agents")
@@ -1099,14 +1099,14 @@ async def get_agent_metrics(
             agent_name=stats["agent_name"],
             date=stats["date"],
             total_requests=stats["total_requests"],
-            successful_requests=stats["successful_requests"],
-            failed_requests=stats["failed_requests"],
-            blocked_requests=stats["blocked_requests"],
+            successful_requests=stats["success_count"],
+            failed_requests=stats["error_count"],
+            blocked_requests=stats.get("timeout_count", 0),
             avg_duration_ms=stats["avg_duration_ms"],
-            total_tokens=stats["total_tokens"],
+            total_tokens=stats["total_input_tokens"] + stats["total_output_tokens"],
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error("agent_metrics_error", agent_name=agent_name, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to get agent metrics: {e}") from e
+        raise HTTPException(status_code=500, detail="Failed to retrieve agent metrics") from e
