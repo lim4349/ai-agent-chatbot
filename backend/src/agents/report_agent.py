@@ -11,6 +11,7 @@ from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore
 from src.graph.state import AgentState
+from src.observability import record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -47,8 +48,10 @@ class ReportAgent(BaseAgent):
         self,
         llm: LLMProvider = Provide[DIContainer.llm],
         memory: MemoryStore = Provide[DIContainer.memory],
+        metrics_store = Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
+        self.metrics_store = metrics_store
 
     @property
     @override
@@ -340,6 +343,7 @@ Guidelines:
     async def process(self, state: AgentState) -> AgentState:
         """Generate comprehensive report from workflow context."""
         session_id = state.get("metadata", {}).get("session_id", "default")
+        user_id = state.get("metadata", {}).get("user_id")
         workflow_context = state.get("workflow_context", "")
 
         # Get the original query from messages
@@ -371,37 +375,47 @@ Guidelines:
                 "messages": [*state["messages"], {"role": "assistant", "content": response}],
             }
 
-        try:
-            # Step 1: Extract research results from workflow context
-            research_results = self._extract_research_results(workflow_context)
+        response = ""
+        async with record_agent_metrics(
+            self.metrics_store,
+            session_id,
+            self.name,
+            self.llm.config.model,
+            user_id,
+        ) as metrics:
+            try:
+                # Step 1: Extract research results from workflow context
+                research_results = self._extract_research_results(workflow_context)
 
-            # Step 2: Classify results by type
-            classified_results = self._classify_results(research_results)
+                # Step 2: Classify results by type
+                classified_results = self._classify_results(research_results)
 
-            if not classified_results:
-                response = (
-                    "워크플로우 컨텍스트에서 연구 결과를 추출할 수 없습니다. "
-                    "수집된 데이터의 형식을 확인해주세요."
-                )
-                return {
-                    **state,
-                    "messages": [*state["messages"], {"role": "assistant", "content": response}],
-                }
+                if not classified_results:
+                    response = (
+                        "워크플로우 컨텍스트에서 연구 결과를 추출할 수 없습니다. "
+                        "수집된 데이터의 형식을 확인해주세요."
+                    )
+                    return {
+                        **state,
+                        "messages": [*state["messages"], {"role": "assistant", "content": response}],
+                    }
 
-            # Step 3: Structure the report
-            report_structure = self._structure_report(query, classified_results)
+                # Step 3: Structure the report
+                report_structure = self._structure_report(query, classified_results)
 
-            # Step 4: Build prompt and generate report
-            messages = self._build_report_prompt(query, classified_results, report_structure)
+                # Step 4: Build prompt and generate report
+                messages = self._build_report_prompt(query, classified_results, report_structure)
 
-            response = await self.llm.generate(messages)
+                response, usage = await self.llm.generate_with_usage(messages)
+                metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
-            # Format citations in the response
-            response = self._format_citations(response, classified_results)
+                # Format citations in the response
+                response = self._format_citations(response, classified_results)
 
-        except Exception as e:
-            logger.error("report_generation_failed", error=str(e), session_id=session_id)
-            response = f"보고서 생성 중 오류가 발생했습니다: {str(e)}"
+            except Exception as e:
+                logger.error("report_generation_failed", error=str(e), session_id=session_id)
+                response = f"보고서 생성 중 오류가 발생했습니다: {str(e)}"
+                metrics.set_error(e)
 
         # Store in memory if available
         if self.memory:

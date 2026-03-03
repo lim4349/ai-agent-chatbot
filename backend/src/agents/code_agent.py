@@ -11,6 +11,7 @@ from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
+from src.observability import record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -39,9 +40,11 @@ class CodeAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         code_executor: Tool | None = None,
         memory: MemoryStore = Provide[DIContainer.memory],
+        metrics_store = Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
         self.code_executor = code_executor
+        self.metrics_store = metrics_store
 
     @property
     @override
@@ -84,6 +87,7 @@ Formatting Rules (IMPORTANT):
     async def process(self, state: AgentState) -> AgentState:
         """Generate code and optionally execute it."""
         session_id = state.get("metadata", {}).get("session_id", "default")
+        user_id = state.get("metadata", {}).get("user_id")
 
         messages = [{"role": "system", "content": self.system_prompt}]
 
@@ -96,23 +100,32 @@ Formatting Rules (IMPORTANT):
         for msg in state["messages"]:
             messages.append(message_to_dict(msg))
 
-        response = await self.llm.generate(messages)
-
         tool_results = []
+        response = ""
 
-        # Extract and execute Python code blocks if code executor is available
-        if self.code_executor:
-            code_blocks = self._extract_python_code(response)
-            for i, code in enumerate(code_blocks, 1):
-                result = await self.code_executor.execute(code)
-                tool_results.append({
-                    "tool": "code_executor",
-                    "block_number": i,
-                    "result": result,
-                })
-                # Append execution result to response
-                exec_output = self._format_execution_result(result, i)
-                response = response + exec_output
+        async with record_agent_metrics(
+            self.metrics_store,
+            session_id,
+            self.name,
+            self.llm.config.model,
+            user_id,
+        ) as metrics:
+            response, usage = await self.llm.generate_with_usage(messages)
+            metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+
+            # Extract and execute Python code blocks if code executor is available
+            if self.code_executor:
+                code_blocks = self._extract_python_code(response)
+                for i, code in enumerate(code_blocks, 1):
+                    result = await self.code_executor.execute(code)
+                    tool_results.append({
+                        "tool": "code_executor",
+                        "block_number": i,
+                        "result": result,
+                    })
+                    # Append execution result to response
+                    exec_output = self._format_execution_result(result, i)
+                    response = response + exec_output
 
         # Store the code exchange in memory if available
         if self.memory:

@@ -353,20 +353,23 @@ continue with the next logical step. Return 'done' only when the entire workflow
                 role = msg.get("role", "")
                 content = msg.get("content", "")
                 # Check both "assistant" and "ai" roles (LangChain uses "ai")
-                if role in ("assistant", "ai") and content:
-                    # Skip routing messages
-                    if not content.startswith("Routing to:"):
-                        # Try to identify which agent produced this
-                        agent_hint = "previous"
-                        if "web_search" in content.lower() or "검색" in content:
-                            agent_hint = "web_search"
-                        elif "rag" in content.lower() or "문서" in content:
-                            agent_hint = "rag"
-                        elif "```python" in content.lower() or "코드" in content:
-                            agent_hint = "code"
-                        context_parts.append(f"[{agent_hint}]: {content[:1500]}")
-                        if len(context_parts) >= 3:  # Max 3 previous responses
-                            break
+                # Skip routing messages
+                if (
+                    role in ("assistant", "ai")
+                    and content
+                    and not content.startswith("Routing to:")
+                ):
+                    # Try to identify which agent produced this
+                    agent_hint = "previous"
+                    if "web_search" in content.lower() or "검색" in content:
+                        agent_hint = "web_search"
+                    elif "rag" in content.lower() or "문서" in content:
+                        agent_hint = "rag"
+                    elif "```python" in content.lower() or "코드" in content:
+                        agent_hint = "code"
+                    context_parts.append(f"[{agent_hint}]: {content[:1500]}")
+                    if len(context_parts) >= 3:  # Max 3 previous responses
+                        break
             if context_parts:
                 workflow_context = "\n".join(reversed(context_parts))
                 logger.info(

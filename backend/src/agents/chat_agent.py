@@ -11,6 +11,7 @@ from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Summarizer, TopicMemory, UserProfiler
 from src.graph.state import AgentState
 from src.memory.long_term_memory import LongTermMemory
+from src.observability import record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -49,6 +50,7 @@ class ChatAgent(BaseAgent):
         user_profiler: UserProfiler | None = Provide[DIContainer.user_profiler],
         topic_memory: TopicMemory | None = Provide[DIContainer.topic_memory],
         summarizer: Summarizer | None = Provide[DIContainer.summarizer],
+        metrics_store = Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm)
         self.memory = memory
@@ -56,6 +58,7 @@ class ChatAgent(BaseAgent):
         self.user_profiler = user_profiler
         self.topic_memory = topic_memory
         self.summarizer = summarizer
+        self.metrics_store = metrics_store
         self._user_profiles: dict[str, dict] = {}
 
     def _get_capability_context(self, available_agents: list[str] | None) -> str:
@@ -415,8 +418,16 @@ Guidelines:
         current_messages = [message_to_dict(msg) for msg in state["messages"]]
         messages.extend(current_messages)
 
-        # Generate response
-        response = await self.llm.generate(messages)
+        # Generate response with metrics
+        async with record_agent_metrics(
+            self.metrics_store,
+            session_id,
+            self.name,
+            self.llm.config.model,
+            user_id,
+        ) as metrics:
+            response, usage = await self.llm.generate_with_usage(messages)
+            metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
         # Store in short-term memory
         if self.memory:
