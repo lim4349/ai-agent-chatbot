@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Header } from '@/components/header/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,23 @@ import { useTranslation } from '@/lib/i18n';
 import type { MetricsSummary, MetricsPeriod, AgentMetricItem } from '@/types';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+// Agent color mapping for consistent theming
+const AGENT_COLORS: Record<string, string> = {
+  chat: '#3b82f6',       // Blue
+  rag: '#10b981',        // Green
+  code: '#8b5cf6',       // Purple
+  web_search: '#f59e0b', // Amber
+  report: '#ec4899',     // Pink
+};
+
+// Agents to exclude from stats (internal routing agents)
+const EXCLUDED_AGENTS = ['supervisor'];
+
+// Get agent color with fallback
+function getAgentColor(agentName: string, index: number): string {
+  return AGENT_COLORS[agentName] || COLORS[index % COLORS.length];
+}
 
 interface SummaryCardProps {
   title: string;
@@ -63,11 +80,16 @@ export default function DashboardPage() {
       : '0.0'
     : '0.0';
 
+  // Filter out internal agents (supervisor) from stats
+  const filteredAgentStats = metrics?.agent_stats.filter(
+    stat => !EXCLUDED_AGENTS.includes(stat.agent_name)
+  ) || [];
+
   // Prepare data for pie chart (requests by agent)
-  const pieData = metrics?.agent_stats.map(stat => ({
+  const pieData = filteredAgentStats.map(stat => ({
     name: stat.agent_name,
     value: stat.total_requests,
-  })) || [];
+  }));
 
   // Prepare data for bar chart (requests by status)
   const statusData = metrics ? [
@@ -77,16 +99,16 @@ export default function DashboardPage() {
   ] : [];
 
   // Prepare data for line chart (tokens by agent)
-  const tokenData = metrics?.agent_stats.map(stat => ({
+  const tokenData = filteredAgentStats.map(stat => ({
     name: stat.agent_name,
     tokens: stat.total_tokens,
-  })) || [];
+  }));
 
   // Prepare data for duration chart
-  const durationData = metrics?.agent_stats.map(stat => ({
+  const durationData = filteredAgentStats.map(stat => ({
     name: stat.agent_name,
     duration: Math.round(stat.avg_duration_ms),
-  })) || [];
+  }));
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -202,7 +224,7 @@ export default function DashboardPage() {
                             dataKey="value"
                           >
                             {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
                             ))}
                           </Pie>
                           <Tooltip />
@@ -252,7 +274,11 @@ export default function DashboardPage() {
                           <XAxis dataKey="name" />
                           <YAxis />
                           <Tooltip />
-                          <Bar dataKey="tokens" fill="#8b5cf6" />
+                          <Bar dataKey="tokens">
+                            {tokenData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
+                            ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -277,7 +303,11 @@ export default function DashboardPage() {
                           <XAxis dataKey="name" />
                           <YAxis />
                           <Tooltip />
-                          <Bar dataKey="duration" fill="#f59e0b" />
+                          <Bar dataKey="duration">
+                            {durationData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
+                            ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -310,9 +340,29 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {metrics.agent_stats.map((stat) => (
-                          <tr key={stat.agent_name} className="border-b hover:bg-muted/50">
-                            <td className="p-2 font-medium">{stat.agent_name}</td>
+                        {filteredAgentStats.map((stat, index) => {
+                          const agentColor = getAgentColor(stat.agent_name, index);
+                          return (
+                          <tr
+                            key={stat.agent_name}
+                            className="border-b transition-all duration-200 hover:shadow-sm hover:border-l-2"
+                            style={{ borderLeftColor: 'transparent' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderLeftColor = agentColor;
+                              e.currentTarget.style.backgroundColor = `${agentColor}08`;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderLeftColor = 'transparent';
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <td className="p-2 font-medium flex items-center gap-2">
+                              <span
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: agentColor }}
+                              />
+                              {stat.agent_name}
+                            </td>
                             <td className="text-right p-2">{stat.total_requests.toLocaleString()}</td>
                             <td className="text-right p-2 text-green-600">{stat.successful_requests.toLocaleString()}</td>
                             <td className="text-right p-2 text-red-600">{stat.failed_requests.toLocaleString()}</td>
@@ -320,10 +370,11 @@ export default function DashboardPage() {
                             <td className="text-right p-2">{Math.round(stat.avg_duration_ms)}ms</td>
                             <td className="text-right p-2">{stat.total_tokens.toLocaleString()}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
-                    {metrics.agent_stats.length === 0 && (
+                    {filteredAgentStats.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
                         {t('dashboard.noAgentStats')}
                       </div>
