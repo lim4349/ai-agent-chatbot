@@ -611,7 +611,7 @@ Provide a helpful response summarizing the results."""
                         model_name=self.llm.config.model,
                         user_id=user_id,
                     ) as metrics:
-                        response = await self.llm.generate(
+                        response, usage = await self.llm.generate_with_usage(
                             [
                                 {
                                     "role": "system",
@@ -620,11 +620,12 @@ Provide a helpful response summarizing the results."""
                                 {"role": "user", "content": prompt},
                             ]
                         )
-                        input_tokens, output_tokens = extract_token_usage_from_response(response)
-                        metrics.set_token_count(input_tokens, output_tokens)
+                        metrics.set_token_count(
+                            usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+                        )
                         return response
                 else:
-                    response = await self.llm.generate(
+                    response, _ = await self.llm.generate_with_usage(
                         [
                             {
                                 "role": "system",

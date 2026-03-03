@@ -16,6 +16,18 @@ class LLMProvider(Protocol):
         """Generate a single response."""
         ...
 
+    async def generate_with_usage(
+        self,
+        messages: list[dict[str, str]],
+        **kwargs: Any,
+    ) -> tuple[str, dict[str, int]]:
+        """Generate a response with token usage info.
+
+        Returns:
+            Tuple of (content, {"input_tokens": int, "output_tokens": int})
+        """
+        ...
+
     async def stream(
         self,
         messages: list[dict[str, str]],

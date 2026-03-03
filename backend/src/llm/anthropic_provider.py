@@ -37,6 +37,17 @@ class AnthropicProvider:
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
+        content, _ = await self.generate_with_usage(messages, **kwargs)
+        return content
+
+    async def generate_with_usage(
+        self, messages: list[dict[str, str]], **kwargs
+    ) -> tuple[str, dict[str, int]]:
+        """Generate a response with token usage info.
+
+        Returns:
+            Tuple of (content, {"input_tokens": int, "output_tokens": int})
+        """
         # Check cache first
         cached = await self._cache.get(
             messages=messages,
@@ -44,7 +55,7 @@ class AnthropicProvider:
             temperature=self.config.temperature,
         )
         if cached is not None:
-            return cached
+            return cached, {"input_tokens": 0, "output_tokens": 0}
 
         response = await self.client.ainvoke(messages, **kwargs)
 
@@ -58,6 +69,17 @@ class AnthropicProvider:
             )
         result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
 
+        # Extract token usage
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            input_tokens = response.usage_metadata.get("input_tokens", 0)
+            output_tokens = response.usage_metadata.get("output_tokens", 0)
+        elif hasattr(response, "response_metadata") and response.response_metadata:
+            usage = response.response_metadata.get("token_usage", {})
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+
         # Cache the response
         await self._cache.set(
             messages=messages,
@@ -66,7 +88,7 @@ class AnthropicProvider:
             response=result,
         )
 
-        return result
+        return result, {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
