@@ -96,7 +96,7 @@ function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightC
         {/* Agent badge and switch animation */}
         {!isUser && (
           <div className="flex items-center gap-2 flex-wrap">
-            {message.agent && <AgentBadge agent={message.agent} />}
+            {message.agent && <AgentBadge agent={message.agent} agents={message.agents} />}
             <AgentSwitchAnimation
               fromAgent={previousAgent}
               toAgent={message.agent || 'chat'}

@@ -13,6 +13,7 @@ from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
+from src.observability import record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -93,9 +94,11 @@ class RAGAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         retriever: DocumentRetriever = Provide[DIContainer.retriever],
         memory: MemoryStore = Provide[DIContainer.memory],
+        metrics_store = Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
         self.retriever = retriever
+        self.metrics_store = metrics_store
 
     @property
     @override
@@ -149,101 +152,116 @@ Example output structure:
     async def process(self, state: AgentState) -> AgentState:
         """Retrieve relevant documents and generate answer."""
         session_id = state.get("metadata", {}).get("session_id", "default")
+        user_id = state.get("metadata", {}).get("user_id")
         device_id = state.get("metadata", {}).get("device_id")
         query = get_message_content(state["messages"][-1])
 
-        # Retrieve relevant documents (filtered by session and device)
-        try:
-            docs = await self.retriever.retrieve(
-                query, top_k=3, session_id=session_id, device_id=device_id
-            )
-        except Exception as e:
-            logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
-            docs = []
+        tool_results = []
+        response = ""
 
-        if not docs:
-            # No documents found - use LLM to generate natural fallback response
-            # This ensures SSE tokens are streamed (not hardcoded silent response)
-            messages = [{"role": "system", "content": self.system_prompt}]
+        async with record_agent_metrics(
+            self.metrics_store,
+            session_id,
+            self.name,
+            self.llm.config.model,
+            user_id,
+        ) as metrics:
+            # Retrieve relevant documents (filtered by session and device)
+            try:
+                docs = await self.retriever.retrieve(
+                    query, top_k=3, session_id=session_id, device_id=device_id
+                )
+            except Exception as e:
+                logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
+                docs = []
 
-            if self.memory:
-                history = await self.memory.get_messages(session_id)
-                messages.extend(history)
+            if not docs:
+                # No documents found - use LLM to generate natural fallback response
+                # This ensures SSE tokens are streamed (not hardcoded silent response)
+                messages = [{"role": "system", "content": self.system_prompt}]
 
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "Context: No relevant documents were found in the uploaded documents "
-                        "for this session.\n\n"
-                        "The user asked: " + query + "\n\n"
-                        "Please inform the user in their language (Korean if the query is in Korean) that:\n"
-                        "1. No relevant information was found in the uploaded documents\n"
-                        "2. Suggest they try web search, upload relevant documents, or ask as a general question\n"
-                        "Keep the response helpful and concise."
-                    ),
-                }
-            )
+                if self.memory:
+                    history = await self.memory.get_messages(session_id)
+                    messages.extend(history)
 
-            response = await self.llm.generate(messages)
-            tool_results = [{"tool": "retriever", "query": query, "results": []}]
-        else:
-            # Check if all results are low confidence
-            has_low_confidence = any(doc.get("low_confidence", False) for doc in docs)
-
-            # Format context with confidence indicators
-            context_parts = []
-            source_names = []
-            for i, doc in enumerate(docs, 1):
-                source = _clean_source_name(doc.get("metadata", {}), f"Document {i}")
-                content = doc.get("content", "")
-                score = doc.get("score", 0)
-                confidence_note = " [PARTIAL MATCH]" if doc.get("low_confidence") else ""
-                source_names.append(source)
-                context_parts.append(
-                    f"[Document {i}: {source} | Relevance: {score:.2f}{confidence_note}]\n{content}"
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Context: No relevant documents were found in the uploaded documents "
+                            "for this session.\n\n"
+                            "The user asked: " + query + "\n\n"
+                            "Please inform the user in their language (Korean if the query is in Korean) that:\n"
+                            "1. No relevant information was found in the uploaded documents\n"
+                            "2. Suggest they try web search, upload relevant documents, or ask as a general question\n"
+                            "Keep the response helpful and concise."
+                        ),
+                    }
                 )
 
-            context = "\n\n---\n\n".join(context_parts)
-
-            # Add warning if results are low confidence
-            confidence_warning = ""
-            if has_low_confidence:
-                confidence_warning = "\n\nWARNING: The retrieved documents have moderate relevance scores. Please be extra careful and explicitly mention uncertainty in your response."
-
-            # Build messages with conversation history if memory is available
-            messages = [{"role": "system", "content": self.system_prompt}]
-
-            if self.memory:
-                history = await self.memory.get_messages(session_id)
-                messages.extend(history)
-
-            sources_list = ", ".join(dict.fromkeys(source_names))  # deduplicated
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        f"Context:\n{context}{confidence_warning}\n\n"
-                        f"Question: {query}\n\n"
-                        f"Available source documents: {sources_list}\n\n"
-                        f"Respond using the structured JSON format described in your instructions."
-                    ),
-                }
-            )
-
-            # Use structured output for consistent formatting
-            structured_response = await self.llm.generate_structured(
-                messages, output_schema=RAGResponse
-            )
-
-            if structured_response:
-                # Convert structured response to formatted text
-                response = self._format_structured_response(structured_response)
+                response, usage = await self.llm.generate_with_usage(messages)
+                tool_results = [{"tool": "retriever", "query": query, "results": []}]
+                metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
             else:
-                # Fallback to regular generation if structured output fails
-                response = await self.llm.generate(messages)
+                # Check if all results are low confidence
+                has_low_confidence = any(doc.get("low_confidence", False) for doc in docs)
 
-            tool_results = [{"tool": "retriever", "query": query, "results": docs}]
+                # Format context with confidence indicators
+                context_parts = []
+                source_names = []
+                for i, doc in enumerate(docs, 1):
+                    source = _clean_source_name(doc.get("metadata", {}), f"Document {i}")
+                    content = doc.get("content", "")
+                    score = doc.get("score", 0)
+                    confidence_note = " [PARTIAL MATCH]" if doc.get("low_confidence") else ""
+                    source_names.append(source)
+                    context_parts.append(
+                        f"[Document {i}: {source} | Relevance: {score:.2f}{confidence_note}]\n{content}"
+                    )
+
+                context = "\n\n---\n\n".join(context_parts)
+
+                # Add warning if results are low confidence
+                confidence_warning = ""
+                if has_low_confidence:
+                    confidence_warning = "\n\nWARNING: The retrieved documents have moderate relevance scores. Please be extra careful and explicitly mention uncertainty in your response."
+
+                # Build messages with conversation history if memory is available
+                messages = [{"role": "system", "content": self.system_prompt}]
+
+                if self.memory:
+                    history = await self.memory.get_messages(session_id)
+                    messages.extend(history)
+
+                sources_list = ", ".join(dict.fromkeys(source_names))  # deduplicated
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Context:\n{context}{confidence_warning}\n\n"
+                            f"Question: {query}\n\n"
+                            f"Available source documents: {sources_list}\n\n"
+                            f"Respond using the structured JSON format described in your instructions."
+                        ),
+                    }
+                )
+
+                # Use structured output for consistent formatting
+                usage = {}  # Initialize for structured output path
+                structured_response = await self.llm.generate_structured(
+                    messages, output_schema=RAGResponse
+                )
+
+                if structured_response:
+                    # Convert structured response to formatted text
+                    response = self._format_structured_response(structured_response)
+                else:
+                    # Fallback to regular generation if structured output fails
+                    response, usage = await self.llm.generate_with_usage(messages)
+
+                tool_results = [{"tool": "retriever", "query": query, "results": docs}]
+
+                metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
         # Note: Memory storage is handled by chat_agent to avoid duplication
         # RAG agent only adds response to state, not to memory

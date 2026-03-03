@@ -9,6 +9,9 @@ import type {
   DocumentListResponse,
   SessionResponse,
   SessionListResponse,
+  MetricsSummary,
+  AgentMetricsResponse,
+  MetricsPeriod,
 } from '@/types';
 import { API_BASE_URL, API_ENDPOINTS } from './constants';
 import { tokenManager } from './token-manager';
@@ -196,5 +199,14 @@ export const api = {
     await fetchApi(API_ENDPOINTS.session(sessionId), {
       method: 'DELETE',
     });
+  },
+
+  // Metrics
+  async getMetricsSummary(period: MetricsPeriod = '24h'): Promise<MetricsSummary> {
+    return fetchApi<MetricsSummary>(`/api/v1/metrics/summary?period=${period}`);
+  },
+
+  async getAgentMetrics(agentName: string, period: MetricsPeriod = '24h'): Promise<AgentMetricsResponse> {
+    return fetchApi<AgentMetricsResponse>(`/api/v1/metrics/agents?agent_name=${encodeURIComponent(agentName)}&period=${period}`);
   },
 };

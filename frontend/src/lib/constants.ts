@@ -12,6 +12,8 @@ export const API_ENDPOINTS = {
   session: (id: string) => `/api/v1/sessions/${id}`,
   sessionFull: (id: string) => `/api/v1/sessions/${id}/full`,
   logs: '/api/v1/logs',
+  metricsSummary: '/api/v1/metrics/summary',
+  metricsAgents: '/api/v1/metrics/agents',
 } as const;
 
 export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: string }> = {
@@ -20,6 +22,7 @@ export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: 
   rag: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'RAG' },
   web_search: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Web Search' },
   supervisor: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Router' },
+  report: { bg: 'bg-pink-500/20', text: 'text-pink-400', label: 'Report' },
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;

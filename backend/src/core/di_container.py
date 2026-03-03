@@ -97,10 +97,12 @@ def _create_tool_registry(config, retriever):
         registry.register(RetrieverTool(retriever))
 
     if config.tools.code_execution_enabled:
-        registry.register(CodeExecutorTool(
-            timeout=config.tools.code_execution_timeout,
-            memory_limit_mb=config.tools.code_execution_memory_limit_mb,
-        ))
+        registry.register(
+            CodeExecutorTool(
+                timeout=config.tools.code_execution_timeout,
+                memory_limit_mb=config.tools.code_execution_memory_limit_mb,
+            )
+        )
 
     return registry
 
@@ -209,6 +211,31 @@ def _create_session_store(config):
 
     # Fallback to in-memory
     return InMemorySessionStore()
+
+
+def _create_metrics_store(config):
+    """Create metrics store with graceful fallback.
+
+    Returns MetricsStore if Supabase is configured, otherwise None.
+    """
+    try:
+        from src.observability.metrics_store import MetricsStore
+
+        # Only create if Supabase is configured
+        if (
+            config.session.resolved_backend == "supabase"
+            and config.session.supabase_url
+            and config.session.supabase_key
+        ):
+            return MetricsStore(
+                supabase_url=config.session.supabase_url,
+                supabase_key=config.session.supabase_key,
+            )
+    except ImportError:
+        # MetricsStore not yet implemented
+        pass
+
+    return None
 
 
 def _create_graph_factory():
@@ -323,6 +350,12 @@ class DIContainer(containers.DeclarativeContainer):
     # Session Store
     session_store = providers.Singleton(
         _create_session_store,
+        config=config,
+    )
+
+    # Metrics Store
+    metrics_store = providers.Singleton(
+        _create_metrics_store,
         config=config,
     )
 

@@ -12,6 +12,7 @@ import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
   BookOpen,
   Code,
+  FileText,
   Globe,
   MessageCircle,
   Route,
@@ -20,6 +21,7 @@ import {
 
 interface AgentBadgeProps {
   agent: AgentType | string;
+  agents?: string[];  // All agents involved in the workflow
 }
 
 const AGENT_I18N_KEYS: Record<string, TranslationKey> = {
@@ -28,6 +30,7 @@ const AGENT_I18N_KEYS: Record<string, TranslationKey> = {
   rag: 'agent.rag',
   web_search: 'agent.web_search',
   supervisor: 'agent.supervisor',
+  report: 'agent.report',
 };
 
 const AGENT_CONFIG: Record<string, {
@@ -66,15 +69,37 @@ const AGENT_CONFIG: Record<string, {
     label: '라우터',
     description: '요청 분석 및 라우팅'
   },
+  report: {
+    icon: FileText,
+    color: 'bg-pink-500',
+    label: '보고서',
+    description: '종합 연구 보고서 작성'
+  },
 };
 
-export function AgentBadge({ agent }: AgentBadgeProps) {
+export function AgentBadge({ agent, agents }: AgentBadgeProps) {
   const { t } = useTranslation();
   const config = AGENT_CONFIG[agent] || AGENT_CONFIG.chat;
   const Icon = config.icon;
 
   const i18nKey = AGENT_I18N_KEYS[agent];
   const label = i18nKey ? t(i18nKey) : config.label;
+
+  // Calculate additional agents count (excluding the main agent)
+  const additionalCount = agents && agents.length > 1
+    ? agents.filter(a => a !== agent).length
+    : 0;
+
+  // Get labels for additional agents for tooltip
+  const additionalAgentLabels = agents && agents.length > 1
+    ? agents
+        .filter(a => a !== agent)
+        .map(a => {
+          const agentConfig = AGENT_CONFIG[a];
+          const agentI18nKey = AGENT_I18N_KEYS[a];
+          return agentI18nKey ? t(agentI18nKey) : (agentConfig?.label || a);
+        })
+    : [];
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -86,11 +111,21 @@ export function AgentBadge({ agent }: AgentBadgeProps) {
           >
             <Icon className="w-3 h-3 mr-1" />
             {label}
+            {additionalCount > 0 && (
+              <span className="ml-1 px-1 rounded bg-black/10 text-[10px]">
+                +{additionalCount}
+              </span>
+            )}
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[200px]">
           <p className="font-medium">{label}</p>
           <p className="text-xs text-muted-foreground">{config.description}</p>
+          {additionalAgentLabels.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1 pt-1 border-t border-border">
+              {t('agent.additionalAgents') || '추가 에이전트'}: {additionalAgentLabels.join(', ')}
+            </p>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

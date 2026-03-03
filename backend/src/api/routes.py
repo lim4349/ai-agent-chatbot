@@ -22,6 +22,7 @@ from src.api.schemas import (
     DocumentUploadResponse,
     FileUploadResponse,
     HealthResponse,
+    MetricsSummaryResponse,
     SessionCreate,
     SessionListResponse,
     SessionResponse,
@@ -215,7 +216,7 @@ async def chat(
             status="error",
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="요청 처리 중 오류가 발생했습니다.") from e
 
 
 @router.post("/chat/stream")
@@ -253,7 +254,9 @@ async def chat_stream(
         async def error_generator():
             yield {
                 "event": "error",
-                "data": json.dumps({"error": "Invalid request. Please try again with different input."}),
+                "data": json.dumps(
+                    {"error": "Invalid request. Please try again with different input."}
+                ),
             }
 
         return EventSourceResponse(error_generator())
@@ -313,9 +316,13 @@ async def chat_stream(
             streamed_nodes: set[str] = set()
             # Track content sent to avoid duplicates
             sent_content_hashes: set[int] = set()
+            # Track all agents that ran during this workflow
+            all_agents: list[str] = []
 
             # Stream events from graph
-            async for event in graph.astream_events(initial_state, config=graph_config, version="v2"):
+            async for event in graph.astream_events(
+                initial_state, config=graph_config, version="v2"
+            ):
                 kind = event.get("event")
 
                 if kind == "on_chat_model_stream":
@@ -350,7 +357,14 @@ async def chat_stream(
                     if node_name == "supervisor":
                         output = event.get("data", {}).get("output", {})
                         agent = output.get("next_agent", "chat")
-                        yield {"event": "agent", "data": json.dumps({"agent": agent})}
+                        # Track all agents that ran during workflow
+                        if agent != "done" and agent not in all_agents:
+                            all_agents.append(agent)
+                            # Send agent event for UI updates during streaming
+                            yield {"event": "agent", "data": json.dumps({"agent": agent, "all_agents": all_agents})}
+                        # When workflow completes, send final agent list
+                        elif agent == "done" and all_agents:
+                            yield {"event": "agents_complete", "data": json.dumps({"agents": all_agents})}
                         # When supervisor responds directly (no specialist agent ran, e.g. greetings),
                         # send the response as a token — no specialist on_chain_end will fire
                         if agent == "done" and not output.get("completed_steps"):
@@ -371,7 +385,9 @@ async def chat_stream(
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
-                        logger.info("routes_on_chain_end", node_name=node_name, message_count=len(messages))
+                        logger.info(
+                            "routes_on_chain_end", node_name=node_name, message_count=len(messages)
+                        )
                         if messages:
                             last_msg = messages[-1]
                             content = (
@@ -381,11 +397,19 @@ async def chat_stream(
                             )
                             if content:
                                 content_hash = hash(content[:100])
-                                logger.info("routes_content_hash", node_name=node_name, content_hash=content_hash, already_sent=content_hash in sent_content_hashes)
+                                logger.info(
+                                    "routes_content_hash",
+                                    node_name=node_name,
+                                    content_hash=content_hash,
+                                    already_sent=content_hash in sent_content_hashes,
+                                )
                                 if content_hash not in sent_content_hashes:
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
-                    elif node_name in {"chat", "rag", "web_search"} and node_name not in streamed_nodes:
+                    elif (
+                        node_name in {"chat", "rag", "web_search"}
+                        and node_name not in streamed_nodes
+                    ):
                         # Fallback: if a normally-streaming node didn't stream, send its output now
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
@@ -509,7 +533,7 @@ async def upload_document(
             message="Document successfully added to knowledge base",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="문서 인덱싱 중 오류가 발생했습니다.") from e
 
 
 @router.delete("/sessions/{session_id}")
@@ -523,7 +547,7 @@ async def clear_session(
         await memory.clear(session_id)
         return {"status": "cleared", "session_id": session_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="세션 초기화 중 오류가 발생했습니다.") from e
 
 
 # === Session Management Endpoints ===
@@ -824,7 +848,7 @@ async def upload_file(
             raise HTTPException(status_code=400, detail=error)
 
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail="잘못된 요청 형식입니다.") from e
     except Exception as e:
         log_request(
             method="POST",
@@ -961,3 +985,128 @@ async def delete_document(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}") from e
+
+
+# === Metrics Endpoints ===
+
+
+@router.get("/metrics/summary", response_model=MetricsSummaryResponse)
+@inject
+async def get_metrics_summary(
+    period: str = "24h",
+    metrics_store=Depends(Provide[DIContainer.metrics_store]),  # noqa: B008
+) -> MetricsSummaryResponse:
+    """Get aggregated metrics summary for a time period.
+
+    Args:
+        period: Time period - "24h", "7d", "30d"
+        metrics_store: Metrics store dependency
+
+    Returns:
+        Metrics summary with aggregated statistics
+    """
+    if not metrics_store:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics store is not available. Check Supabase configuration.",
+        )
+
+    # Validate period
+    if period not in ("24h", "7d", "30d"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid period. Must be one of: 24h, 7d, 30d",
+        )
+
+    try:
+        summary = await metrics_store.get_summary(period)
+
+        from src.api.schemas import AgentMetricItem
+
+        agent_stats_items = [
+            AgentMetricItem(
+                agent_name=stat["agent_name"],
+                date=stat["date"],
+                total_requests=stat["total_requests"],
+                successful_requests=stat["success_count"],
+                failed_requests=stat["error_count"],
+                blocked_requests=stat.get("timeout_count", 0),
+                avg_duration_ms=stat["avg_duration_ms"],
+                total_tokens=stat["total_input_tokens"] + stat["total_output_tokens"],
+            )
+            for stat in summary.get("agent_stats", [])
+        ]
+
+        return MetricsSummaryResponse(
+            period=summary["period"],
+            total_requests=summary["total_requests"],
+            successful_requests=summary["success_count"],
+            failed_requests=summary["error_count"],
+            blocked_requests=summary.get("timeout_count", 0),
+            avg_duration_ms=summary["avg_duration_ms"],
+            total_tokens=summary["total_input_tokens"] + summary["total_output_tokens"],
+            agent_stats=agent_stats_items,
+            start_time=summary["start_time"],
+            end_time=summary["end_time"],
+        )
+    except Exception as e:
+        logger.error("metrics_summary_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve metrics summary") from e
+
+
+@router.get("/metrics/agents")
+@inject
+async def get_agent_metrics(
+    agent_name: str,
+    period: str = "24h",
+    metrics_store=Depends(Provide[DIContainer.metrics_store]),  # noqa: B008
+):
+    """Get statistics for a specific agent.
+
+    Args:
+        agent_name: Agent name to filter by
+        period: Time period - "24h", "7d", "30d"
+        metrics_store: Metrics store dependency
+
+    Returns:
+        Agent-specific statistics
+    """
+    if not metrics_store:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics store is not available. Check Supabase configuration.",
+        )
+
+    # Validate period
+    if period not in ("24h", "7d", "30d"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid period. Must be one of: 24h, 7d, 30d",
+        )
+
+    try:
+        stats = await metrics_store.get_agent_stats(agent_name, period)
+
+        if not stats:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No metrics found for agent '{agent_name}' in period '{period}'",
+            )
+
+        from src.api.schemas import AgentMetricsResponse
+
+        return AgentMetricsResponse(
+            agent_name=stats["agent_name"],
+            date=stats["date"],
+            total_requests=stats["total_requests"],
+            successful_requests=stats["success_count"],
+            failed_requests=stats["error_count"],
+            blocked_requests=stats.get("timeout_count", 0),
+            avg_duration_ms=stats["avg_duration_ms"],
+            total_tokens=stats["total_input_tokens"] + stats["total_output_tokens"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("agent_metrics_error", agent_name=agent_name, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve agent metrics") from e

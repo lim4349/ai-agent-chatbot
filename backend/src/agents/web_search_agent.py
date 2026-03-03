@@ -10,6 +10,7 @@ from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
+from src.observability import record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -47,9 +48,11 @@ class WebSearchAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         search_tool: Tool = Provide[DIContainer.tool_registry],
         memory: MemoryStore = Provide[DIContainer.memory],
+        metrics_store = Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, tools=[search_tool], memory=memory)
         self.search_tool = search_tool
+        self.metrics_store = metrics_store
 
     @property
     @override
@@ -101,40 +104,51 @@ Guidelines:
     async def process(self, state: AgentState) -> AgentState:
         """Search the web and generate response."""
         session_id = state.get("metadata", {}).get("session_id", "default")
+        user_id = state.get("metadata", {}).get("user_id")
         query = get_message_content(state["messages"][-1])
 
         tool_results = []
+        response = ""
 
-        try:
-            search_results = await self.search_tool.execute(query=query)
-            tool_results.append({"tool": "web_search", "query": query, "results": search_results})
+        async with record_agent_metrics(
+            self.metrics_store,
+            session_id,
+            self.name,
+            self.llm.config.model,
+            user_id,
+        ) as metrics:
+            try:
+                search_results = await self.search_tool.execute(query=query)
+                tool_results.append({"tool": "web_search", "query": query, "results": search_results})
 
-            # Build messages with conversation history if memory is available
-            messages = [{"role": "system", "content": self.system_prompt}]
+                # Build messages with conversation history if memory is available
+                messages = [{"role": "system", "content": self.system_prompt}]
 
-            if self.memory:
-                history = await self.memory.get_messages(session_id)
-                messages.extend(history)
+                if self.memory:
+                    history = await self.memory.get_messages(session_id)
+                    messages.extend(history)
 
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        f"Search Results:\n{search_results}\n\n"
-                        f"Question: {query}\n\n"
-                        "CRITICAL FORMATTING INSTRUCTIONS:\n"
-                        "1. DO NOT include source URLs in your response\n"
-                        "2. DO NOT use '(출처: ...)' citations\n"
-                        "3. Start each list item on its own line with '- ' or a number\n"
-                        "4. Add proper line breaks between list items\n"
-                        "5. Ensure spacing after periods (e.g., '입니다. 다음' not '입니다.다음')"
-                    ),
-                }
-            )
-            response = await self.llm.generate(messages)
-        except Exception as e:
-            response = f"I encountered an error while searching: {str(e)}. Please try again later."
-            tool_results.append({"tool": "web_search", "query": query, "error": str(e)})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Search Results:\n{search_results}\n\n"
+                            f"Question: {query}\n\n"
+                            "CRITICAL FORMATTING INSTRUCTIONS:\n"
+                            "1. DO NOT include source URLs in your response\n"
+                            "2. DO NOT use '(출처: ...)' citations\n"
+                            "3. Start each list item on its own line with '- ' or a number\n"
+                            "4. Add proper line breaks between list items\n"
+                            "5. Ensure spacing after periods (e.g., '입니다. 다음' not '입니다.다음')"
+                        ),
+                    }
+                )
+                response, usage = await self.llm.generate_with_usage(messages)
+                metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+            except Exception as e:
+                response = "검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+                tool_results.append({"tool": "web_search", "query": query, "error": str(e)})
+                metrics.set_error(e)
 
         # Store the search exchange in memory if available
         if self.memory:

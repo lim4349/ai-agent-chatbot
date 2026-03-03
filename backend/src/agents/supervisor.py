@@ -12,6 +12,7 @@ from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, MemoryTool
 from src.graph.state import AgentState
+from src.observability import extract_token_usage_from_response, record_agent_metrics
 
 logger = get_logger(__name__)
 
@@ -153,6 +154,7 @@ class SupervisorAgent(BaseAgent):
         available_agents: set[str] | None = None,
         memory: MemoryStore = Provide[DIContainer.memory],
         memory_tool: MemoryTool | None = Provide[DIContainer.memory_tool],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         """Initialize supervisor with LLM and available agents.
 
@@ -161,6 +163,7 @@ class SupervisorAgent(BaseAgent):
             available_agents: Set of available agent names (e.g., {'chat', 'code', 'rag'})
             memory: Optional memory store for conversation history
             memory_tool: Optional memory tool for semantic search
+            metrics_store: Optional metrics store for observability
         """
         super().__init__(llm=llm, memory=memory)
         # Default to all agents if not specified
@@ -168,6 +171,7 @@ class SupervisorAgent(BaseAgent):
         # Ensure 'chat' is always available as fallback
         self.available_agents.add("chat")
         self.memory_tool = memory_tool
+        self.metrics_store = metrics_store
         self._build_system_prompt()
 
     @property
@@ -327,11 +331,53 @@ continue with the next logical step. Return 'done' only when the entire workflow
         Supports multi-step workflows by tracking completed_steps and remaining_tasks.
         """
         session_id = state.get("metadata", {}).get("session_id", "default")
+        user_id = state.get("metadata", {}).get("user_id", "anonymous")
 
         # Get workflow state
         completed_steps = state.get("completed_steps", [])
         remaining_tasks = state.get("remaining_tasks", [])
         workflow_context = state.get("workflow_context", "")
+
+        # If workflow_context is empty but memory has history,
+        # extract previous agent responses for context continuity
+        if not workflow_context and self.memory:
+            history = await self.memory.get_messages(session_id)
+            logger.info(
+                "restoring_workflow_context",
+                session_id=session_id,
+                history_count=len(history),
+            )
+            # Extract recent assistant/ai responses as workflow context
+            context_parts = []
+            for msg in reversed(history[-10:]):  # Last 10 messages
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                # Check both "assistant" and "ai" roles (LangChain uses "ai")
+                # Skip routing messages
+                if (
+                    role in ("assistant", "ai")
+                    and content
+                    and not content.startswith("Routing to:")
+                ):
+                    # Try to identify which agent produced this
+                    agent_hint = "previous"
+                    if "web_search" in content.lower() or "검색" in content:
+                        agent_hint = "web_search"
+                    elif "rag" in content.lower() or "문서" in content:
+                        agent_hint = "rag"
+                    elif "```python" in content.lower() or "코드" in content:
+                        agent_hint = "code"
+                    context_parts.append(f"[{agent_hint}]: {content[:1500]}")
+                    if len(context_parts) >= 3:  # Max 3 previous responses
+                        break
+            if context_parts:
+                workflow_context = "\n".join(reversed(context_parts))
+                logger.info(
+                    "restored_workflow_context_from_memory",
+                    session_id=session_id,
+                    context_length=len(workflow_context),
+                    parts_count=len(context_parts),
+                )
 
         # Fast path: Check for simple queries that don't need LLM routing
         # Only apply if this is the first step (no completed_steps yet)
@@ -353,7 +399,12 @@ continue with the next logical step. Return 'done' only when the entire workflow
                     content = str(last_msg)
                 logger.info("fast_path_check", session_id=session_id, content=content[:50])
                 simple_agent, simple_reasoning = self._is_simple_query(content)
-                logger.info("fast_path_result", session_id=session_id, agent=simple_agent, reasoning=simple_reasoning)
+                logger.info(
+                    "fast_path_result",
+                    session_id=session_id,
+                    agent=simple_agent,
+                    reasoning=simple_reasoning,
+                )
                 if simple_agent:
                     logger.info(
                         "simple_query_fast_path",
@@ -361,14 +412,32 @@ continue with the next logical step. Return 'done' only when the entire workflow
                         agent=simple_agent,
                         reasoning=simple_reasoning,
                     )
+                    # Record metrics for fast path
+                    if self.metrics_store:
+                        await self.metrics_store.record_request(
+                            session_id=session_id,
+                            agent_name=simple_agent,
+                            duration_ms=0,  # Fast path has negligible duration
+                            model_name=self.llm.config.model,
+                            input_tokens=0,
+                            output_tokens=0,
+                            status="success",
+                            user_id=user_id,
+                            metadata={"fast_path": True, "reasoning": simple_reasoning},
+                        )
                     if simple_agent == "done":
                         # Simple thanks/farewell - respond directly
-                        final_response = await self._generate_final_response(state, simple_reasoning)
+                        final_response = await self._generate_final_response(
+                            state, simple_reasoning, session_id, user_id
+                        )
                         return {
                             **state,
                             "next_agent": "done",
                             "remaining_tasks": [],
-                            "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
+                            "messages": [
+                                *state["messages"],
+                                {"role": "assistant", "content": final_response},
+                            ],
                             "metadata": {
                                 **state.get("metadata", {}),
                                 "route_reasoning": simple_reasoning,
@@ -404,8 +473,8 @@ continue with the next logical step. Return 'done' only when the entire workflow
 
 ## Current Workflow Status
 - Completed steps: {completed_steps}
-- Remaining tasks: {remaining_tasks if remaining_tasks else 'None - ready to complete'}
-- Context from previous steps: {workflow_context[:500] if workflow_context else 'None'}
+- Remaining tasks: {remaining_tasks if remaining_tasks else "None - ready to complete"}
+- Context from previous steps: {workflow_context[:500] if workflow_context else "None"}
 
 Continue with the next logical step or return 'done' if all tasks are complete."""
 
@@ -431,12 +500,32 @@ Continue with the next logical step or return 'done' if all tasks are complete."
         for msg in state["messages"]:
             messages.append(message_to_dict(msg))
 
+        # Get user_id from state metadata
+        user_id = state.get("metadata", {}).get("user_id", "anonymous")
+
         # Get structured routing decision with dynamic model
         route_decision = create_route_decision_model(self.available_agents)
-        decision = await self.llm.generate_structured(
-            messages=messages,
-            output_schema=route_decision,
-        )
+
+        # Wrap LLM call with metrics recording
+        if self.metrics_store:
+            async with record_agent_metrics(
+                metrics_store=self.metrics_store,
+                session_id=session_id,
+                agent_name=self.name,
+                model_name=self.llm.config.model,
+                user_id=user_id,
+            ) as metrics:
+                decision = await self.llm.generate_structured(
+                    messages=messages,
+                    output_schema=route_decision,
+                )
+                input_tokens, output_tokens = extract_token_usage_from_response(decision)
+                metrics.set_token_count(input_tokens, output_tokens)
+        else:
+            decision = await self.llm.generate_structured(
+                messages=messages,
+                output_schema=route_decision,
+            )
 
         # Handle None response from LLM (fallback to chat or done)
         if not decision:
@@ -460,7 +549,6 @@ Continue with the next logical step or return 'done' if all tasks are complete."
         reasoning = decision.get("reasoning", "No reasoning provided")
         new_remaining_tasks = decision.get("remaining_tasks", [])
 
-
         # Store the routing exchange in memory if available
         if self.memory:
             last_msg = state["messages"][-1]
@@ -477,12 +565,17 @@ Continue with the next logical step or return 'done' if all tasks are complete."
         if selected_agent == "done":
             if not completed_steps:
                 # No specialist agent ran — supervisor must respond directly (e.g., greetings/farewells)
-                final_response = await self._generate_final_response(state, reasoning)
+                final_response = await self._generate_final_response(
+                    state, reasoning, session_id, user_id
+                )
                 return {
                     **state,
                     "next_agent": "done",
                     "remaining_tasks": [],
-                    "messages": [*state["messages"], {"role": "assistant", "content": final_response}],
+                    "messages": [
+                        *state["messages"],
+                        {"role": "assistant", "content": final_response},
+                    ],
                     "metadata": {
                         **state.get("metadata", {}),
                         "route_reasoning": reasoning,
@@ -517,18 +610,23 @@ Continue with the next logical step or return 'done' if all tasks are complete."
             **state,
             "next_agent": selected_agent,
             "remaining_tasks": new_remaining_tasks,
+            "workflow_context": workflow_context,  # Include restored context
             "metadata": {
                 **state.get("metadata", {}),
                 "route_reasoning": reasoning,
             },
         }
 
-    async def _generate_final_response(self, state: AgentState, reasoning: str) -> str:
+    async def _generate_final_response(
+        self, state: AgentState, reasoning: str, session_id: str, user_id: str
+    ) -> str:
         """Generate a final response when workflow is complete.
 
         Args:
             state: Current agent state
             reasoning: Routing reasoning
+            session_id: Session identifier
+            user_id: User identifier
 
         Returns:
             Final response string
@@ -546,10 +644,27 @@ Workflow Context:
 Provide a helpful response summarizing the results."""
 
             try:
-                response = await self.llm.generate([
+                # Wrap LLM call with metrics recording
+                messages = [
                     {"role": "system", "content": "You are a helpful assistant summarizing workflow results."},
-                    {"role": "user", "content": prompt}
-                ])
+                    {"role": "user", "content": prompt},
+                ]
+
+                if self.metrics_store:
+                    async with record_agent_metrics(
+                        metrics_store=self.metrics_store,
+                        session_id=session_id,
+                        agent_name=self.name,
+                        model_name=self.llm.config.model,
+                        user_id=user_id,
+                    ) as metrics:
+                        response, usage = await self.llm.generate_with_usage(messages)
+                        metrics.set_token_count(
+                            usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+                        )
+                        return response
+
+                response, _ = await self.llm.generate_with_usage(messages)
                 return response
             except Exception as e:
                 logger.error("final_response_generation_failed", error=str(e))

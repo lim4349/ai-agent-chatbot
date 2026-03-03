@@ -349,14 +349,33 @@ export const useChatStore = create<ChatStore>()(
               tokenBuffer += token;
               scheduleFlush();
             },
-            onAgent: (agent) => {
+            onAgent: (agent, allAgents) => {
               set((state) => ({
                 sessions: state.sessions.map((s) =>
                   s.id === sessionId
                     ? {
                         ...s,
                         messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1 ? { ...m, agent } : m
+                          idx === s.messages.length - 1
+                            ? { ...m, agent, agents: allAgents || [agent] }
+                            : m
+                        ),
+                      }
+                    : s
+                ),
+              }));
+            },
+            onAgentsComplete: (agents) => {
+              // Final update with all agents that participated
+              set((state) => ({
+                sessions: state.sessions.map((s) =>
+                  s.id === sessionId
+                    ? {
+                        ...s,
+                        messages: s.messages.map((m, idx) =>
+                          idx === s.messages.length - 1
+                            ? { ...m, agents, agent: agents[agents.length - 1] || m.agent }
+                            : m
                         ),
                       }
                     : s

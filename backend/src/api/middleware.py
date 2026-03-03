@@ -85,5 +85,7 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
 
             return JSONResponse(
                 status_code=500,
-                content={"error": {"code": "INTERNAL_ERROR", "message": "An internal error occurred"}},
+                content={
+                    "error": {"code": "INTERNAL_ERROR", "message": "An internal error occurred"}
+                },
             )
