@@ -1019,11 +1019,11 @@ async def get_metrics_summary(
                 agent_name=stat["agent_name"],
                 date=stat["date"],
                 total_requests=stat["total_requests"],
-                successful_requests=stat["successful_requests"],
-                failed_requests=stat["failed_requests"],
-                blocked_requests=stat["blocked_requests"],
+                successful_requests=stat["success_count"],
+                failed_requests=stat["error_count"],
+                blocked_requests=stat.get("timeout_count", 0),
                 avg_duration_ms=stat["avg_duration_ms"],
-                total_tokens=stat["total_tokens"],
+                total_tokens=stat["total_input_tokens"] + stat["total_output_tokens"],
             )
             for stat in summary.get("agent_stats", [])
         ]
@@ -1031,11 +1031,11 @@ async def get_metrics_summary(
         return MetricsSummaryResponse(
             period=summary["period"],
             total_requests=summary["total_requests"],
-            successful_requests=summary["successful_requests"],
-            failed_requests=summary["failed_requests"],
-            blocked_requests=summary["blocked_requests"],
+            successful_requests=summary["success_count"],
+            failed_requests=summary["error_count"],
+            blocked_requests=summary.get("timeout_count", 0),
             avg_duration_ms=summary["avg_duration_ms"],
-            total_tokens=summary["total_tokens"],
+            total_tokens=summary["total_input_tokens"] + summary["total_output_tokens"],
             agent_stats=agent_stats_items,
             start_time=summary["start_time"],
             end_time=summary["end_time"],
