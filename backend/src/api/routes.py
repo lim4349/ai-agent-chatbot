@@ -316,6 +316,8 @@ async def chat_stream(
             streamed_nodes: set[str] = set()
             # Track content sent to avoid duplicates
             sent_content_hashes: set[int] = set()
+            # Track all agents that ran during this workflow
+            all_agents: list[str] = []
 
             # Stream events from graph
             async for event in graph.astream_events(
@@ -355,7 +357,14 @@ async def chat_stream(
                     if node_name == "supervisor":
                         output = event.get("data", {}).get("output", {})
                         agent = output.get("next_agent", "chat")
-                        yield {"event": "agent", "data": json.dumps({"agent": agent})}
+                        # Track all agents that ran during workflow
+                        if agent != "done" and agent not in all_agents:
+                            all_agents.append(agent)
+                            # Send agent event for UI updates during streaming
+                            yield {"event": "agent", "data": json.dumps({"agent": agent, "all_agents": all_agents})}
+                        # When workflow completes, send final agent list
+                        elif agent == "done" and all_agents:
+                            yield {"event": "agents_complete", "data": json.dumps({"agents": all_agents})}
                         # When supervisor responds directly (no specialist agent ran, e.g. greetings),
                         # send the response as a token — no specialist on_chain_end will fire
                         if agent == "done" and not output.get("completed_steps"):

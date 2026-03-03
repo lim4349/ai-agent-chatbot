@@ -101,6 +101,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   agent?: string;
+  agents?: string[];  // All agents involved in this response
   createdAt: Date;
   tools?: Array<{
     name: string;
@@ -123,12 +124,13 @@ export interface Session {
   isLocalOnly?: boolean;
 }
 
-export type AgentType = 'chat' | 'code' | 'rag' | 'web_search' | 'supervisor';
+export type AgentType = 'chat' | 'code' | 'rag' | 'web_search' | 'supervisor' | 'report';
 
 export interface SSECallbacks {
   onMetadata: (data: { session_id: string }) => void;
   onToken: (token: string) => void;
-  onAgent: (agent: string) => void;
+  onAgent: (agent: string, allAgents?: string[]) => void;
+  onAgentsComplete: (agents: string[]) => void;
   onDone: () => void;
   onError: (error: string) => void;
 }

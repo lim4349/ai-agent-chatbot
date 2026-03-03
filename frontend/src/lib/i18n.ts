@@ -71,6 +71,8 @@ const translations = {
     'agent.rag': 'RAG',
     'agent.web_search': '웹 검색',
     'agent.supervisor': '라우터',
+    'agent.report': '보고서',
+    'agent.additionalAgents': '추가 에이전트',
 
     // Security
     'security.critical': '보안 위험 감지',
@@ -174,6 +176,8 @@ const translations = {
     'agent.rag': 'RAG',
     'agent.web_search': 'Web Search',
     'agent.supervisor': 'Router',
+    'agent.report': 'Report',
+    'agent.additionalAgents': 'Additional agents',
 
     // Security
     'security.critical': 'Security Risk Detected',
