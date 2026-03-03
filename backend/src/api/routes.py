@@ -216,7 +216,7 @@ async def chat(
             status="error",
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="요청 처리 중 오류가 발생했습니다.") from e
 
 
 @router.post("/chat/stream")
@@ -533,7 +533,7 @@ async def upload_document(
             message="Document successfully added to knowledge base",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="문서 인덱싱 중 오류가 발생했습니다.") from e
 
 
 @router.delete("/sessions/{session_id}")
@@ -547,7 +547,7 @@ async def clear_session(
         await memory.clear(session_id)
         return {"status": "cleared", "session_id": session_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="세션 초기화 중 오류가 발생했습니다.") from e
 
 
 # === Session Management Endpoints ===
@@ -848,7 +848,7 @@ async def upload_file(
             raise HTTPException(status_code=400, detail=error)
 
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail="잘못된 요청 형식입니다.") from e
     except Exception as e:
         log_request(
             method="POST",

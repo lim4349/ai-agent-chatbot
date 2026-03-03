@@ -247,6 +247,7 @@ Example output structure:
                 )
 
                 # Use structured output for consistent formatting
+                usage = {}  # Initialize for structured output path
                 structured_response = await self.llm.generate_structured(
                     messages, output_schema=RAGResponse
                 )

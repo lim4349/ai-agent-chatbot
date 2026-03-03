@@ -645,6 +645,11 @@ Provide a helpful response summarizing the results."""
 
             try:
                 # Wrap LLM call with metrics recording
+                messages = [
+                    {"role": "system", "content": "You are a helpful assistant summarizing workflow results."},
+                    {"role": "user", "content": prompt},
+                ]
+
                 if self.metrics_store:
                     async with record_agent_metrics(
                         metrics_store=self.metrics_store,
@@ -653,30 +658,14 @@ Provide a helpful response summarizing the results."""
                         model_name=self.llm.config.model,
                         user_id=user_id,
                     ) as metrics:
-                        response, usage = await self.llm.generate_with_usage(
-                            [
-                                {
-                                    "role": "system",
-                                    "content": "You are a helpful assistant summarizing workflow results.",
-                                },
-                                {"role": "user", "content": prompt},
-                            ]
-                        )
+                        response, usage = await self.llm.generate_with_usage(messages)
                         metrics.set_token_count(
                             usage.get("input_tokens", 0), usage.get("output_tokens", 0)
                         )
                         return response
-                else:
-                    response, _ = await self.llm.generate_with_usage(
-                        [
-                            {
-                                "role": "system",
-                                "content": "You are a helpful assistant summarizing workflow results.",
-                            },
-                            {"role": "user", "content": prompt},
-                        ]
-                    )
-                    return response
+
+                response, _ = await self.llm.generate_with_usage(messages)
+                return response
             except Exception as e:
                 logger.error("final_response_generation_failed", error=str(e))
                 return "작업이 완료되었습니다. 추가로 도움이 필요하시면 말씀해 주세요."
