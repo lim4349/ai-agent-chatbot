@@ -189,7 +189,7 @@ jobs:
             echo "❌ Vercel credentials not set"
             exit 1
           fi
-          vercel deploy --prod --token=$VERCEL_TOKEN --env BACKEND_URL=$BACKEND_URL
+          vercel deploy --prod --token=$VERCEL_TOKEN --build-env BACKEND_URL=$BACKEND_URL
 
   # ===========================================
   # 헬스 체크 (배포 후)
