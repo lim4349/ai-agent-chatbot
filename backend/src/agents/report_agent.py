@@ -144,6 +144,16 @@ Guidelines:
                 results["code"].append(entry)
             elif "chat" in agent_name:
                 results["chat"].append(entry)
+            elif "previous" in agent_name:
+                # Context restored from memory - classify based on content
+                if any(kw in content.lower() for kw in ["검색", "search", "웹", "web", "사이트", "site"]):
+                    results["web_search"].append(entry)
+                elif any(kw in content.lower() for kw in ["문서", "document", "파일", "file", "업로드", "upload"]):
+                    results["rag"].append(entry)
+                elif any(kw in content.lower() for kw in ["코드", "code", "실행", "execute", "```python", "```javascript"]):
+                    results["code"].append(entry)
+                else:
+                    results["chat"].append(entry)
 
         return results
 

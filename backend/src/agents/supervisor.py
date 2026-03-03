@@ -342,11 +342,18 @@ continue with the next logical step. Return 'done' only when the entire workflow
         # extract previous agent responses for context continuity
         if not workflow_context and self.memory:
             history = await self.memory.get_messages(session_id)
-            # Extract recent assistant responses as workflow context
+            logger.info(
+                "restoring_workflow_context",
+                session_id=session_id,
+                history_count=len(history),
+            )
+            # Extract recent assistant/ai responses as workflow context
             context_parts = []
             for msg in reversed(history[-10:]):  # Last 10 messages
-                if msg.get("role") == "assistant" and msg.get("content"):
-                    content = msg.get("content", "")
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                # Check both "assistant" and "ai" roles (LangChain uses "ai")
+                if role in ("assistant", "ai") and content:
                     # Skip routing messages
                     if not content.startswith("Routing to:"):
                         # Try to identify which agent produced this
@@ -366,6 +373,7 @@ continue with the next logical step. Return 'done' only when the entire workflow
                     "restored_workflow_context_from_memory",
                     session_id=session_id,
                     context_length=len(workflow_context),
+                    parts_count=len(context_parts),
                 )
 
         # Fast path: Check for simple queries that don't need LLM routing
