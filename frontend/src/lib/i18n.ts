@@ -85,7 +85,7 @@ const translations = {
     'security.patterns': '감지된 패턴:',
 
     // Dashboard
-    'dashboard.title': '관측 가능성 대시보드',
+    'dashboard.title': '대시보드',
     'dashboard.description': '시스템 메트릭 및 성능 인사이트',
     'dashboard.totalRequests': '총 요청',
     'dashboard.successRate': '성공률',
