@@ -338,6 +338,36 @@ continue with the next logical step. Return 'done' only when the entire workflow
         remaining_tasks = state.get("remaining_tasks", [])
         workflow_context = state.get("workflow_context", "")
 
+        # If workflow_context is empty but memory has history,
+        # extract previous agent responses for context continuity
+        if not workflow_context and self.memory:
+            history = await self.memory.get_messages(session_id)
+            # Extract recent assistant responses as workflow context
+            context_parts = []
+            for msg in reversed(history[-10:]):  # Last 10 messages
+                if msg.get("role") == "assistant" and msg.get("content"):
+                    content = msg.get("content", "")
+                    # Skip routing messages
+                    if not content.startswith("Routing to:"):
+                        # Try to identify which agent produced this
+                        agent_hint = "previous"
+                        if "web_search" in content.lower() or "검색" in content:
+                            agent_hint = "web_search"
+                        elif "rag" in content.lower() or "문서" in content:
+                            agent_hint = "rag"
+                        elif "```python" in content.lower() or "코드" in content:
+                            agent_hint = "code"
+                        context_parts.append(f"[{agent_hint}]: {content[:1500]}")
+                        if len(context_parts) >= 3:  # Max 3 previous responses
+                            break
+            if context_parts:
+                workflow_context = "\n".join(reversed(context_parts))
+                logger.info(
+                    "restored_workflow_context_from_memory",
+                    session_id=session_id,
+                    context_length=len(workflow_context),
+                )
+
         # Fast path: Check for simple queries that don't need LLM routing
         # Only apply if this is the first step (no completed_steps yet)
         logger.info(
@@ -569,6 +599,7 @@ Continue with the next logical step or return 'done' if all tasks are complete."
             **state,
             "next_agent": selected_agent,
             "remaining_tasks": new_remaining_tasks,
+            "workflow_context": workflow_context,  # Include restored context
             "metadata": {
                 **state.get("metadata", {}),
                 "route_reasoning": reasoning,
