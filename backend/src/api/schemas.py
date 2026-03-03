@@ -159,3 +159,62 @@ class SessionListResponse(BaseModel):
     """List of sessions."""
 
     sessions: list[SessionResponse] = Field(..., description="List of sessions")
+
+
+# --- Metrics Models ---
+
+
+class AgentMetricItem(BaseModel):
+    """Per-agent metric item."""
+
+    agent_name: str = Field(..., description="Agent name")
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    total_requests: int = Field(..., description="Total number of requests")
+    successful_requests: int = Field(..., description="Successful requests")
+    failed_requests: int = Field(..., description="Failed requests")
+    blocked_requests: int = Field(..., description="Blocked requests")
+    avg_duration_ms: float = Field(..., description="Average request duration in milliseconds")
+    total_tokens: int = Field(..., description="Total tokens processed")
+
+
+class MetricsSummaryResponse(BaseModel):
+    """Metrics summary response."""
+
+    period: str = Field(..., description="Time period: 24h, 7d, 30d")
+    total_requests: int = Field(..., description="Total requests in period")
+    successful_requests: int = Field(..., description="Successful requests")
+    failed_requests: int = Field(..., description="Failed requests")
+    blocked_requests: int = Field(..., description="Blocked requests")
+    avg_duration_ms: float = Field(..., description="Average duration across all requests")
+    total_tokens: int = Field(..., description="Total tokens processed")
+    agent_stats: list[AgentMetricItem] = Field(
+        default_factory=list, description="Per-agent statistics"
+    )
+    start_time: datetime = Field(..., description="Start of period")
+    end_time: datetime = Field(..., description="End of period")
+
+
+class AgentMetricsResponse(BaseModel):
+    """Agent-specific metrics response."""
+
+    agent_name: str = Field(..., description="Agent name")
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    total_requests: int = Field(..., description="Total number of requests")
+    successful_requests: int = Field(..., description="Successful requests")
+    failed_requests: int = Field(..., description="Failed requests")
+    blocked_requests: int = Field(..., description="Blocked requests")
+    avg_duration_ms: float = Field(..., description="Average request duration in milliseconds")
+    total_tokens: int = Field(..., description="Total tokens processed")
+
+
+class RequestMetricResponse(BaseModel):
+    """Individual request metric response."""
+
+    session_id: str = Field(..., description="Session identifier")
+    agent_name: str = Field(..., description="Agent that handled the request")
+    duration_ms: float = Field(..., description="Request duration in milliseconds")
+    token_count: int = Field(..., description="Tokens processed")
+    status: str = Field(..., description="Request status: success, error, blocked")
+    error_message: str | None = Field(default=None, description="Error message if status is error")
+    timestamp: datetime = Field(..., description="When the request was made")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")

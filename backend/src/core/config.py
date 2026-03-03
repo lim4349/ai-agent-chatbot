@@ -83,6 +83,17 @@ class RateLimitConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RATE_LIMIT_")
 
 
+class ObservabilityConfig(BaseSettings):
+    """Observability and monitoring configuration."""
+
+    # LangSmith settings
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "ai-agent-chatbot"
+    langsmith_tracing: bool = False
+
+    model_config = SettingsConfigDict(env_prefix="LANGSMITH_")
+
+
 class MCPConfig(BaseSettings):
     """MCP (Model Context Protocol) server configuration."""
 
@@ -146,6 +157,7 @@ class AppConfig(BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     model_config = SettingsConfigDict(
         env_file=str(_env_file), env_file_encoding="utf-8", extra="ignore"

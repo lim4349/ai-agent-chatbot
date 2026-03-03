@@ -199,3 +199,12 @@ export interface AuthTokens {
   refreshToken: string;
   expiresAt: number;
 }
+
+// Re-export metrics types
+export type {
+  MetricsSummary,
+  AgentMetricItem,
+  AgentMetricsResponse,
+  RequestMetricResponse,
+  MetricsPeriod,
+} from './metrics';

@@ -1,6 +1,7 @@
 'use client';
 
-import { Menu, Moon, Sun, Bot, Languages } from 'lucide-react';
+import { Menu, Moon, Sun, Bot, Languages, BarChart3 } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { HealthIndicator } from './health-indicator';
 import { useTranslation } from '@/lib/i18n';
@@ -37,6 +38,18 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-1">
+        <Link href="/dashboard">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs font-medium px-2.5 gap-1.5"
+            title="Dashboard"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </Button>
+        </Link>
+
         <HealthIndicator />
 
         <Button

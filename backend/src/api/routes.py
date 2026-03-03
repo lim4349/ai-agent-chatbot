@@ -22,6 +22,7 @@ from src.api.schemas import (
     DocumentUploadResponse,
     FileUploadResponse,
     HealthResponse,
+    MetricsSummaryResponse,
     SessionCreate,
     SessionListResponse,
     SessionResponse,
@@ -253,7 +254,9 @@ async def chat_stream(
         async def error_generator():
             yield {
                 "event": "error",
-                "data": json.dumps({"error": "Invalid request. Please try again with different input."}),
+                "data": json.dumps(
+                    {"error": "Invalid request. Please try again with different input."}
+                ),
             }
 
         return EventSourceResponse(error_generator())
@@ -315,7 +318,9 @@ async def chat_stream(
             sent_content_hashes: set[int] = set()
 
             # Stream events from graph
-            async for event in graph.astream_events(initial_state, config=graph_config, version="v2"):
+            async for event in graph.astream_events(
+                initial_state, config=graph_config, version="v2"
+            ):
                 kind = event.get("event")
 
                 if kind == "on_chat_model_stream":
@@ -371,7 +376,9 @@ async def chat_stream(
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
-                        logger.info("routes_on_chain_end", node_name=node_name, message_count=len(messages))
+                        logger.info(
+                            "routes_on_chain_end", node_name=node_name, message_count=len(messages)
+                        )
                         if messages:
                             last_msg = messages[-1]
                             content = (
@@ -381,11 +388,19 @@ async def chat_stream(
                             )
                             if content:
                                 content_hash = hash(content[:100])
-                                logger.info("routes_content_hash", node_name=node_name, content_hash=content_hash, already_sent=content_hash in sent_content_hashes)
+                                logger.info(
+                                    "routes_content_hash",
+                                    node_name=node_name,
+                                    content_hash=content_hash,
+                                    already_sent=content_hash in sent_content_hashes,
+                                )
                                 if content_hash not in sent_content_hashes:
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
-                    elif node_name in {"chat", "rag", "web_search"} and node_name not in streamed_nodes:
+                    elif (
+                        node_name in {"chat", "rag", "web_search"}
+                        and node_name not in streamed_nodes
+                    ):
                         # Fallback: if a normally-streaming node didn't stream, send its output now
                         output = event.get("data", {}).get("output", {})
                         messages = output.get("messages", [])
@@ -961,3 +976,128 @@ async def delete_document(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {e}") from e
+
+
+# === Metrics Endpoints ===
+
+
+@router.get("/metrics/summary", response_model=MetricsSummaryResponse)
+@inject
+async def get_metrics_summary(
+    period: str = "24h",
+    metrics_store=Depends(Provide[DIContainer.metrics_store]),  # noqa: B008
+) -> MetricsSummaryResponse:
+    """Get aggregated metrics summary for a time period.
+
+    Args:
+        period: Time period - "24h", "7d", "30d"
+        metrics_store: Metrics store dependency
+
+    Returns:
+        Metrics summary with aggregated statistics
+    """
+    if not metrics_store:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics store is not available. Check Supabase configuration.",
+        )
+
+    # Validate period
+    if period not in ("24h", "7d", "30d"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid period. Must be one of: 24h, 7d, 30d",
+        )
+
+    try:
+        summary = await metrics_store.get_summary(period)
+
+        from src.api.schemas import AgentMetricItem
+
+        agent_stats_items = [
+            AgentMetricItem(
+                agent_name=stat["agent_name"],
+                date=stat["date"],
+                total_requests=stat["total_requests"],
+                successful_requests=stat["successful_requests"],
+                failed_requests=stat["failed_requests"],
+                blocked_requests=stat["blocked_requests"],
+                avg_duration_ms=stat["avg_duration_ms"],
+                total_tokens=stat["total_tokens"],
+            )
+            for stat in summary.get("agent_stats", [])
+        ]
+
+        return MetricsSummaryResponse(
+            period=summary["period"],
+            total_requests=summary["total_requests"],
+            successful_requests=summary["successful_requests"],
+            failed_requests=summary["failed_requests"],
+            blocked_requests=summary["blocked_requests"],
+            avg_duration_ms=summary["avg_duration_ms"],
+            total_tokens=summary["total_tokens"],
+            agent_stats=agent_stats_items,
+            start_time=summary["start_time"],
+            end_time=summary["end_time"],
+        )
+    except Exception as e:
+        logger.error("metrics_summary_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get metrics summary: {e}") from e
+
+
+@router.get("/metrics/agents")
+@inject
+async def get_agent_metrics(
+    agent_name: str,
+    period: str = "24h",
+    metrics_store=Depends(Provide[DIContainer.metrics_store]),  # noqa: B008
+):
+    """Get statistics for a specific agent.
+
+    Args:
+        agent_name: Agent name to filter by
+        period: Time period - "24h", "7d", "30d"
+        metrics_store: Metrics store dependency
+
+    Returns:
+        Agent-specific statistics
+    """
+    if not metrics_store:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics store is not available. Check Supabase configuration.",
+        )
+
+    # Validate period
+    if period not in ("24h", "7d", "30d"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid period. Must be one of: 24h, 7d, 30d",
+        )
+
+    try:
+        stats = await metrics_store.get_agent_stats(agent_name, period)
+
+        if not stats:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No metrics found for agent '{agent_name}' in period '{period}'",
+            )
+
+        from src.api.schemas import AgentMetricsResponse
+
+        return AgentMetricsResponse(
+            agent_name=stats["agent_name"],
+            date=stats["date"],
+            total_requests=stats["total_requests"],
+            successful_requests=stats["successful_requests"],
+            failed_requests=stats["failed_requests"],
+            blocked_requests=stats["blocked_requests"],
+            avg_duration_ms=stats["avg_duration_ms"],
+            total_tokens=stats["total_tokens"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("agent_metrics_error", agent_name=agent_name, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get agent metrics: {e}") from e

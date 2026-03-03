@@ -23,6 +23,18 @@ async def lifespan(app: FastAPI):
     # Setup logging
     setup_logging(log_level=config.log_level, json_format=not config.debug)
 
+    # Setup LangSmith tracing if enabled
+    if config.observability.langsmith_tracing and config.observability.langsmith_api_key:
+        import os
+
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = config.observability.langsmith_api_key
+        os.environ["LANGCHAIN_PROJECT"] = config.observability.langsmith_project
+        logger.info(
+            "langsmith_enabled",
+            project=config.observability.langsmith_project,
+        )
+
     # Wire DI container
     di_container.wire(
         modules=[
