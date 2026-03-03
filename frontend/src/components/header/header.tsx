@@ -43,10 +43,10 @@ export function Header({ onMenuClick }: HeaderProps) {
             variant="ghost"
             size="sm"
             className="text-xs font-medium px-2.5 gap-1.5"
-            title="Dashboard"
+            title={t('header.dashboard')}
           >
             <BarChart3 className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
+            <span className="hidden sm:inline">{t('header.dashboard')}</span>
           </Button>
         </Link>
 

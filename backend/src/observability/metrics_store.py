@@ -113,7 +113,7 @@ class MetricsStore:
                         "model_name": model_name,
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
-                        "duration_ms": duration_ms,
+                        "duration_ms": round(duration_ms),  # DB expects integer
                         "status": status,
                         "error_message": error_message,
                         "metadata": metadata or {},

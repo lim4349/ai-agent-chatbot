@@ -9,6 +9,7 @@ const translations = {
   ko: {
     // Header
     'header.title': 'AI 에이전트 챗봇',
+    'header.dashboard': '대시보드',
 
     // Sidebar
     'sidebar.title': '대화 목록',
@@ -116,6 +117,7 @@ const translations = {
   },
   en: {
     'header.title': 'AI Agent Chatbot',
+    'header.dashboard': 'Dashboard',
 
     'sidebar.title': 'Chats',
     'sidebar.newChat': 'New Chat',
