@@ -66,12 +66,12 @@ export function HealthIndicator() {
 
   const isHealthy = health?.status === 'ok';
 
-  // Daily quota (200 requests/day for free tier)
-  const DAILY_REQUEST_LIMIT = 200;
-  const hasUsage = metrics && metrics.total_requests > 0;
+  // Daily quota from backend config (0 = unlimited, hide quota display)
+  const dailyRequestLimit = health?.daily_request_limit ?? 0;
+  const hasUsage = metrics && metrics.total_requests > 0 && dailyRequestLimit > 0;
   const requestsToday = hasUsage ? metrics.total_requests : 0;
-  const usagePercent = Math.min((requestsToday / DAILY_REQUEST_LIMIT) * 100, 100);
-  const remainingRequests = Math.max(DAILY_REQUEST_LIMIT - requestsToday, 0);
+  const usagePercent = dailyRequestLimit > 0 ? Math.min((requestsToday / dailyRequestLimit) * 100, 100) : 0;
+  const remainingRequests = dailyRequestLimit > 0 ? Math.max(dailyRequestLimit - requestsToday, 0) : 0;
 
   return (
     <Tooltip>
@@ -104,10 +104,10 @@ export function HealthIndicator() {
             <p>
               <strong>Agents:</strong> {health.available_agents.join(', ')}
             </p>
-            {hasUsage && (
+            {hasUsage && dailyRequestLimit > 0 && (
               <div className="border-t border-border my-2 pt-2">
                 <p className="text-muted-foreground mb-1">{t('health.dailyQuota')}:</p>
-                <p><strong>{t('health.requestsToday')}:</strong> {requestsToday}/{DAILY_REQUEST_LIMIT}</p>
+                <p><strong>{t('health.requestsToday')}:</strong> {requestsToday}/{dailyRequestLimit}</p>
                 <div className="w-full bg-muted rounded-full h-1.5 mt-1">
                   <div
                     className={cn(

@@ -457,6 +457,7 @@ async def health(
         llm_model=config.llm.model,
         memory_backend=config.memory.backend,
         available_agents=available_agents,
+        daily_request_limit=config.rate_limit.daily_request_limit,
     )
 
 
