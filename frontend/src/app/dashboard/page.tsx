@@ -85,11 +85,49 @@ export default function DashboardPage() {
     stat => !EXCLUDED_AGENTS.includes(stat.agent_name)
   ) || [];
 
-  // Prepare data for pie chart (requests by agent)
-  const pieData = filteredAgentStats.map(stat => ({
-    name: stat.agent_name,
-    value: stat.total_requests,
-  }));
+  // Calculate total requests for percentage normalization
+  const totalFilteredRequests = filteredAgentStats.reduce(
+    (sum, stat) => sum + stat.total_requests, 0
+  );
+
+  // Prepare data for pie chart (requests by agent) with normalized percentages
+  // Always ensure percentages sum to exactly 100%
+  const pieData = (() => {
+    if (filteredAgentStats.length === 0 || totalFilteredRequests === 0) return [];
+
+    // Calculate raw percentages
+    const rawPercentages = filteredAgentStats.map(stat => ({
+      name: stat.agent_name,
+      value: stat.total_requests,
+      rawPercent: (stat.total_requests / totalFilteredRequests) * 100,
+    }));
+
+    // Round down all percentages
+    const rounded = rawPercentages.map(item => ({
+      ...item,
+      percent: Math.floor(item.rawPercent),
+    }));
+
+    // Calculate the difference (remainder) to distribute
+    const totalRounded = rounded.reduce((sum, item) => sum + item.percent, 0);
+    let remainder = 100 - totalRounded;
+
+    // Sort by decimal part (descending) to distribute remainder fairly
+    const sortedByDecimal = [...rounded].sort((a, b) =>
+      (b.rawPercent % 1) - (a.rawPercent % 1)
+    );
+
+    // Distribute remainder (1% each) to items with highest decimal parts
+    for (let i = 0; i < sortedByDecimal.length && remainder > 0; i++) {
+      const idx = rounded.findIndex(item => item.name === sortedByDecimal[i].name);
+      if (idx !== -1) {
+        rounded[idx].percent += 1;
+        remainder -= 1;
+      }
+    }
+
+    return rounded.map(({ name, value, percent }) => ({ name, value, percent }));
+  })();
 
   // Prepare data for bar chart (requests by status)
   const statusData = metrics ? [
@@ -218,7 +256,7 @@ export default function DashboardPage() {
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
+                            label={(entry) => `${entry.name}: ${entry.percent}%`}
                             outerRadius={80}
                             fill="#8884d8"
                             dataKey="value"
