@@ -29,6 +29,7 @@ export interface HealthResponse {
   llm_model: string;
   memory_backend: string;
   available_agents: string[];
+  daily_request_limit: number;  // 0 = unlimited, hide quota display
 }
 
 export interface AgentInfo {

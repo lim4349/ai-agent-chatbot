@@ -79,6 +79,7 @@ class RateLimitConfig(BaseSettings):
     """Rate limiting configuration."""
 
     per_session: int = 20  # Max requests per session
+    daily_request_limit: int = 0  # Daily request limit (0 = unlimited, hide quota display)
 
     model_config = SettingsConfigDict(env_prefix="RATE_LIMIT_")
 

@@ -64,6 +64,7 @@ class HealthResponse(BaseModel):
     llm_model: str = Field(..., description="Active LLM model")
     memory_backend: str = Field(..., description="Active memory backend")
     available_agents: list[str] = Field(..., description="Available agent names")
+    daily_request_limit: int = Field(0, description="Daily request limit (0 = unlimited)")
 
 
 class AgentInfo(BaseModel):
