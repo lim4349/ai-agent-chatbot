@@ -567,8 +567,7 @@ class LongTermMemory:
                 # Remove summaries for this session from memory
                 if topic in self._topic_summaries:
                     self._topic_summaries[topic] = [
-                        s for s in self._topic_summaries[topic]
-                        if s.get("session_id") != session_id
+                        s for s in self._topic_summaries[topic] if s.get("session_id") != session_id
                     ]
             deleted_count = len(topics)
 
