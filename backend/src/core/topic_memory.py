@@ -82,15 +82,26 @@ Summary:"""
         conversation = self._format_conversation(messages)
 
         try:
-            result = await self.llm.generate_structured(
-                messages=[
+            # Use JSON mode instead of structured output for better compatibility
+            prompt = self._TOPIC_EXTRACTION_PROMPT.format(conversation=conversation)
+            result_text, _ = await self.llm.generate_with_usage(
+                [
                     {
-                        "role": "user",
-                        "content": self._TOPIC_EXTRACTION_PROMPT.format(conversation=conversation),
-                    }
-                ],
-                output_schema=dict,
+                        "role": "system",
+                        "content": 'Respond with valid JSON only. Format: {"topics": [{"topic": "...", "summary": "...", "relevance": 0.8}]}',
+                    },
+                    {"role": "user", "content": prompt},
+                ]
             )
+
+            # Parse JSON response
+            import json
+
+            try:
+                result = json.loads(result_text)
+            except json.JSONDecodeError:
+                logger.warning("topic_extraction_json_parse_failed")
+                return []
 
             if not result:
                 logger.warning("topic_extraction_empty_result")
@@ -106,11 +117,7 @@ Summary:"""
                     normalized_topics.append(item)
                 elif isinstance(item, str):
                     # Fallback format: just topic name as string
-                    normalized_topics.append({
-                        "topic": item,
-                        "summary": item,
-                        "relevance": 0.5
-                    })
+                    normalized_topics.append({"topic": item, "summary": item, "relevance": 0.5})
 
             # Sort by relevance
             normalized_topics.sort(key=lambda x: x.get("relevance", 0), reverse=True)
