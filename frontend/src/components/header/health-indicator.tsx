@@ -66,11 +66,12 @@ export function HealthIndicator() {
 
   const isHealthy = health?.status === 'ok';
 
-  // Calculate RPM/TPM/RPD from 24h metrics
+  // Daily quota (200 requests/day for free tier)
+  const DAILY_REQUEST_LIMIT = 200;
   const hasUsage = metrics && metrics.total_requests > 0;
-  const rpm = hasUsage ? (metrics.total_requests / (24 * 60)).toFixed(2) : '0.00';
-  const tpm = hasUsage ? (metrics.total_tokens / (24 * 60)).toFixed(1) : '0.0';
-  const rpd = hasUsage ? metrics.total_requests.toLocaleString() : '0';
+  const requestsToday = hasUsage ? metrics.total_requests : 0;
+  const usagePercent = Math.min((requestsToday / DAILY_REQUEST_LIMIT) * 100, 100);
+  const remainingRequests = Math.max(DAILY_REQUEST_LIMIT - requestsToday, 0);
 
   return (
     <Tooltip>
@@ -105,10 +106,18 @@ export function HealthIndicator() {
             </p>
             {hasUsage && (
               <div className="border-t border-border my-2 pt-2">
-                <p className="text-muted-foreground mb-1">{t('health.usage24h')}:</p>
-                <p><strong>{t('health.rpm')}:</strong> {rpm}</p>
-                <p><strong>{t('health.tpm')}:</strong> {tpm}</p>
-                <p><strong>{t('health.rpd')}:</strong> {rpd}</p>
+                <p className="text-muted-foreground mb-1">{t('health.dailyQuota')}:</p>
+                <p><strong>{t('health.requestsToday')}:</strong> {requestsToday}/{DAILY_REQUEST_LIMIT}</p>
+                <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                  <div
+                    className={cn(
+                      'h-1.5 rounded-full transition-all',
+                      usagePercent >= 90 ? 'bg-red-500' : usagePercent >= 70 ? 'bg-amber-500' : 'bg-green-500'
+                    )}
+                    style={{ width: `${usagePercent}%` }}
+                  />
+                </div>
+                <p className="text-muted-foreground mt-1">{t('health.remaining')}: {remainingRequests}</p>
               </div>
             )}
           </div>
