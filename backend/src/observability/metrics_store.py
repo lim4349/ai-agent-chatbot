@@ -157,6 +157,12 @@ class MetricsStore:
 
         # Get metrics from in-memory store
         metrics = [m for m in self._metrics if datetime.fromisoformat(m["timestamp"]) >= start_time]
+        logger.debug(
+            "metrics_summary_in_memory",
+            in_memory_count=len(metrics),
+            use_supabase=self._use_supabase,
+            has_client=self._client is not None,
+        )
 
         # Get from Supabase if available
         if self._use_supabase and self._client:
@@ -166,6 +172,11 @@ class MetricsStore:
                     .select("*")
                     .gte("created_at", start_time.isoformat())
                     .execute()
+                )
+                logger.info(
+                    "metrics_summary_supabase_query",
+                    supabase_count=len(result.data) if result.data else 0,
+                    start_time=start_time.isoformat(),
                 )
                 # Merge with in-memory metrics (avoid duplicates by timestamp + session_id)
                 seen = {(m["timestamp"], m["session_id"]) for m in metrics}
