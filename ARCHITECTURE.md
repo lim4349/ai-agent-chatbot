@@ -4,6 +4,19 @@
 
 ---
 
+## 배포 환경
+
+이 프로젝트는 **로컬**과 **프로덕션** 두 환경에서 실행됩니다.
+
+| 환경 | Frontend | Backend | 데이터 | 접속 URL |
+|------|----------|---------|--------|----------|
+| **로컬** | Docker (Next.js) | Docker (FastAPI) | 로컬 Redis + Supabase | localhost |
+| **프로덕션** | Vercel | Render | Upstash Redis + Supabase | https://ai-agent-chatbot-iota.vercel.app |
+
+**참고**: 두 환경은 같은 Supabase를 사용하지만, Redis는 각각 다른 인스턴스를 사용합니다.
+
+---
+
 ## 시스템 아키텍처
 
 ```
@@ -27,10 +40,10 @@
 │                        오케스트레이션 레이어                          │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │  LangGraph StateGraph                                       │   │
-│   │  ┌──────────┐  ┌──────┐  ┌─────────┐  ┌────────┐  ┌─────┐  │   │
-│   │  │Supervisor│─▶│ Chat │  │   RAG   │  │  Web   │  │Code │  │Report│   │
-│   │  │ (Router) │  │      │  │ (Docs)  │  │ Search │  │     │  │      │   │
-│   │  └──────────┘  └──────┘  └─────────┘  └────────┘  └─────┘  │   │
+│   │  ┌──────────┐  ┌──────┐  ┌─────────┐  ┌────────┐  ┌──────┐  │   │
+│   │  │Supervisor│─▶│ Chat │  │   RAG   │  │  Web   │  │ Code │  │Report│   │
+│   │  │ (Router) │  │      │  │ (Docs)  │  │ Search │  │      │  │      │   │
+│   │  └──────────┘  └──────┘  └─────────┘  └────────┘  └──────┘  │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -52,10 +65,10 @@
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
-| **LLM** | OpenRouter | Gemini/GPT-4o/Claude |
+| **LLM** | 로컬: z.ai (GLM-5) / 배포: Google AI Studio (Gemini 2.5 Flash) | - |
 | **Vector DB** | Pinecone | - |
 | **임베딩** | multilingual-e5-large | - |
-| **세션 메모리** | Upstash Redis / In-Memory | - |
+| **세션 메모리** | Upstash Redis / In-Memory | TTL: 1시간 |
 | **인증** | Supabase | - |
 | **배포** | Render + Vercel | - |
 
@@ -96,7 +109,7 @@ backend/src/
 ├── graph/               # LangGraph 상태 머신
 │   ├── builder.py       # 그래프 빌드
 │   ├── state.py         # AgentState TypedDict
-│   └── edges.py         # 조걶부 라우팅
+│   └── edges.py         # 조건부 라우팅
 │
 ├── llm/                 # LLM 프로바이더
 │   ├── factory.py       # LLMFactory
@@ -107,6 +120,10 @@ backend/src/
 │   ├── in_memory_store.py   # 개발용
 │   ├── redis_store.py       # 프로덕션용
 │   └── long_term_memory.py  # 장기 메모리
+│
+├── observability/       # 관측 가능성
+│   ├── metrics_store.py # 메트릭 저장 (Supabase)
+│   └── agent_metrics.py # 에이전트 메트릭 기록
 │
 └── tools/               # 에이전트 도구
     ├── web_search.py    # Tavily 웹 검색
@@ -129,9 +146,10 @@ backend/src/
 |----------|------|----------|
 | **Supervisor** | 라우팅 | 사용자 쿼리 분석 → 적절한 에이전트 선택 |
 | **ChatAgent** | 일반 대화 | 메모리 명령, 사용자 프로파일링 |
-| **CodeAgent** | 코드 | 코드 생성/설명/디버깅 |
+| **CodeAgent** | 코드 | 코드 생성/설명/디버깅/실행 |
 | **RAGAgent** | 문서 Q&A | 문서 검색 + 컨텍스트 기반 답변 |
 | **WebSearchAgent** | 웹 검색 | Tavily API로 실시간 검색 |
+| **ReportAgent** | 보고서 | 다중 소스 연구 결과 종합 보고서 |
 
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
@@ -149,7 +167,10 @@ backend/src/
 | GET | `/api/v1/documents` | ✅ | 문서 목록 |
 | GET | `/api/v1/sessions` | ✅ | 세션 목록 |
 | DELETE | `/api/v1/sessions/{id}` | ❌ | 세션 삭제 |
+| DELETE | `/api/v1/sessions/{id}/full` | ❌ | 세션 + 토픽 완전 삭제 |
 | GET | `/api/v1/health` | ❌ | 헬스 체크 |
+| GET | `/api/v1/metrics/summary` | ❌ | 메트릭 요약 (대시보드) |
+| GET | `/api/v1/metrics/agents` | ❌ | 에이전트별 메트릭 |
 
 ---
 
@@ -161,7 +182,8 @@ backend/src/
 frontend/src/
 ├── app/                 # App Router
 │   ├── layout.tsx       # 루트 레이아웃
-│   └── chat/page.tsx    # 채팅 페이지
+│   ├── chat/page.tsx    # 채팅 페이지
+│   └── dashboard/page.tsx  # 대시보드 페이지
 │
 ├── components/
 │   ├── chat/            # 채팅 UI
@@ -169,6 +191,10 @@ frontend/src/
 │   │   ├── chat-input.tsx
 │   │   ├── message-list.tsx
 │   │   └── markdown-renderer.tsx
+│   ├── dashboard/       # 대시보드 UI
+│   │   ├── health-indicator.tsx
+│   │   ├── request-chart.tsx
+│   │   └── pie-chart.tsx
 │   ├── documents/       # 문서 업로드 UI
 │   ├── sidebar/         # 세션 사이드바
 │   └── ui/              # shadcn/ui 컴포넌트
@@ -210,6 +236,28 @@ EventSource (fetch + ReadableStream)
 
 ---
 
+## 데이터 저장소
+
+### 데이터 유지 여부
+
+| 데이터 | 저장소 | TTL | 서버 재시작 시 |
+|--------|--------|-----|---------------|
+| **Metrics** (대시보드) | Supabase `request_metrics` | 없음 | ✅ 유지 |
+| **장기 메모리** (사용자 정보) | Supabase `user_profiles`, `user_facts` | 없음 | ✅ 유지 |
+| **세션 메모리** (대화 기록) | Redis | 1시간 | ⚠️ 삭제됨 |
+
+### Supabase 테이블
+
+| 테이블 | 용도 |
+|--------|------|
+| `user_profiles` | 사용자 프로필 및 선호도 |
+| `user_facts` | 사용자에 대한 개별 팩트 |
+| `topic_summaries` | 대화 토픽 요약 |
+| `request_metrics` | 에이전트 요청 메트릭 (대시보드) |
+| `sessions` | 세션 메타데이터 |
+
+---
+
 ## 데이터 흐름도
 
 ### 채팅 요청
@@ -228,7 +276,9 @@ supervisor.process(state)
     ▼
 route_by_next_agent(state)
     ▼
-{chat|code|rag|web_search}.process(state)
+{chat|code|rag|web_search|report}.process(state)
+    ▼
+record_metrics(agent, duration, status)
     ▼
 filter_llm_output(response)
     ▼
@@ -260,26 +310,68 @@ FileUploadResponse 반환
 
 ## 메모리 시스템
 
-### 단기 메모리 (Session Memory)
+### 3-Tier Memory Architecture
 
-| 구현체 | 용도 | 특징 |
-|--------|------|------|
-| **InMemoryStore** | 개발/테스트 | dict 기반 |
-| **RedisStore** | 프로덕션 | Upstash Redis, TTL 기반 |
-
-### 장기 메모리 (Long-term Memory)
-
-| 테이블 | 용도 |
-|--------|------|
-| `user_profiles` | 사용자 프로필 및 선호도 |
-| `topic_summaries` | 대화 토픽 요약 |
-| `user_facts` | 사용자에 대한 개별 팩트 |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    단기 메모리 (Session)                     │
+│   Redis (TTL: 1시간)                                        │
+│   - 대화 메시지                                              │
+│   - 세션 상태                                                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ 자동 요약 트리거
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    중기 메모리 (Topic)                       │
+│   Supabase: topic_summaries                                 │
+│   - 대화 토픽 요약                                           │
+│   - 세션과 함께 삭제됨                                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ 사용자 팩트 추출
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    장기 메모리 (User)                        │
+│   Supabase: user_profiles, user_facts                       │
+│   - 사용자 프로필                                            │
+│   - 개인화된 팩트                                            │
+│   - 영구 저장                                                │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### 자동 요약 트리거
 
 - 토큰 수 > 2000
 - 메시지 수 > 20
 - 마지막 요약 후 10분 경과
+
+---
+
+## Observability (대시보드)
+
+### 메트릭 수집
+
+```
+에이전트 요청
+    │
+    ▼
+record_agent_metrics()
+    │ session_id, agent_name, duration_ms, model_name
+    │ input_tokens, output_tokens, status
+    ▼
+MetricsStore.record_request()
+    │
+    ├─▶ in-memory 저장 (fallback)
+    │
+    └─▶ Supabase request_metrics 테이블 저장
+```
+
+### 대시보드 UI
+
+- **Health Indicator**: 백엔드 상태, LLM 모델, 메모리 백엔드
+- **요청 차트**: 24시간 요청 수, 성공/실패율
+- **파이 차트**: 에이전트별 요청 분포
 
 ---
 
@@ -366,4 +458,4 @@ async def chat(
 
 ---
 
-*최종 업데이트: 2026-02-20*
+*최종 업데이트: 2026-03-04*
