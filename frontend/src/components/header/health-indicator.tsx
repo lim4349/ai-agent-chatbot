@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useChatStore } from '@/stores/chat-store';
 import { api } from '@/lib/api';
 import { HEALTH_CHECK_INTERVAL } from '@/lib/constants';
@@ -11,10 +11,12 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n';
+import type { MetricsSummary } from '@/types';
 
 export function HealthIndicator() {
   const { health, setHealth } = useChatStore();
   const { t } = useTranslation();
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -26,9 +28,20 @@ export function HealthIndicator() {
       }
     };
 
+    const fetchMetrics = async () => {
+      try {
+        const data = await api.getMetricsSummary('24h');
+        setMetrics(data);
+      } catch {
+        setMetrics(null);
+      }
+    };
+
     // Initial check
     checkHealth();
+    fetchMetrics();
     const interval = setInterval(checkHealth, HEALTH_CHECK_INTERVAL);
+    const metricsInterval = setInterval(fetchMetrics, HEALTH_CHECK_INTERVAL * 2); // Less frequent for metrics
 
     // Pause polling when tab is hidden to save resources
     const handleVisibilityChange = () => {
@@ -38,6 +51,7 @@ export function HealthIndicator() {
       } else {
         // Tab is visible again, check immediately
         checkHealth();
+        fetchMetrics();
       }
     };
 
@@ -45,11 +59,18 @@ export function HealthIndicator() {
 
     return () => {
       clearInterval(interval);
+      clearInterval(metricsInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [setHealth]);
 
   const isHealthy = health?.status === 'ok';
+
+  // Calculate RPM/TPM/RPD from 24h metrics
+  const hasUsage = metrics && metrics.total_requests > 0;
+  const rpm = hasUsage ? (metrics.total_requests / (24 * 60)).toFixed(2) : '0.00';
+  const tpm = hasUsage ? (metrics.total_tokens / (24 * 60)).toFixed(1) : '0.0';
+  const rpd = hasUsage ? metrics.total_requests.toLocaleString() : '0';
 
   return (
     <Tooltip>
@@ -82,6 +103,14 @@ export function HealthIndicator() {
             <p>
               <strong>Agents:</strong> {health.available_agents.join(', ')}
             </p>
+            {hasUsage && (
+              <div className="border-t border-border my-2 pt-2">
+                <p className="text-muted-foreground mb-1">{t('health.usage24h')}:</p>
+                <p><strong>{t('health.rpm')}:</strong> {rpm}</p>
+                <p><strong>{t('health.tpm')}:</strong> {tpm}</p>
+                <p><strong>{t('health.rpd')}:</strong> {rpd}</p>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-xs">Backend unavailable</p>

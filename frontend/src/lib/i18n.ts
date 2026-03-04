@@ -64,6 +64,10 @@ const translations = {
     'health.connected': '연결됨',
     'health.disconnected': '연결 끊김',
     'health.checking': '확인 중...',
+    'health.usage24h': '24시간 사용량',
+    'health.rpm': '분당 요청',
+    'health.tpm': '분당 토큰',
+    'health.rpd': '일일 요청',
 
     // Agent labels
     'agent.chat': '대화',
@@ -170,6 +174,10 @@ const translations = {
     'health.connected': 'Connected',
     'health.disconnected': 'Disconnected',
     'health.checking': 'Checking...',
+    'health.usage24h': '24h Usage',
+    'health.rpm': 'Requests/min',
+    'health.tpm': 'Tokens/min',
+    'health.rpd': 'Requests/day',
 
     'agent.chat': 'Chat',
     'agent.code': 'Code',
