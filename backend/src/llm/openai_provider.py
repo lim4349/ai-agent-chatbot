@@ -9,7 +9,10 @@ from openai import AsyncOpenAI
 
 from src.core.config import LLMConfig
 from src.core.di_container import container
+from src.core.logging import get_logger
 from src.llm.factory import LLMFactory
+
+logger = get_logger(__name__)
 
 # Suppress Pydantic serialization warnings emitted by LangChain's
 # with_structured_output() wrapper. The warning fires inside async callbacks
@@ -95,13 +98,26 @@ class OpenAIProvider:
             # Parse the completion
             response = raw_response.parse()
 
-            # Capture rate limit headers
+            # Capture rate limit headers - log all headers for debugging
             headers = raw_response.headers
+            logger.info("openai_response_headers", headers=dict(headers))
+
+            # Try multiple header formats (OpenRouter may use different names)
             self.last_rate_limit_info = {
-                "remaining_requests": self._safe_int(headers.get("x-ratelimit-remaining-requests")),
-                "remaining_tokens": self._safe_int(headers.get("x-ratelimit-remaining-tokens")),
-                "limit_requests": self._safe_int(headers.get("x-ratelimit-limit-requests")),
-                "limit_tokens": self._safe_int(headers.get("x-ratelimit-limit-tokens")),
+                "remaining_requests": self._safe_int(
+                    headers.get("x-ratelimit-remaining-requests")
+                    or headers.get("x-ratelimit-remaining")
+                ),
+                "remaining_tokens": self._safe_int(
+                    headers.get("x-ratelimit-remaining-tokens")
+                ),
+                "limit_requests": self._safe_int(
+                    headers.get("x-ratelimit-limit-requests")
+                    or headers.get("x-ratelimit-limit")
+                ),
+                "limit_tokens": self._safe_int(
+                    headers.get("x-ratelimit-limit-tokens")
+                ),
             }
 
             # Extract content
