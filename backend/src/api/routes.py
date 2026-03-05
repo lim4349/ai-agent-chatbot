@@ -217,6 +217,7 @@ async def chat(
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
+    llm_provider=Depends(Provide[DIContainer.llm]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
@@ -317,9 +318,12 @@ async def chat(
 
         # Capture Google API rate limit info if available
         global _google_rate_limit_info
-        if config.llm_provider == "anthropic" and hasattr(llm_provider, "last_rate_limit_info"):
-            if llm_provider.last_rate_limit_info:
-                _google_rate_limit_info = llm_provider.last_rate_limit_info
+        if (
+            config.llm_provider == "anthropic"
+            and hasattr(llm_provider, "last_rate_limit_info")
+            and llm_provider.last_rate_limit_info
+        ):
+            _google_rate_limit_info = llm_provider.last_rate_limit_info
 
         # Log request/response (PII masking handled by logging module)
         log_request(
