@@ -118,7 +118,10 @@ def check_rate_limit(session_id: str, config: RateLimitConfig) -> None:
     if config.daily_request_limit > 0 and _global_daily_count >= config.daily_request_limit:
         raise HTTPException(
             status_code=429,
-            detail=f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. 내일 다시 시도해주세요.",
+            detail=(
+                f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. "
+                "내일 다시 시도해주세요."
+            ),
         )
 
     _global_minute_count += 1
