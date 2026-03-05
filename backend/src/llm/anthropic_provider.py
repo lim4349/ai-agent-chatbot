@@ -34,6 +34,7 @@ class AnthropicProvider:
             client_kwargs["anthropic_api_url"] = config.base_url
         self.client = ChatAnthropic(**client_kwargs)
         self._cache = container.llm_cache()
+        self.last_rate_limit_info: dict = {}
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -72,6 +73,7 @@ class AnthropicProvider:
         # Extract token usage
         input_tokens = 0
         output_tokens = 0
+        rate_limit_info = {}
         if hasattr(response, "usage_metadata") and response.usage_metadata:
             input_tokens = response.usage_metadata.get("input_tokens", 0)
             output_tokens = response.usage_metadata.get("output_tokens", 0)
@@ -79,6 +81,15 @@ class AnthropicProvider:
             usage = response.response_metadata.get("token_usage", {})
             input_tokens = usage.get("input_tokens", 0)
             output_tokens = usage.get("output_tokens", 0)
+            # Extract Google AI Studio rate limit headers if present
+            headers = response.response_metadata.get("headers", {})
+            if headers:
+                rate_limit_info = {
+                    "remaining_requests": headers.get("x-ratelimit-remaining-requests", -1),
+                    "remaining_tokens": headers.get("x-ratelimit-remaining-tokens", -1),
+                    "limit_requests": headers.get("x-ratelimit-limit-requests", -1),
+                    "limit_tokens": headers.get("x-ratelimit-limit-tokens", -1),
+                }
 
         # Cache the response
         await self._cache.set(
@@ -88,7 +99,14 @@ class AnthropicProvider:
             response=result,
         )
 
-        return result, {"input_tokens": input_tokens, "output_tokens": output_tokens}
+        # Store rate limit info for access in routes
+        if rate_limit_info:
+            self.last_rate_limit_info = rate_limit_info
+
+        return result, {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
