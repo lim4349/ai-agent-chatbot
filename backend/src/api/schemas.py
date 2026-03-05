@@ -65,6 +65,9 @@ class HealthResponse(BaseModel):
     memory_backend: str = Field(..., description="Active memory backend")
     available_agents: list[str] = Field(..., description="Available agent names")
     daily_request_limit: int = Field(0, description="Daily request limit (0 = unlimited)")
+    per_minute_limit: int = Field(0, description="Request limit per minute (0 = unlimited)")
+    per_hour_limit: int = Field(0, description="Request limit per hour (0 = unlimited)")
+    token_limit: int = Field(0, description="Token limit per day (0 = unlimited)")
 
 
 class AgentInfo(BaseModel):

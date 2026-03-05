@@ -458,6 +458,9 @@ async def health(
         memory_backend=config.memory.backend,
         available_agents=available_agents,
         daily_request_limit=config.rate_limit.daily_request_limit,
+        per_minute_limit=config.rate_limit.per_minute,
+        per_hour_limit=config.rate_limit.per_hour,
+        token_limit=config.rate_limit.token_limit,
     )
 
 
