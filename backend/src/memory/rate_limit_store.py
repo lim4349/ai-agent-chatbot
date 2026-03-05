@@ -1,5 +1,6 @@
 """Rate limit store using Supabase for persistence."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 
@@ -129,9 +130,12 @@ class SupabaseRateLimitStore(RateLimitStore):
             raise RuntimeError("Supabase client not available")
 
         try:
-            response = self._client.table(self._table_name).select("*").eq(
-                "metric_type", metric_type
-            ).execute()
+            # Use asyncio.to_thread for synchronous Supabase calls
+            response = await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).select("*").eq(
+                    "metric_type", metric_type
+                ).execute()
+            )
 
             now = datetime.now(tz=UTC)
             ttl_seconds = (
@@ -151,9 +155,11 @@ class SupabaseRateLimitStore(RateLimitStore):
                         "count": 0,
                         "reset_at": new_reset_at.isoformat(),
                     }
-                    self._client.table(self._table_name).update(updated).eq(
-                        "metric_type", metric_type
-                    ).execute()
+                    await asyncio.to_thread(
+                        lambda: self._client.table(self._table_name).update(updated).eq(
+                            "metric_type", metric_type
+                        ).execute()
+                    )
                     return {"metric_type": metric_type, "count": 0, "reset_at": new_reset_at.isoformat()}
 
                 return record
@@ -165,7 +171,9 @@ class SupabaseRateLimitStore(RateLimitStore):
                 "count": 0,
                 "reset_at": reset_at.isoformat(),
             }
-            self._client.table(self._table_name).insert(new_record).execute()
+            await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).insert(new_record).execute()
+            )
             return new_record
         except Exception as e:
             raise RuntimeError(f"Failed to get rate limit counter: {e}") from e
@@ -188,9 +196,11 @@ class SupabaseRateLimitStore(RateLimitStore):
 
         try:
             record = await self._get_or_create_counter("minute")
-            self._client.table(self._table_name).update(
-                {"count": record.get("count", 0) + 1}
-            ).eq("metric_type", "minute").execute()
+            await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).update(
+                    {"count": record.get("count", 0) + 1}
+                ).eq("metric_type", "minute").execute()
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to increment minute counter: {e}") from e
 
@@ -212,9 +222,11 @@ class SupabaseRateLimitStore(RateLimitStore):
 
         try:
             record = await self._get_or_create_counter("hour")
-            self._client.table(self._table_name).update(
-                {"count": record.get("count", 0) + 1}
-            ).eq("metric_type", "hour").execute()
+            await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).update(
+                    {"count": record.get("count", 0) + 1}
+                ).eq("metric_type", "hour").execute()
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to increment hour counter: {e}") from e
 
@@ -236,9 +248,11 @@ class SupabaseRateLimitStore(RateLimitStore):
 
         try:
             record = await self._get_or_create_counter("daily")
-            self._client.table(self._table_name).update(
-                {"count": record.get("count", 0) + 1}
-            ).eq("metric_type", "daily").execute()
+            await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).update(
+                    {"count": record.get("count", 0) + 1}
+                ).eq("metric_type", "daily").execute()
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to increment daily counter: {e}") from e
 
@@ -248,9 +262,11 @@ class SupabaseRateLimitStore(RateLimitStore):
             raise RuntimeError("Supabase client not available")
 
         try:
-            response = self._client.table(self._table_name).select("*").eq(
-                "metric_type", "google"
-            ).execute()
+            response = await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).select("*").eq(
+                    "metric_type", "google"
+                ).execute()
+            )
 
             if response.data and len(response.data) > 0:
                 record = response.data[0]
@@ -270,9 +286,11 @@ class SupabaseRateLimitStore(RateLimitStore):
             raise RuntimeError("Supabase client not available")
 
         try:
-            response = self._client.table(self._table_name).select("*").eq(
-                "metric_type", "google"
-            ).execute()
+            response = await asyncio.to_thread(
+                lambda: self._client.table(self._table_name).select("*").eq(
+                    "metric_type", "google"
+                ).execute()
+            )
 
             record_data = {
                 "metric_type": "google",
@@ -284,11 +302,15 @@ class SupabaseRateLimitStore(RateLimitStore):
 
             if response.data and len(response.data) > 0:
                 # Update existing
-                self._client.table(self._table_name).update(record_data).eq(
-                    "metric_type", "google"
-                ).execute()
+                await asyncio.to_thread(
+                    lambda: self._client.table(self._table_name).update(record_data).eq(
+                        "metric_type", "google"
+                    ).execute()
+                )
             else:
                 # Create new
-                self._client.table(self._table_name).insert(record_data).execute()
+                await asyncio.to_thread(
+                    lambda: self._client.table(self._table_name).insert(record_data).execute()
+                )
         except Exception as e:
             raise RuntimeError(f"Failed to set Google rate limit info: {e}") from e
