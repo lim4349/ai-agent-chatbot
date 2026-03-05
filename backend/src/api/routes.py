@@ -72,6 +72,14 @@ _global_daily_reset_at: datetime = datetime.now(tz=UTC)
 _global_token_count: int = 0
 _global_token_reset_at: datetime = datetime.now(tz=UTC)
 
+# Google AI Studio rate limit info (from API response headers)
+_google_rate_limit_info: dict = {
+    "remaining_requests": -1,
+    "remaining_tokens": -1,
+    "limit_requests": -1,
+    "limit_tokens": -1,
+}
+
 
 def _reset_if_needed() -> None:
     """Reset global counters when their time windows have expired."""
@@ -146,7 +154,7 @@ def _track_token_usage(token_count: int, config: RateLimitConfig) -> None:
 
 
 def _build_rate_limit_status(config: RateLimitConfig) -> RateLimitStatusResponse:
-    """Build current rate limit status from global counters."""
+    """Build current rate limit status from global counters or Google API headers."""
     from datetime import timedelta
 
     _reset_if_needed()
@@ -166,11 +174,28 @@ def _build_rate_limit_status(config: RateLimitConfig) -> RateLimitStatusResponse
     hour_reset = _global_hour_reset_at + timedelta(seconds=3600)
     daily_reset = _global_daily_reset_at + timedelta(seconds=86400)
 
+    # If Google API rate limit info is available, use remaining tokens from API
+    daily_status = None
+    if config.daily_request_limit > 0 or config.token_limit > 0:
+        # Use Google API rate limit info if available (remaining_tokens from header)
+        if _google_rate_limit_info.get("remaining_tokens", -1) >= 0:
+            token_limit = _google_rate_limit_info.get("limit_tokens", config.token_limit)
+            token_remaining = _google_rate_limit_info.get("remaining_tokens", 0)
+            token_used = max(0, token_limit - token_remaining) if token_limit > 0 else 0
+            daily_status = RateLimitStatus(
+                limit=token_limit if token_limit > 0 else config.daily_request_limit,
+                used=token_used,
+                remaining=token_remaining,
+                reset_at=daily_reset.isoformat(),
+            )
+        else:
+            # Fallback to local tracking
+            daily_status = _make_status(config.daily_request_limit, _global_daily_count, daily_reset)
+
     return RateLimitStatusResponse(
         per_minute=_make_status(config.per_minute, _global_minute_count, minute_reset),
         per_hour=_make_status(config.per_hour, _global_hour_count, hour_reset),
-        daily=_make_status(config.daily_request_limit, _global_daily_count, daily_reset),
-        tokens=_make_status(config.token_limit, _global_token_count, daily_reset),
+        daily=daily_status,
     )
 
 
@@ -192,6 +217,7 @@ async def chat(
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
+    llm_provider=Depends(Provide[DIContainer.llm]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
@@ -290,6 +316,15 @@ async def chat(
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
+        # Capture Google API rate limit info if available
+        global _google_rate_limit_info
+        if (
+            config.llm_provider == "anthropic"
+            and hasattr(llm_provider, "last_rate_limit_info")
+            and llm_provider.last_rate_limit_info
+        ):
+            _google_rate_limit_info = llm_provider.last_rate_limit_info
+
         # Log request/response (PII masking handled by logging module)
         log_request(
             method="POST",
@@ -301,12 +336,6 @@ async def chat(
             duration_ms=duration_ms,
             status="success",
         )
-
-        # Track token usage from result metadata if available
-        usage = result.get("metadata", {}).get("usage", {})
-        total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
-        if total_tokens:
-            _track_token_usage(total_tokens, config.rate_limit)
 
         return ChatResponse(
             message=response_message,

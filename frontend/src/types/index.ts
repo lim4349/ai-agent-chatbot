@@ -34,7 +34,6 @@ export interface RateLimitStatusResponse {
   per_minute?: RateLimitStatus;
   per_hour?: RateLimitStatus;
   daily?: RateLimitStatus;
-  tokens?: RateLimitStatus;
 }
 
 export interface HealthResponse {

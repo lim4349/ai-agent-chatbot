@@ -67,10 +67,9 @@ const translations = {
     'health.dailyQuota': '일일 할당량',
     'health.requestsToday': '오늘 요청',
     'health.remaining': '남음',
-    'health.perMinute': '분당 요청',
-    'health.perHour': '시간당 요청',
-    'health.dailyRequests': '일일 요청',
-    'health.tokens': '토큰',
+    'health.perMinute': '분당 호출',
+    'health.perHour': '시간당 호출',
+    'health.dailyRequests': '일일 호출',
     'health.used': '사용',
     'health.resetsIn': (s: number) => {
       if (s <= 0) return '곧 초기화';
@@ -193,8 +192,7 @@ const translations = {
     'health.remaining': 'Remaining',
     'health.perMinute': 'Per Minute',
     'health.perHour': 'Per Hour',
-    'health.dailyRequests': 'Daily Requests',
-    'health.tokens': 'Tokens',
+    'health.dailyRequests': 'Daily Calls',
     'health.used': 'Used',
     'health.resetsIn': (s: number) => {
       if (s <= 0) return 'resetting soon';

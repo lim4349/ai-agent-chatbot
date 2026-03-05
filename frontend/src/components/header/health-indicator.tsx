@@ -146,17 +146,13 @@ export function HealthIndicator() {
   const dailySecondsLeft = rateLimitStatus?.daily
     ? Math.max(0, Math.floor((new Date(rateLimitStatus.daily.reset_at).getTime() - now) / 1000))
     : 0;
-  const tokenSecondsLeft = rateLimitStatus?.tokens
-    ? Math.max(0, Math.floor((new Date(rateLimitStatus.tokens.reset_at).getTime() - now) / 1000))
-    : 0;
 
   const hasRateLimitStatus = !!(
     rateLimitStatus?.per_minute ||
     rateLimitStatus?.per_hour ||
-    rateLimitStatus?.daily ||
-    rateLimitStatus?.tokens
+    rateLimitStatus?.daily
   );
-  const hasLegacyLimits = !hasRateLimitStatus && (perMinuteLimit > 0 || perHourLimit > 0 || tokenLimit > 0 || dailyRequestLimit > 0);
+  const hasLegacyLimits = !hasRateLimitStatus && (perMinuteLimit > 0 || perHourLimit > 0 || dailyRequestLimit > 0);
 
   return (
     <Tooltip>
@@ -220,16 +216,6 @@ export function HealthIndicator() {
                     resetInText={t('health.resetsIn', dailySecondsLeft)}
                   />
                 )}
-                {rateLimitStatus?.tokens && (
-                  <RateLimitRow
-                    icon="💬"
-                    label={t('health.tokens')}
-                    status={rateLimitStatus.tokens}
-                    secondsLeft={tokenSecondsLeft}
-                    resetInText={t('health.resetsIn', tokenSecondsLeft)}
-                    isToken
-                  />
-                )}
               </div>
             )}
 
@@ -266,11 +252,6 @@ export function HealthIndicator() {
                 {perHourLimit > 0 && (
                   <div>
                     <p className="text-xs"><strong>🕐 {t('health.perHour')}:</strong> {perHourLimit} ({t('health.unlimited').toLowerCase() === 'unlimited' ? 'resets every hour' : '매 시간 초기화'})</p>
-                  </div>
-                )}
-                {tokenLimit > 0 && (
-                  <div>
-                    <p className="text-xs"><strong>💬 {t('health.tokens')}:</strong> {formatTokens(tokenLimit)}/day</p>
                   </div>
                 )}
               </div>
