@@ -73,6 +73,7 @@ export function HealthIndicator() {
   const { t } = useTranslation();
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -154,10 +155,29 @@ export function HealthIndicator() {
   );
   const hasLegacyLimits = !hasRateLimitStatus && (perMinuteLimit > 0 || perHourLimit > 0 || dailyRequestLimit > 0);
 
+  const handleToggleTooltip = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsOpen(!isOpen);
+  };
+
+  // Close tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setIsOpen(false);
+    if (isOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [isOpen]);
+
   return (
-    <Tooltip>
+    <Tooltip open={isOpen} onOpenChange={setIsOpen}>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-2 cursor-pointer" role="status" aria-live="polite">
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          role="status"
+          aria-live="polite"
+          onClick={handleToggleTooltip}
+        >
           <div
             className={cn(
               'w-2.5 h-2.5 rounded-full',
