@@ -56,6 +56,24 @@ class ChatResponse(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="Response timestamp")
 
 
+class RateLimitStatus(BaseModel):
+    """Status of a single rate limit window."""
+
+    limit: int = Field(..., description="Maximum allowed in this window (0 = unlimited)")
+    used: int = Field(..., description="Number used so far in current window")
+    remaining: int = Field(..., description="Number remaining before limit is hit")
+    reset_at: str = Field(..., description="ISO 8601 timestamp when the window resets")
+
+
+class RateLimitStatusResponse(BaseModel):
+    """Aggregated rate limit status across all windows."""
+
+    per_minute: RateLimitStatus | None = Field(default=None, description="Per-minute limit status")
+    per_hour: RateLimitStatus | None = Field(default=None, description="Per-hour limit status")
+    daily: RateLimitStatus | None = Field(default=None, description="Daily request limit status")
+    tokens: RateLimitStatus | None = Field(default=None, description="Daily token limit status")
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
@@ -68,6 +86,9 @@ class HealthResponse(BaseModel):
     per_minute_limit: int = Field(0, description="Request limit per minute (0 = unlimited)")
     per_hour_limit: int = Field(0, description="Request limit per hour (0 = unlimited)")
     token_limit: int = Field(0, description="Token limit per day (0 = unlimited)")
+    rate_limit_status: RateLimitStatusResponse | None = Field(
+        default=None, description="Current rate limit usage status"
+    )
 
 
 class AgentInfo(BaseModel):
