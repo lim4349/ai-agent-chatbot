@@ -5,7 +5,6 @@ from collections.abc import AsyncIterator
 
 import httpx
 from langchain_openai import ChatOpenAI
-from openai import AsyncOpenAI
 
 from src.core.config import LLMConfig
 from src.core.di_container import container
@@ -26,7 +25,7 @@ warnings.filterwarnings(
 
 @LLMFactory.register("openai")
 class OpenAIProvider:
-    """OpenAI API provider using direct OpenAI SDK for rate limit capture."""
+    """OpenAI API provider using LangChain."""
 
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -41,7 +40,7 @@ class OpenAIProvider:
             timeout=httpx.Timeout(30.0, connect=5.0),
         )
 
-        # LangChain client for structured output (kept for compatibility)
+        # LangChain client
         client_kwargs = {
             "model": config.model,
             "api_key": config.openai_api_key,
@@ -53,15 +52,6 @@ class OpenAIProvider:
             client_kwargs["openai_api_base"] = config.base_url
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
-
-        # Direct OpenAI SDK client for rate limit header capture
-        self._openai_client = AsyncOpenAI(
-            api_key=config.openai_api_key,
-            base_url=config.base_url,
-            timeout=30.0,
-            max_retries=2,
-        )
-        self.last_rate_limit_info: dict = {}
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -85,79 +75,28 @@ class OpenAIProvider:
         if cached is not None:
             return cached, {"input_tokens": 0, "output_tokens": 0}
 
-        # Use direct OpenAI SDK with_raw_response to capture rate limit headers
-        try:
-            raw_response = await self._openai_client.chat.completions.with_raw_response.create(
-                model=self.config.model,
-                messages=messages,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                **kwargs,
+        response = await self.client.ainvoke(messages, **kwargs)
+
+        # Normalize content
+        content = response.content
+        if isinstance(content, list):
+            content = "".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
             )
+        result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
 
-            # Parse the completion
-            response = raw_response.parse()
-
-            # Capture rate limit headers - log all headers for debugging
-            headers = raw_response.headers
-            # Convert headers to lowercase dict for case-insensitive lookup
-            headers_lower = {k.lower(): v for k, v in headers.items()}
-            logger.info("openai_response_headers", headers=dict(headers))
-
-            # Try multiple header formats (case-insensitive)
-            # Google AI Studio uses: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
-            self.last_rate_limit_info = {
-                "remaining_requests": self._safe_int(
-                    headers_lower.get("x-ratelimit-remaining-requests")
-                    or headers_lower.get("x-ratelimit-remaining")
-                ),
-                "remaining_tokens": self._safe_int(
-                    headers_lower.get("x-ratelimit-remaining-tokens")
-                ),
-                "limit_requests": self._safe_int(
-                    headers_lower.get("x-ratelimit-limit-requests")
-                    or headers_lower.get("x-ratelimit-limit")
-                ),
-                "limit_tokens": self._safe_int(
-                    headers_lower.get("x-ratelimit-limit-tokens")
-                ),
-            }
-            logger.info("rate_limit_info_captured", **self.last_rate_limit_info)
-
-            # Extract content
-            content = response.choices[0].message.content if response.choices else ""
-            result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
-
-            # Extract token usage
-            input_tokens = response.usage.prompt_tokens if response.usage else 0
-            output_tokens = response.usage.completion_tokens if response.usage else 0
-
-        except Exception as e:
-            # Fallback to LangChain if direct SDK fails
-            logger.warning("direct_sdk_failed", exc_class=type(e).__name__, exc_preview=str(e)[:50])
-
-            response = await self.client.ainvoke(messages, **kwargs)
-
-            # Normalize content
-            content = response.content
-            if isinstance(content, list):
-                content = "".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict) and block.get("type") == "text"
-                )
-            result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
-
-            # Extract token usage
-            input_tokens = 0
-            output_tokens = 0
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                input_tokens = response.usage_metadata.get("input_tokens", 0)
-                output_tokens = response.usage_metadata.get("output_tokens", 0)
-            elif hasattr(response, "response_metadata") and response.response_metadata:
-                usage = response.response_metadata.get("token_usage", {})
-                input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
-                output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+        # Extract token usage
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            input_tokens = response.usage_metadata.get("input_tokens", 0)
+            output_tokens = response.usage_metadata.get("output_tokens", 0)
+        elif hasattr(response, "response_metadata") and response.response_metadata:
+            usage = response.response_metadata.get("token_usage", {})
+            input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
 
         # Cache the response
         await self._cache.set(
@@ -168,15 +107,6 @@ class OpenAIProvider:
         )
 
         return result, {"input_tokens": input_tokens, "output_tokens": output_tokens}
-
-    def _safe_int(self, value) -> int:
-        """Safely convert header value to int."""
-        if value is None:
-            return -1
-        try:
-            return int(value)
-        except (ValueError, TypeError):
-            return -1
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
