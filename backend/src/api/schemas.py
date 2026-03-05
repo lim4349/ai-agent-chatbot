@@ -88,6 +88,9 @@ class HealthResponse(BaseModel):
     rate_limit_status: RateLimitStatusResponse | None = Field(
         default=None, description="Current rate limit usage status"
     )
+    google_rate_limit: dict = Field(
+        default_factory=dict, description="Rate limit info from Google AI Studio API headers"
+    )
 
 
 class AgentInfo(BaseModel):
