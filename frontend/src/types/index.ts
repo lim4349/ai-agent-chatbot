@@ -30,6 +30,9 @@ export interface HealthResponse {
   memory_backend: string;
   available_agents: string[];
   daily_request_limit: number;  // 0 = unlimited, hide quota display
+  per_minute_limit: number;  // 0 = unlimited
+  per_hour_limit: number;  // 0 = unlimited
+  token_limit: number;  // 0 = unlimited
 }
 
 export interface AgentInfo {

@@ -178,7 +178,11 @@ Example output structure:
             if not docs:
                 # No documents found - use LLM to generate natural fallback response
                 # This ensures SSE tokens are streamed (not hardcoded silent response)
-                messages = [{"role": "system", "content": self.system_prompt}]
+                fallback_system_prompt = """You are a helpful assistant providing information about document search capabilities.
+When users ask about uploaded documents and none are found, explain this clearly and offer alternatives.
+Respond in the user's language (Korean for Korean queries)."""
+
+                messages = [{"role": "system", "content": fallback_system_prompt}]
 
                 if self.memory:
                     history = await self.memory.get_messages(session_id)
@@ -262,6 +266,9 @@ Example output structure:
                     parsed = self._try_parse_json_response(response)
                     if parsed:
                         response = self._format_structured_response(parsed)
+                    elif response and response.strip().startswith('{'):
+                        # If response looks like JSON but parsing failed, strip the JSON and show as plain text
+                        response = f"Unable to parse structured response. Raw response:\n{response}"
 
                 tool_results = [{"tool": "retriever", "query": query, "results": docs}]
 

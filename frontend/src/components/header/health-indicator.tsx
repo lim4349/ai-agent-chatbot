@@ -66,8 +66,12 @@ export function HealthIndicator() {
 
   const isHealthy = health?.status === 'ok';
 
-  // Daily quota from backend config (0 = unlimited, hide quota display)
+  // Quota limits from backend config (0 = unlimited, hide quota display)
   const dailyRequestLimit = health?.daily_request_limit ?? 0;
+  const perMinuteLimit = health?.per_minute_limit ?? 0;
+  const perHourLimit = health?.per_hour_limit ?? 0;
+  const tokenLimit = health?.token_limit ?? 0;
+
   const hasUsage = metrics && metrics.total_requests > 0 && dailyRequestLimit > 0;
   const requestsToday = hasUsage ? metrics.total_requests : 0;
   const usagePercent = dailyRequestLimit > 0 ? Math.min((requestsToday / dailyRequestLimit) * 100, 100) : 0;
@@ -104,20 +108,45 @@ export function HealthIndicator() {
             <p>
               <strong>Agents:</strong> {health.available_agents.join(', ')}
             </p>
-            {hasUsage && dailyRequestLimit > 0 && (
-              <div className="border-t border-border my-2 pt-2">
-                <p className="text-muted-foreground mb-1">{t('health.dailyQuota')}:</p>
-                <p><strong>{t('health.requestsToday')}:</strong> {requestsToday}/{dailyRequestLimit}</p>
-                <div className="w-full bg-muted rounded-full h-1.5 mt-1">
-                  <div
-                    className={cn(
-                      'h-1.5 rounded-full transition-all',
-                      usagePercent >= 90 ? 'bg-red-500' : usagePercent >= 70 ? 'bg-amber-500' : 'bg-green-500'
+            {(hasUsage || perMinuteLimit > 0 || perHourLimit > 0 || tokenLimit > 0) && (
+              <div className="border-t border-border my-2 pt-2 space-y-2">
+                {(hasUsage || dailyRequestLimit > 0) && (
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">📅 {t('health.dailyQuota')}:</p>
+                    {dailyRequestLimit > 0 ? (
+                      <>
+                        <p className="text-xs"><strong>{t('health.requestsToday')}:</strong> {requestsToday}/{dailyRequestLimit}</p>
+                        <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                          <div
+                            className={cn(
+                              'h-1.5 rounded-full transition-all',
+                              usagePercent >= 90 ? 'bg-red-500' : usagePercent >= 70 ? 'bg-amber-500' : 'bg-green-500'
+                            )}
+                            style={{ width: `${usagePercent}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{t('health.remaining')}: {remainingRequests}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Unlimited</p>
                     )}
-                    style={{ width: `${usagePercent}%` }}
-                  />
-                </div>
-                <p className="text-muted-foreground mt-1">{t('health.remaining')}: {remainingRequests}</p>
+                  </div>
+                )}
+                {perMinuteLimit > 0 && (
+                  <div>
+                    <p className="text-xs"><strong>⏱️ Per Minute:</strong> {perMinuteLimit} requests (resets every minute)</p>
+                  </div>
+                )}
+                {perHourLimit > 0 && (
+                  <div>
+                    <p className="text-xs"><strong>🕐 Per Hour:</strong> {perHourLimit} requests (resets every hour)</p>
+                  </div>
+                )}
+                {tokenLimit > 0 && (
+                  <div>
+                    <p className="text-xs"><strong>💬 Token Limit:</strong> {tokenLimit} tokens/day</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
