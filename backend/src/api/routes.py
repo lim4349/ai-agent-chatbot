@@ -797,13 +797,10 @@ async def upload_file(
     session = await session_store.get(session_id)
     if not session:
         # Auto-create session if it doesn't exist
-        from datetime import UTC, datetime
-
         session = await session_store.create(
             session_id=session_id,
             user_id=device_id,
             title="Document Upload",
-            created_at=datetime.now(UTC),
         )
     elif session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
