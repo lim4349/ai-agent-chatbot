@@ -258,6 +258,10 @@ Example output structure:
                 else:
                     # Fallback to regular generation if structured output fails
                     response, usage = await self.llm.generate_with_usage(messages)
+                    # Try to parse and format even from fallback response
+                    parsed = self._try_parse_json_response(response)
+                    if parsed:
+                        response = self._format_structured_response(parsed)
 
                 tool_results = [{"tool": "retriever", "query": query, "results": docs}]
 
@@ -311,3 +315,50 @@ Example output structure:
             parts.append(f"[신뢰도: {confidence}]")
 
         return "\n".join(parts)
+
+    def _try_parse_json_response(self, content: str) -> dict | None:
+        """Try to parse JSON from LLM response content.
+
+        Args:
+            content: Raw LLM response content
+
+        Returns:
+            Parsed dict if successful, None otherwise
+        """
+        import json
+        import re
+
+        if not content:
+            return None
+
+        content = content.strip()
+
+        # Try direct parse first
+        try:
+            result = json.loads(content)
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # Try to extract JSON from markdown code blocks
+        code_block_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
+        if code_block_match:
+            try:
+                result = json.loads(code_block_match.group(1).strip())
+                if isinstance(result, dict):
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+        # Try to find JSON object in the response
+        object_match = re.search(r"\{[\s\S]*\}", content)
+        if object_match:
+            try:
+                result = json.loads(object_match.group(0))
+                if isinstance(result, dict):
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+        return None
