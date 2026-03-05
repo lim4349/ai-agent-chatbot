@@ -100,25 +100,29 @@ class OpenAIProvider:
 
             # Capture rate limit headers - log all headers for debugging
             headers = raw_response.headers
+            # Convert headers to lowercase dict for case-insensitive lookup
+            headers_lower = {k.lower(): v for k, v in headers.items()}
             logger.info("openai_response_headers", headers=dict(headers))
 
-            # Try multiple header formats (OpenRouter may use different names)
+            # Try multiple header formats (case-insensitive)
+            # Google AI Studio uses: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
             self.last_rate_limit_info = {
                 "remaining_requests": self._safe_int(
-                    headers.get("x-ratelimit-remaining-requests")
-                    or headers.get("x-ratelimit-remaining")
+                    headers_lower.get("x-ratelimit-remaining-requests")
+                    or headers_lower.get("x-ratelimit-remaining")
                 ),
                 "remaining_tokens": self._safe_int(
-                    headers.get("x-ratelimit-remaining-tokens")
+                    headers_lower.get("x-ratelimit-remaining-tokens")
                 ),
                 "limit_requests": self._safe_int(
-                    headers.get("x-ratelimit-limit-requests")
-                    or headers.get("x-ratelimit-limit")
+                    headers_lower.get("x-ratelimit-limit-requests")
+                    or headers_lower.get("x-ratelimit-limit")
                 ),
                 "limit_tokens": self._safe_int(
-                    headers.get("x-ratelimit-limit-tokens")
+                    headers_lower.get("x-ratelimit-limit-tokens")
                 ),
             }
+            logger.info("rate_limit_info_captured", **self.last_rate_limit_info)
 
             # Extract content
             content = response.choices[0].message.content if response.choices else ""
@@ -130,8 +134,7 @@ class OpenAIProvider:
 
         except Exception as e:
             # Fallback to LangChain if direct SDK fails
-            import logging
-            logging.getLogger(__name__).warning(f"Direct OpenAI SDK failed, falling back to LangChain: {e}")
+            logger.warning("direct_sdk_failed", exc_class=type(e).__name__, exc_preview=str(e)[:50])
 
             response = await self.client.ainvoke(messages, **kwargs)
 
