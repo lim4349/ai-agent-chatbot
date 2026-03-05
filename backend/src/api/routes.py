@@ -2,7 +2,7 @@
 
 import json
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
@@ -23,6 +23,8 @@ from src.api.schemas import (
     FileUploadResponse,
     HealthResponse,
     MetricsSummaryResponse,
+    RateLimitStatus,
+    RateLimitStatusResponse,
     SessionCreate,
     SessionListResponse,
     SessionResponse,
@@ -54,19 +56,119 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Rate limiting: session_id -> call_count
+# Rate limiting: session_id -> call_count (legacy per-session tracking)
 _rate_limits: dict[str, int] = {}
+
+# Global rate limit tracking (across all sessions)
+_global_minute_count: int = 0
+_global_minute_reset_at: datetime = datetime.now(tz=UTC)
+
+_global_hour_count: int = 0
+_global_hour_reset_at: datetime = datetime.now(tz=UTC)
+
+_global_daily_count: int = 0
+_global_daily_reset_at: datetime = datetime.now(tz=UTC)
+
+_global_token_count: int = 0
+_global_token_reset_at: datetime = datetime.now(tz=UTC)
+
+
+def _reset_if_needed() -> None:
+    """Reset global counters when their time windows have expired."""
+    global _global_minute_count, _global_minute_reset_at
+    global _global_hour_count, _global_hour_reset_at
+    global _global_daily_count, _global_daily_reset_at
+    global _global_token_count, _global_token_reset_at
+
+    now = datetime.now(tz=UTC)
+
+    if (now - _global_minute_reset_at).total_seconds() >= 60:
+        _global_minute_count = 0
+        _global_minute_reset_at = now
+
+    if (now - _global_hour_reset_at).total_seconds() >= 3600:
+        _global_hour_count = 0
+        _global_hour_reset_at = now
+
+    if (now - _global_daily_reset_at).total_seconds() >= 86400:
+        _global_daily_count = 0
+        _global_daily_reset_at = now
+        _global_token_count = 0
+        _global_token_reset_at = now
 
 
 def check_rate_limit(session_id: str, config: RateLimitConfig) -> None:
-    """Check if session has exceeded rate limit."""
-    count = _rate_limits.get(session_id, 0)
-    if count >= config.per_session:
+    """Check if global rate limits have been exceeded and increment counters."""
+    global _global_minute_count, _global_hour_count, _global_daily_count
+
+    _reset_if_needed()
+
+    if config.per_minute > 0 and _global_minute_count >= config.per_minute:
         raise HTTPException(
             status_code=429,
-            detail=f"세션당 최대 {config.per_session}회 호출 가능합니다. 새 세션을 시작해주세요.",
+            detail=f"분당 최대 {config.per_minute}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
         )
-    _rate_limits[session_id] = count + 1
+
+    if config.per_hour > 0 and _global_hour_count >= config.per_hour:
+        raise HTTPException(
+            status_code=429,
+            detail=f"시간당 최대 {config.per_hour}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
+        )
+
+    if config.daily_request_limit > 0 and _global_daily_count >= config.daily_request_limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. 내일 다시 시도해주세요.",
+        )
+
+    _global_minute_count += 1
+    _global_hour_count += 1
+    _global_daily_count += 1
+
+
+def _track_token_usage(token_count: int, config: RateLimitConfig) -> None:
+    """Track token usage from a chat response."""
+    global _global_token_count
+
+    _reset_if_needed()
+
+    if token_count > 0:
+        _global_token_count += token_count
+        if config.token_limit > 0 and _global_token_count >= config.token_limit:
+            logger.warning(
+                "token_limit_reached",
+                token_count=_global_token_count,
+                token_limit=config.token_limit,
+            )
+
+
+def _build_rate_limit_status(config: RateLimitConfig) -> RateLimitStatusResponse:
+    """Build current rate limit status from global counters."""
+    from datetime import timedelta
+
+    _reset_if_needed()
+
+    def _make_status(limit: int, used: int, reset_at: datetime) -> RateLimitStatus | None:
+        if limit == 0:
+            return None
+        remaining = max(0, limit - used)
+        return RateLimitStatus(
+            limit=limit,
+            used=used,
+            remaining=remaining,
+            reset_at=reset_at.isoformat(),
+        )
+
+    minute_reset = _global_minute_reset_at + timedelta(seconds=60)
+    hour_reset = _global_hour_reset_at + timedelta(seconds=3600)
+    daily_reset = _global_daily_reset_at + timedelta(seconds=86400)
+
+    return RateLimitStatusResponse(
+        per_minute=_make_status(config.per_minute, _global_minute_count, minute_reset),
+        per_hour=_make_status(config.per_hour, _global_hour_count, hour_reset),
+        daily=_make_status(config.daily_request_limit, _global_daily_count, daily_reset),
+        tokens=_make_status(config.token_limit, _global_token_count, daily_reset),
+    )
 
 
 def get_message_content(msg) -> str:
@@ -196,6 +298,12 @@ async def chat(
             duration_ms=duration_ms,
             status="success",
         )
+
+        # Track token usage from result metadata if available
+        usage = result.get("metadata", {}).get("usage", {})
+        total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
+        if total_tokens:
+            _track_token_usage(total_tokens, config.rate_limit)
 
         return ChatResponse(
             message=response_message,
@@ -461,6 +569,7 @@ async def health(
         per_minute_limit=config.rate_limit.per_minute,
         per_hour_limit=config.rate_limit.per_hour,
         token_limit=config.rate_limit.token_limit,
+        rate_limit_status=_build_rate_limit_status(config.rate_limit),
     )
 
 

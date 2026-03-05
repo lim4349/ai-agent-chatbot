@@ -67,6 +67,21 @@ const translations = {
     'health.dailyQuota': '일일 할당량',
     'health.requestsToday': '오늘 요청',
     'health.remaining': '남음',
+    'health.perMinute': '분당 요청',
+    'health.perHour': '시간당 요청',
+    'health.dailyRequests': '일일 요청',
+    'health.tokens': '토큰',
+    'health.used': '사용',
+    'health.resetsIn': (s: number) => {
+      if (s <= 0) return '곧 초기화';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `${h}시간 ${m}분 후`;
+      if (m > 0) return `${m}분 ${sec}초 후`;
+      return `${sec}초 후`;
+    },
+    'health.unlimited': '무제한',
 
     // Agent labels
     'agent.chat': '대화',
@@ -176,6 +191,21 @@ const translations = {
     'health.dailyQuota': 'Daily Quota',
     'health.requestsToday': 'Today\'s Requests',
     'health.remaining': 'Remaining',
+    'health.perMinute': 'Per Minute',
+    'health.perHour': 'Per Hour',
+    'health.dailyRequests': 'Daily Requests',
+    'health.tokens': 'Tokens',
+    'health.used': 'Used',
+    'health.resetsIn': (s: number) => {
+      if (s <= 0) return 'resetting soon';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `in ${h}h ${m}m`;
+      if (m > 0) return `in ${m}m ${sec}s`;
+      return `in ${sec}s`;
+    },
+    'health.unlimited': 'Unlimited',
 
     'agent.chat': 'Chat',
     'agent.code': 'Code',

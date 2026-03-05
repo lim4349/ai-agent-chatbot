@@ -23,6 +23,20 @@ export interface ChatResponse {
   referenced_topics?: string[];
 }
 
+export interface RateLimitStatus {
+  limit: number;
+  used: number;
+  remaining: number;
+  reset_at: string;  // ISO datetime
+}
+
+export interface RateLimitStatusResponse {
+  per_minute?: RateLimitStatus;
+  per_hour?: RateLimitStatus;
+  daily?: RateLimitStatus;
+  tokens?: RateLimitStatus;
+}
+
 export interface HealthResponse {
   status: string;
   llm_provider: string;
@@ -33,6 +47,7 @@ export interface HealthResponse {
   per_minute_limit: number;  // 0 = unlimited
   per_hour_limit: number;  // 0 = unlimited
   token_limit: number;  // 0 = unlimited
+  rate_limit_status?: RateLimitStatusResponse;
 }
 
 export interface AgentInfo {
