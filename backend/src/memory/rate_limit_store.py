@@ -124,7 +124,7 @@ class SupabaseRateLimitStore(RateLimitStore):
         return self._client is not None
 
     async def _get_or_create_counter(self, metric_type: str) -> dict:
-        """Get or create a counter record."""
+        """Get or create a counter record, resetting if expired."""
         if not self.is_available:
             raise RuntimeError("Supabase client not available")
 
@@ -133,17 +133,33 @@ class SupabaseRateLimitStore(RateLimitStore):
                 "metric_type", metric_type
             ).execute()
 
-            if response.data and len(response.data) > 0:
-                return response.data[0]
-
-            # Create new counter
             now = datetime.now(tz=UTC)
-            reset_at = now + timedelta(
-                seconds=60 if metric_type == "minute"
+            ttl_seconds = (
+                60 if metric_type == "minute"
                 else 3600 if metric_type == "hour"
                 else 86400
             )
 
+            if response.data and len(response.data) > 0:
+                record = response.data[0]
+                reset_at = datetime.fromisoformat(record.get("reset_at", now.isoformat()))
+
+                # Check if counter has expired and needs reset
+                if now >= reset_at:
+                    new_reset_at = now + timedelta(seconds=ttl_seconds)
+                    updated = {
+                        "count": 0,
+                        "reset_at": new_reset_at.isoformat(),
+                    }
+                    self._client.table(self._table_name).update(updated).eq(
+                        "metric_type", metric_type
+                    ).execute()
+                    return {"metric_type": metric_type, "count": 0, "reset_at": new_reset_at.isoformat()}
+
+                return record
+
+            # Create new counter
+            reset_at = now + timedelta(seconds=ttl_seconds)
             new_record = {
                 "metric_type": metric_type,
                 "count": 0,
@@ -152,7 +168,7 @@ class SupabaseRateLimitStore(RateLimitStore):
             self._client.table(self._table_name).insert(new_record).execute()
             return new_record
         except Exception as e:
-            raise RuntimeError(f"Failed to get rate limit counter: {e}")
+            raise RuntimeError(f"Failed to get rate limit counter: {e}") from e
 
     async def get_minute_count(self) -> tuple[int, datetime]:
         """Get current minute count and reset time."""
@@ -176,7 +192,7 @@ class SupabaseRateLimitStore(RateLimitStore):
                 {"count": record.get("count", 0) + 1}
             ).eq("metric_type", "minute").execute()
         except Exception as e:
-            raise RuntimeError(f"Failed to increment minute counter: {e}")
+            raise RuntimeError(f"Failed to increment minute counter: {e}") from e
 
     async def get_hour_count(self) -> tuple[int, datetime]:
         """Get current hour count and reset time."""
@@ -200,7 +216,7 @@ class SupabaseRateLimitStore(RateLimitStore):
                 {"count": record.get("count", 0) + 1}
             ).eq("metric_type", "hour").execute()
         except Exception as e:
-            raise RuntimeError(f"Failed to increment hour counter: {e}")
+            raise RuntimeError(f"Failed to increment hour counter: {e}") from e
 
     async def get_daily_count(self) -> tuple[int, datetime]:
         """Get current daily count and reset time."""
@@ -224,7 +240,7 @@ class SupabaseRateLimitStore(RateLimitStore):
                 {"count": record.get("count", 0) + 1}
             ).eq("metric_type", "daily").execute()
         except Exception as e:
-            raise RuntimeError(f"Failed to increment daily counter: {e}")
+            raise RuntimeError(f"Failed to increment daily counter: {e}") from e
 
     async def get_google_rate_limit_info(self) -> dict:
         """Get stored Google API rate limit info."""
@@ -246,7 +262,7 @@ class SupabaseRateLimitStore(RateLimitStore):
                 }
             return {}
         except Exception as e:
-            raise RuntimeError(f"Failed to get Google rate limit info: {e}")
+            raise RuntimeError(f"Failed to get Google rate limit info: {e}") from e
 
     async def set_google_rate_limit_info(self, info: dict) -> None:
         """Store Google API rate limit info."""
@@ -275,4 +291,4 @@ class SupabaseRateLimitStore(RateLimitStore):
                 # Create new
                 self._client.table(self._table_name).insert(record_data).execute()
         except Exception as e:
-            raise RuntimeError(f"Failed to set Google rate limit info: {e}")
+            raise RuntimeError(f"Failed to set Google rate limit info: {e}") from e

@@ -62,7 +62,7 @@ _rate_limits: dict[str, int] = {}
 
 
 async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_store) -> None:
-    """Check if global rate limits have been exceeded and increment counters."""
+    """Check if global rate limits have been exceeded."""
     try:
         minute_count, _ = await rate_limit_store.get_minute_count()
         if config.per_minute > 0 and minute_count >= config.per_minute:
@@ -87,15 +87,20 @@ async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_
                     "내일 다시 시도해주세요."
                 ),
             )
-
-        # Increment all counters
-        await rate_limit_store.increment_minute()
-        await rate_limit_store.increment_hour()
-        await rate_limit_store.increment_daily()
     except HTTPException:
         raise
     except Exception as e:
         logger.warning(f"Rate limit check failed: {e}", exc_info=True)
+
+
+async def increment_rate_counters(rate_limit_store) -> None:
+    """Increment rate limit counters after successful API call."""
+    try:
+        await rate_limit_store.increment_minute()
+        await rate_limit_store.increment_hour()
+        await rate_limit_store.increment_daily()
+    except Exception as e:
+        logger.warning(f"Failed to increment rate counters: {e}", exc_info=True)
 
 
 async def _build_rate_limit_status(
@@ -267,6 +272,9 @@ async def chat(
             duration_ms=duration_ms,
             status="success",
         )
+
+        # Increment rate counters after successful API call
+        await increment_rate_counters(rate_limit_store)
 
         return ChatResponse(
             message=response_message,
@@ -497,6 +505,9 @@ async def chat_stream(
                                 if content_hash not in sent_content_hashes:
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
+
+            # Increment rate counters after successful stream completion
+            await increment_rate_counters(rate_limit_store)
 
             yield {"event": "done", "data": ""}
 
