@@ -2,7 +2,7 @@
 
 import json
 import time
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
@@ -50,6 +50,7 @@ from src.documents.models import Document
 from src.documents.pinecone_store import PineconeVectorStore
 from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
+from src.memory.rate_limit_store import RateLimitStore
 from src.tools.registry import ToolRegistry
 
 logger = get_logger(__name__)
@@ -59,105 +60,48 @@ router = APIRouter()
 # Rate limiting: session_id -> call_count (legacy per-session tracking)
 _rate_limits: dict[str, int] = {}
 
-# Global rate limit tracking (across all sessions)
-_global_minute_count: int = 0
-_global_minute_reset_at: datetime = datetime.now(tz=UTC)
 
-_global_hour_count: int = 0
-_global_hour_reset_at: datetime = datetime.now(tz=UTC)
-
-_global_daily_count: int = 0
-_global_daily_reset_at: datetime = datetime.now(tz=UTC)
-
-_global_token_count: int = 0
-_global_token_reset_at: datetime = datetime.now(tz=UTC)
-
-# Google AI Studio rate limit info (from API response headers)
-_google_rate_limit_info: dict = {
-    "remaining_requests": -1,
-    "remaining_tokens": -1,
-    "limit_requests": -1,
-    "limit_tokens": -1,
-}
-
-
-def _reset_if_needed() -> None:
-    """Reset global counters when their time windows have expired."""
-    global _global_minute_count, _global_minute_reset_at
-    global _global_hour_count, _global_hour_reset_at
-    global _global_daily_count, _global_daily_reset_at
-    global _global_token_count, _global_token_reset_at
-
-    now = datetime.now(tz=UTC)
-
-    if (now - _global_minute_reset_at).total_seconds() >= 60:
-        _global_minute_count = 0
-        _global_minute_reset_at = now
-
-    if (now - _global_hour_reset_at).total_seconds() >= 3600:
-        _global_hour_count = 0
-        _global_hour_reset_at = now
-
-    if (now - _global_daily_reset_at).total_seconds() >= 86400:
-        _global_daily_count = 0
-        _global_daily_reset_at = now
-        _global_token_count = 0
-        _global_token_reset_at = now
-
-
-def check_rate_limit(session_id: str, config: RateLimitConfig) -> None:
+async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_store) -> None:
     """Check if global rate limits have been exceeded and increment counters."""
-    global _global_minute_count, _global_hour_count, _global_daily_count
-
-    _reset_if_needed()
-
-    if config.per_minute > 0 and _global_minute_count >= config.per_minute:
-        raise HTTPException(
-            status_code=429,
-            detail=f"분당 최대 {config.per_minute}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
-        )
-
-    if config.per_hour > 0 and _global_hour_count >= config.per_hour:
-        raise HTTPException(
-            status_code=429,
-            detail=f"시간당 최대 {config.per_hour}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
-        )
-
-    if config.daily_request_limit > 0 and _global_daily_count >= config.daily_request_limit:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. "
-                "내일 다시 시도해주세요."
-            ),
-        )
-
-    _global_minute_count += 1
-    _global_hour_count += 1
-    _global_daily_count += 1
-
-
-def _track_token_usage(token_count: int, config: RateLimitConfig) -> None:
-    """Track token usage from a chat response."""
-    global _global_token_count
-
-    _reset_if_needed()
-
-    if token_count > 0:
-        _global_token_count += token_count
-        if config.token_limit > 0 and _global_token_count >= config.token_limit:
-            logger.warning(
-                "token_limit_reached",
-                token_count=_global_token_count,
-                token_limit=config.token_limit,
+    try:
+        minute_count, _ = await rate_limit_store.get_minute_count()
+        if config.per_minute > 0 and minute_count >= config.per_minute:
+            raise HTTPException(
+                status_code=429,
+                detail=f"분당 최대 {config.per_minute}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
             )
 
+        hour_count, _ = await rate_limit_store.get_hour_count()
+        if config.per_hour > 0 and hour_count >= config.per_hour:
+            raise HTTPException(
+                status_code=429,
+                detail=f"시간당 최대 {config.per_hour}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
+            )
 
-def _build_rate_limit_status(config: RateLimitConfig) -> RateLimitStatusResponse:
-    """Build current rate limit status from global counters or Google API headers."""
-    from datetime import timedelta
+        daily_count, _ = await rate_limit_store.get_daily_count()
+        if config.daily_request_limit > 0 and daily_count >= config.daily_request_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. "
+                    "내일 다시 시도해주세요."
+                ),
+            )
 
-    _reset_if_needed()
+        # Increment all counters
+        await rate_limit_store.increment_minute()
+        await rate_limit_store.increment_hour()
+        await rate_limit_store.increment_daily()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Rate limit check failed: {e}", exc_info=True)
+
+
+async def _build_rate_limit_status(
+    config: RateLimitConfig, rate_limit_store
+) -> RateLimitStatusResponse:
+    """Build current rate limit status from store."""
 
     def _make_status(limit: int, used: int, reset_at: datetime) -> RateLimitStatus | None:
         if limit == 0:
@@ -170,33 +114,19 @@ def _build_rate_limit_status(config: RateLimitConfig) -> RateLimitStatusResponse
             reset_at=reset_at.isoformat(),
         )
 
-    minute_reset = _global_minute_reset_at + timedelta(seconds=60)
-    hour_reset = _global_hour_reset_at + timedelta(seconds=3600)
-    daily_reset = _global_daily_reset_at + timedelta(seconds=86400)
+    try:
+        minute_count, minute_reset = await rate_limit_store.get_minute_count()
+        hour_count, hour_reset = await rate_limit_store.get_hour_count()
+        daily_count, daily_reset = await rate_limit_store.get_daily_count()
 
-    # If Google API rate limit info is available, use remaining tokens from API
-    daily_status = None
-    if config.daily_request_limit > 0 or config.token_limit > 0:
-        # Use Google API rate limit info if available (remaining_tokens from header)
-        if _google_rate_limit_info.get("remaining_tokens", -1) >= 0:
-            token_limit = _google_rate_limit_info.get("limit_tokens", config.token_limit)
-            token_remaining = _google_rate_limit_info.get("remaining_tokens", 0)
-            token_used = max(0, token_limit - token_remaining) if token_limit > 0 else 0
-            daily_status = RateLimitStatus(
-                limit=token_limit if token_limit > 0 else config.daily_request_limit,
-                used=token_used,
-                remaining=token_remaining,
-                reset_at=daily_reset.isoformat(),
-            )
-        else:
-            # Fallback to local tracking
-            daily_status = _make_status(config.daily_request_limit, _global_daily_count, daily_reset)
-
-    return RateLimitStatusResponse(
-        per_minute=_make_status(config.per_minute, _global_minute_count, minute_reset),
-        per_hour=_make_status(config.per_hour, _global_hour_count, hour_reset),
-        daily=daily_status,
-    )
+        return RateLimitStatusResponse(
+            per_minute=_make_status(config.per_minute, minute_count, minute_reset),
+            per_hour=_make_status(config.per_hour, hour_count, hour_reset),
+            daily=_make_status(config.daily_request_limit, daily_count, daily_reset),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to build rate limit status: {e}", exc_info=True)
+        return RateLimitStatusResponse()
 
 
 def get_message_content(msg) -> str:
@@ -218,13 +148,14 @@ async def chat(
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
     llm_provider=Depends(Provide[DIContainer.llm]),  # noqa: B008
+    rate_limit_store=Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
     The supervisor will route to the appropriate specialist agent.
     """
     # Rate limiting
-    check_rate_limit(request.session_id, config.rate_limit)
+    await check_rate_limit(request.session_id, config.rate_limit, rate_limit_store)
 
     start_time = time.perf_counter()
 
@@ -580,6 +511,7 @@ async def health(
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
+    rate_limit_store: RateLimitStore = Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
     # Determine available agents based on configuration
@@ -601,7 +533,9 @@ async def health(
         per_minute_limit=config.rate_limit.per_minute,
         per_hour_limit=config.rate_limit.per_hour,
         token_limit=config.rate_limit.token_limit,
-        rate_limit_status=_build_rate_limit_status(config.rate_limit),
+        rate_limit_status=await _build_rate_limit_status(
+            config.rate_limit, rate_limit_store
+        ),
     )
 
 
