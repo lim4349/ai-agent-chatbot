@@ -299,13 +299,14 @@ async def chat_stream(
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
+    rate_limit_store: RateLimitStore = Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
     Yields tokens as they are generated.
     """
     # Rate limiting
-    check_rate_limit(request.session_id, config.rate_limit)
+    await check_rate_limit(request.session_id, config.rate_limit, rate_limit_store)
 
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
