@@ -302,12 +302,6 @@ async def chat(
             status="success",
         )
 
-        # Track token usage from result metadata if available
-        usage = result.get("metadata", {}).get("usage", {})
-        total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
-        if total_tokens:
-            _track_token_usage(total_tokens, config.rate_limit)
-
         return ChatResponse(
             message=response_message,
             session_id=request.session_id,

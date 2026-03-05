@@ -70,8 +70,7 @@ class RateLimitStatusResponse(BaseModel):
 
     per_minute: RateLimitStatus | None = Field(default=None, description="Per-minute limit status")
     per_hour: RateLimitStatus | None = Field(default=None, description="Per-hour limit status")
-    daily: RateLimitStatus | None = Field(default=None, description="Daily request limit status")
-    tokens: RateLimitStatus | None = Field(default=None, description="Daily token limit status")
+    daily: RateLimitStatus | None = Field(default=None, description="Daily API call limit status")
 
 
 class HealthResponse(BaseModel):
