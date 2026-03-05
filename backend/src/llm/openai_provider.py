@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 from langchain_openai import ChatOpenAI
+from openai import AsyncOpenAI
 
 from src.core.config import LLMConfig
 from src.core.di_container import container
@@ -22,13 +23,12 @@ warnings.filterwarnings(
 
 @LLMFactory.register("openai")
 class OpenAIProvider:
-    """OpenAI API provider using langchain-openai."""
+    """OpenAI API provider using direct OpenAI SDK for rate limit capture."""
 
     def __init__(self, config: LLMConfig):
         self.config = config
 
         # Configure httpx client with memory-efficient limits for Render Free Tier
-        # Note: ChatOpenAI requires sync httpx.Client, not AsyncClient
         limits = httpx.Limits(
             max_connections=10,
             max_keepalive_connections=5,
@@ -38,6 +38,7 @@ class OpenAIProvider:
             timeout=httpx.Timeout(30.0, connect=5.0),
         )
 
+        # LangChain client for structured output (kept for compatibility)
         client_kwargs = {
             "model": config.model,
             "api_key": config.openai_api_key,
@@ -49,6 +50,15 @@ class OpenAIProvider:
             client_kwargs["openai_api_base"] = config.base_url
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
+
+        # Direct OpenAI SDK client for rate limit header capture
+        self._openai_client = AsyncOpenAI(
+            api_key=config.openai_api_key,
+            base_url=config.base_url,
+            timeout=30.0,
+            max_retries=2,
+        )
+        self.last_rate_limit_info: dict = {}
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -72,28 +82,63 @@ class OpenAIProvider:
         if cached is not None:
             return cached, {"input_tokens": 0, "output_tokens": 0}
 
-        response = await self.client.ainvoke(messages, **kwargs)
-
-        # Normalize content: some models (Anthropic/Gemini via OpenRouter) return a list of blocks
-        content = response.content
-        if isinstance(content, list):
-            content = "".join(
-                block.get("text", "")
-                for block in content
-                if isinstance(block, dict) and block.get("type") == "text"
+        # Use direct OpenAI SDK with_raw_response to capture rate limit headers
+        try:
+            raw_response = await self._openai_client.chat.completions.with_raw_response.create(
+                model=self.config.model,
+                messages=messages,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+                **kwargs,
             )
-        result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
 
-        # Extract token usage
-        input_tokens = 0
-        output_tokens = 0
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            input_tokens = response.usage_metadata.get("input_tokens", 0)
-            output_tokens = response.usage_metadata.get("output_tokens", 0)
-        elif hasattr(response, "response_metadata") and response.response_metadata:
-            usage = response.response_metadata.get("token_usage", {})
-            input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
-            output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+            # Parse the completion
+            response = raw_response.parse()
+
+            # Capture rate limit headers
+            headers = raw_response.headers
+            self.last_rate_limit_info = {
+                "remaining_requests": self._safe_int(headers.get("x-ratelimit-remaining-requests")),
+                "remaining_tokens": self._safe_int(headers.get("x-ratelimit-remaining-tokens")),
+                "limit_requests": self._safe_int(headers.get("x-ratelimit-limit-requests")),
+                "limit_tokens": self._safe_int(headers.get("x-ratelimit-limit-tokens")),
+            }
+
+            # Extract content
+            content = response.choices[0].message.content if response.choices else ""
+            result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
+
+            # Extract token usage
+            input_tokens = response.usage.prompt_tokens if response.usage else 0
+            output_tokens = response.usage.completion_tokens if response.usage else 0
+
+        except Exception as e:
+            # Fallback to LangChain if direct SDK fails
+            import logging
+            logging.getLogger(__name__).warning(f"Direct OpenAI SDK failed, falling back to LangChain: {e}")
+
+            response = await self.client.ainvoke(messages, **kwargs)
+
+            # Normalize content
+            content = response.content
+            if isinstance(content, list):
+                content = "".join(
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
+
+            # Extract token usage
+            input_tokens = 0
+            output_tokens = 0
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                input_tokens = response.usage_metadata.get("input_tokens", 0)
+                output_tokens = response.usage_metadata.get("output_tokens", 0)
+            elif hasattr(response, "response_metadata") and response.response_metadata:
+                usage = response.response_metadata.get("token_usage", {})
+                input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+                output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
 
         # Cache the response
         await self._cache.set(
@@ -104,6 +149,15 @@ class OpenAIProvider:
         )
 
         return result, {"input_tokens": input_tokens, "output_tokens": output_tokens}
+
+    def _safe_int(self, value) -> int:
+        """Safely convert header value to int."""
+        if value is None:
+            return -1
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return -1
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
