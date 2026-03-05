@@ -534,7 +534,6 @@ async def health(
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
     rate_limit_store: RateLimitStore = Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
-    llm_provider=Depends(Provide[DIContainer.llm]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
     # Determine available agents based on configuration
@@ -545,11 +544,6 @@ async def health(
         available_agents.append("web_search")
     if retriever:
         available_agents.append("rag")
-
-    # Get Google rate limit info from LLM provider
-    google_rate_limit = {}
-    if hasattr(llm_provider, "last_rate_limit_info"):
-        google_rate_limit = llm_provider.last_rate_limit_info
 
     return HealthResponse(
         status="ok",
@@ -564,7 +558,6 @@ async def health(
         rate_limit_status=await _build_rate_limit_status(
             config.rate_limit, rate_limit_store
         ),
-        google_rate_limit=google_rate_limit,
     )
 
 
