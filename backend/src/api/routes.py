@@ -398,12 +398,21 @@ async def chat_stream(
             sent_content_hashes: set[int] = set()
             # Track all agents that ran during this workflow
             all_agents: list[str] = []
+            # Track if any error occurred during streaming
+            has_error = False
 
             # Stream events from graph
             async for event in graph.astream_events(
                 initial_state, config=graph_config, version="v2"
             ):
                 kind = event.get("event")
+
+                # Check for error events
+                if kind == "on_chain_error" or kind == "on_tool_error":
+                    has_error = True
+                    error_data = event.get("data", {})
+                    error_msg = error_data.get("error", str(error_data))
+                    logger.warning(f"Stream error event: {error_msg}")
 
                 if kind == "on_chat_model_stream":
                     # Skip supervisor's structured output tokens (routing decision)
@@ -507,7 +516,8 @@ async def chat_stream(
                                     yield {"event": "token", "data": content}
 
             # Increment rate counters after successful stream completion
-            await increment_rate_counters(rate_limit_store)
+            if not has_error:
+                await increment_rate_counters(rate_limit_store)
 
             yield {"event": "done", "data": ""}
 
