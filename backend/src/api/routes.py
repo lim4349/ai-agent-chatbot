@@ -57,10 +57,6 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Rate limiting: session_id -> call_count (legacy per-session tracking)
-_rate_limits: dict[str, int] = {}
-
-
 async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_store) -> None:
     """Check if global rate limits have been exceeded."""
     try:
@@ -251,15 +247,6 @@ async def chat(
                 agent_used = "chat"  # Default for greetings/simple responses
 
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        # Capture Google API rate limit info if available
-        global _google_rate_limit_info
-        if (
-            config.llm_provider == "anthropic"
-            and hasattr(llm_provider, "last_rate_limit_info")
-            and llm_provider.last_rate_limit_info
-        ):
-            _google_rate_limit_info = llm_provider.last_rate_limit_info
 
         # Log request/response (PII masking handled by logging module)
         log_request(
@@ -755,9 +742,6 @@ async def delete_session(
         # 4. Delete session from storage (only if it exists)
         if session:
             await session_store.delete(session_id)
-
-        # 5. Clean up rate limit counter for this session
-        _rate_limits.pop(session_id, None)
 
         return {
             "status": "deleted",
