@@ -31,14 +31,6 @@ class RateLimitStore:
         """Increment daily counter."""
         ...
 
-    async def get_google_rate_limit_info(self) -> dict:
-        """Get stored Google API rate limit info."""
-        ...
-
-    async def set_google_rate_limit_info(self, info: dict) -> None:
-        """Store Google API rate limit info."""
-        ...
-
 
 class InMemoryRateLimitStore(RateLimitStore):
     """In-memory rate limit storage (no persistence)."""
@@ -53,8 +45,6 @@ class InMemoryRateLimitStore(RateLimitStore):
 
         self._daily_count = 0
         self._daily_reset_at = datetime.now(tz=UTC)
-
-        self._google_rate_limit_info: dict = {}
 
     async def get_minute_count(self) -> tuple[int, datetime]:
         """Get current minute count and reset time."""
@@ -79,14 +69,6 @@ class InMemoryRateLimitStore(RateLimitStore):
     async def increment_daily(self) -> None:
         """Increment daily counter."""
         self._daily_count += 1
-
-    async def get_google_rate_limit_info(self) -> dict:
-        """Get stored Google API rate limit info."""
-        return self._google_rate_limit_info
-
-    async def set_google_rate_limit_info(self, info: dict) -> None:
-        """Store Google API rate limit info."""
-        self._google_rate_limit_info = info
 
 
 class SupabaseRateLimitStore(RateLimitStore):
@@ -255,62 +237,3 @@ class SupabaseRateLimitStore(RateLimitStore):
             )
         except Exception as e:
             raise RuntimeError(f"Failed to increment daily counter: {e}") from e
-
-    async def get_google_rate_limit_info(self) -> dict:
-        """Get stored Google API rate limit info."""
-        if not self.is_available:
-            raise RuntimeError("Supabase client not available")
-
-        try:
-            response = await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).select("*").eq(
-                    "metric_type", "google"
-                ).execute()
-            )
-
-            if response.data and len(response.data) > 0:
-                record = response.data[0]
-                return {
-                    "remaining_requests": record.get("remaining_requests", -1),
-                    "remaining_tokens": record.get("remaining_tokens", -1),
-                    "limit_requests": record.get("limit_requests", -1),
-                    "limit_tokens": record.get("limit_tokens", -1),
-                }
-            return {}
-        except Exception as e:
-            raise RuntimeError(f"Failed to get Google rate limit info: {e}") from e
-
-    async def set_google_rate_limit_info(self, info: dict) -> None:
-        """Store Google API rate limit info."""
-        if not self.is_available:
-            raise RuntimeError("Supabase client not available")
-
-        try:
-            response = await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).select("*").eq(
-                    "metric_type", "google"
-                ).execute()
-            )
-
-            record_data = {
-                "metric_type": "google",
-                "remaining_requests": info.get("remaining_requests", -1),
-                "remaining_tokens": info.get("remaining_tokens", -1),
-                "limit_requests": info.get("limit_requests", -1),
-                "limit_tokens": info.get("limit_tokens", -1),
-            }
-
-            if response.data and len(response.data) > 0:
-                # Update existing
-                await asyncio.to_thread(
-                    lambda: self._client.table(self._table_name).update(record_data).eq(
-                        "metric_type", "google"
-                    ).execute()
-                )
-            else:
-                # Create new
-                await asyncio.to_thread(
-                    lambda: self._client.table(self._table_name).insert(record_data).execute()
-                )
-        except Exception as e:
-            raise RuntimeError(f"Failed to set Google rate limit info: {e}") from e

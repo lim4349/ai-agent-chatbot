@@ -35,7 +35,6 @@ class AnthropicProvider:
             client_kwargs["anthropic_api_url"] = config.base_url
         self.client = ChatAnthropic(**client_kwargs)
         self._cache = container.llm_cache()
-        self.last_rate_limit_info: dict = {}
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -74,18 +73,6 @@ class AnthropicProvider:
         # Extract token usage
         input_tokens, output_tokens = extract_token_usage_from_response(response)
 
-        # Extract rate limit headers if present (for Google AI Studio via Anthropic API)
-        rate_limit_info = {}
-        if hasattr(response, "response_metadata") and response.response_metadata:
-            headers = response.response_metadata.get("headers", {})
-            if headers:
-                rate_limit_info = {
-                    "remaining_requests": headers.get("x-ratelimit-remaining-requests", -1),
-                    "remaining_tokens": headers.get("x-ratelimit-remaining-tokens", -1),
-                    "limit_requests": headers.get("x-ratelimit-limit-requests", -1),
-                    "limit_tokens": headers.get("x-ratelimit-limit-tokens", -1),
-                }
-
         # Cache the response
         await self._cache.set(
             messages=messages,
@@ -93,10 +80,6 @@ class AnthropicProvider:
             temperature=self.config.temperature,
             response=result,
         )
-
-        # Store rate limit info for access in routes
-        if rate_limit_info:
-            self.last_rate_limit_info = rate_limit_info
 
         return result, {
             "input_tokens": input_tokens,
