@@ -10,6 +10,7 @@ from src.core.config import LLMConfig
 from src.core.di_container import container
 from src.core.logging import get_logger
 from src.llm.factory import LLMFactory
+from src.observability.agent_metrics import extract_token_usage_from_response
 
 logger = get_logger(__name__)
 
@@ -71,17 +72,11 @@ class AnthropicProvider:
         result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
 
         # Extract token usage
-        input_tokens = 0
-        output_tokens = 0
+        input_tokens, output_tokens = extract_token_usage_from_response(response)
+
+        # Extract rate limit headers if present (for Google AI Studio via Anthropic API)
         rate_limit_info = {}
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            input_tokens = response.usage_metadata.get("input_tokens", 0)
-            output_tokens = response.usage_metadata.get("output_tokens", 0)
-        elif hasattr(response, "response_metadata") and response.response_metadata:
-            usage = response.response_metadata.get("token_usage", {})
-            input_tokens = usage.get("input_tokens", 0)
-            output_tokens = usage.get("output_tokens", 0)
-            # Extract Google AI Studio rate limit headers if present
+        if hasattr(response, "response_metadata") and response.response_metadata:
             headers = response.response_metadata.get("headers", {})
             if headers:
                 rate_limit_info = {
