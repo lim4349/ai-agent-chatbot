@@ -206,13 +206,15 @@ jobs:
         run: |
           if [ -n "$RENDER_URL" ]; then
             echo "🏥 Checking backend health..."
-            for i in {1..10}; do
+            echo "⏳ Waiting 30 seconds for Render deployment to complete..."
+            sleep 30
+            for i in {1..20}; do
               response=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_URL/api/v1/health" || echo "000")
               if [ "$response" = "200" ]; then
                 echo "✅ Backend is healthy!"
                 exit 0
               fi
-              echo "⏳ Attempt $i/10: HTTP $response, waiting 10s..."
+              echo "⏳ Attempt $i/20: HTTP $response, waiting 10s..."
               sleep 10
             done
             echo "❌ Health check failed"
