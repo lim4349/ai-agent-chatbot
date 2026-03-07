@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -333,7 +333,7 @@ class FileUploadHandler:
                 "document_id": document_id,
                 "filename": filename,
                 "file_type": file_type,
-                "upload_time": datetime.utcnow().isoformat(),
+                "upload_time": datetime.now(tz=UTC).isoformat(),
             }
             chunks = self.chunker.chunk(text_content, doc_metadata)
 
@@ -409,7 +409,7 @@ class FileUploadHandler:
                         "id": doc_id,
                         "filename": meta.get("filename", "unknown"),
                         "file_type": meta.get("file_type", "unknown"),
-                        "upload_time": meta.get("upload_time", datetime.utcnow().isoformat()),
+                        "upload_time": meta.get("upload_time", datetime.now(tz=UTC).isoformat()),
                         "chunk_count": 0,
                         "total_tokens": 0,
                     }

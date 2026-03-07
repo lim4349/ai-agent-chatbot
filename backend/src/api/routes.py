@@ -2,7 +2,7 @@
 
 import json
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
@@ -951,13 +951,12 @@ async def upload_file(
 
         # Create document model
         import uuid
-        from datetime import datetime
 
         doc = Document(
             id=str(uuid.uuid4()),
             filename=filename,
             file_type=file_type,
-            upload_time=datetime.utcnow(),
+            upload_time=datetime.now(tz=UTC),
             chunks=chunks,
             total_tokens=sum(c.metadata.token_count for c in chunks),
             metadata=meta_dict,
@@ -1013,7 +1012,7 @@ async def list_documents(
                         id=stats.document_id,
                         filename=stats.filename or "unknown",
                         file_type=stats.file_type or "unknown",
-                        upload_time=stats.upload_time or datetime.utcnow(),
+                        upload_time=stats.upload_time or datetime.now(tz=UTC),
                         chunk_count=stats.chunk_count,
                         total_tokens=stats.total_tokens,
                     )

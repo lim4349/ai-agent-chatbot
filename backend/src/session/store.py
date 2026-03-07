@@ -1,8 +1,8 @@
 """Session store implementations."""
 
-import threading
+import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol, runtime_checkable
 
 
@@ -88,7 +88,7 @@ class SessionStore(Protocol):
 
 
 class InMemorySessionStore:
-    """In-memory session storage with thread-safe access.
+    """In-memory session storage with async-safe access.
 
     Falls back to this implementation when Supabase is not configured.
     """
@@ -96,7 +96,7 @@ class InMemorySessionStore:
     def __init__(self) -> None:
         """Initialize in-memory session store."""
         self._sessions: dict[str, dict[str, object]] = {}
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     async def create(
         self,
@@ -106,7 +106,7 @@ class InMemorySessionStore:
         metadata: dict[str, object] | None = None,
     ) -> Session:
         """Create a new session."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
         session_data = {
             "id": session_id,
             "user_id": user_id,
@@ -116,7 +116,7 @@ class InMemorySessionStore:
             "metadata": metadata or {},
         }
 
-        with self._lock:
+        async with self._lock:
             self._sessions[session_id] = session_data
 
         return Session(
@@ -130,7 +130,7 @@ class InMemorySessionStore:
 
     async def get(self, session_id: str) -> Session | None:
         """Get a session by ID."""
-        with self._lock:
+        async with self._lock:
             data = self._sessions.get(session_id)
             if not data:
                 return None
@@ -145,7 +145,7 @@ class InMemorySessionStore:
 
     async def list_by_user(self, user_id: str) -> list[Session]:
         """List all sessions for a user."""
-        with self._lock:
+        async with self._lock:
             user_sessions = [
                 Session(
                     id=str(data["id"]),
@@ -165,7 +165,7 @@ class InMemorySessionStore:
 
     async def delete(self, session_id: str) -> bool:
         """Delete a session."""
-        with self._lock:
+        async with self._lock:
             if session_id in self._sessions:
                 del self._sessions[session_id]
                 return True
@@ -173,7 +173,7 @@ class InMemorySessionStore:
 
     async def exists(self, session_id: str) -> bool:
         """Check if a session exists."""
-        with self._lock:
+        async with self._lock:
             return session_id in self._sessions
 
 
@@ -239,7 +239,7 @@ class SupabaseSessionStore:
         if not self.is_available:
             raise RuntimeError("Supabase client not available")
 
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
         data = {
             "id": session_id,
             "user_id": user_id,

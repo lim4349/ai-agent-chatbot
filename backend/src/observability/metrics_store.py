@@ -1,7 +1,7 @@
 """Metrics store for recording and querying observability data."""
 
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from src.core.logging import get_logger
 
@@ -88,7 +88,7 @@ class MetricsStore:
             user_id: Optional user identifier
             metadata: Additional metadata (langsmith_run_id, etc.)
         """
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(tz=UTC)
         metric_data = {
             "session_id": session_id,
             "agent_name": agent_name,
@@ -145,7 +145,7 @@ class MetricsStore:
             Dictionary with aggregated metrics
         """
         # Calculate time range
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
         if period == "24h":
             start_time = now - timedelta(hours=24)
         elif period == "7d":

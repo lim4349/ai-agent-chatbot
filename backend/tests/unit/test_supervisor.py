@@ -10,7 +10,7 @@ class TestSupervisorAgent:
     """Test cases for Supervisor Agent."""
 
     @pytest.mark.asyncio
-    async def test_routes_to_chat(self, mock_llm):
+    async def test_routes_to_chat(self, mock_llm, mock_memory):
         """Test that greetings are routed to chat."""
 
         async def mock_structured(messages, output_schema, **kwargs):
@@ -18,7 +18,13 @@ class TestSupervisorAgent:
 
         mock_llm.generate_structured = mock_structured
 
-        supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})
+        supervisor = SupervisorAgent(
+            llm=mock_llm,
+            available_agents={"chat", "code", "web_search"},
+            memory=mock_memory,
+            memory_tool=None,
+            metrics_store=None,
+        )
         state = create_initial_state("안녕하세요!", "test-session")
         result = await supervisor.process(state)
 
@@ -26,7 +32,7 @@ class TestSupervisorAgent:
         assert "route_reasoning" in result["metadata"]
 
     @pytest.mark.asyncio
-    async def test_routes_to_code(self, mock_llm):
+    async def test_routes_to_code(self, mock_llm, mock_memory):
         """Test that code requests are routed to code agent."""
 
         async def mock_structured(messages, output_schema, **kwargs):
@@ -34,14 +40,20 @@ class TestSupervisorAgent:
 
         mock_llm.generate_structured = mock_structured
 
-        supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})
+        supervisor = SupervisorAgent(
+            llm=mock_llm,
+            available_agents={"chat", "code", "web_search"},
+            memory=mock_memory,
+            memory_tool=None,
+            metrics_store=None,
+        )
         state = create_initial_state("파이썬으로 피보나치 함수 작성해줘", "test-session")
         result = await supervisor.process(state)
 
         assert result["next_agent"] == "code"
 
     @pytest.mark.asyncio
-    async def test_routes_to_web_search(self, mock_llm):
+    async def test_routes_to_web_search(self, mock_llm, mock_memory):
         """Test that current info requests are routed to web search."""
 
         async def mock_structured(messages, output_schema, **kwargs):
@@ -49,7 +61,13 @@ class TestSupervisorAgent:
 
         mock_llm.generate_structured = mock_structured
 
-        supervisor = SupervisorAgent(llm=mock_llm, available_agents={"chat", "code", "web_search"})
+        supervisor = SupervisorAgent(
+            llm=mock_llm,
+            available_agents={"chat", "code", "web_search"},
+            memory=mock_memory,
+            memory_tool=None,
+            metrics_store=None,
+        )
         state = create_initial_state("오늘 서울 날씨 어때?", "test-session")
         result = await supervisor.process(state)
 

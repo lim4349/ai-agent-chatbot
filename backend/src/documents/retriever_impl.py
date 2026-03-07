@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from src.core.logging import get_logger
 from src.core.protocols import DocumentRetriever
 from src.documents.chunker import StructureAwareChunker
@@ -164,8 +166,6 @@ class PineconeDocumentRetriever(DocumentRetriever):
         Args:
             doc_dict: Document dictionary with content and metadata
         """
-        from datetime import datetime
-
         content = doc_dict.get("content", "")
         filename = doc_dict.get("filename", "unnamed")
         file_type = doc_dict.get("file_type", "txt")
@@ -193,7 +193,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
             id=doc_id,
             filename=filename,
             file_type=file_type,
-            upload_time=datetime.utcnow(),
+            upload_time=datetime.now(tz=UTC),
             chunks=[],
             total_tokens=0,
             metadata=metadata,

@@ -2,7 +2,7 @@
 
 import hashlib
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from src.core.logging import get_logger
@@ -109,7 +109,7 @@ class LongTermMemory:
             confidence: Confidence level of the fact (0.0-1.0)
         """
         anonymized_fact = self._anonymize(fact)
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(tz=UTC).isoformat()
 
         fact_data = {
             "user_id": user_id,
@@ -234,7 +234,7 @@ class LongTermMemory:
         """
         if user_id not in self._user_profiles:
             self._user_profiles[user_id] = {
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(tz=UTC).isoformat(),
             }
 
         # Update profile in memory
@@ -251,7 +251,7 @@ class LongTermMemory:
             else:
                 self._user_profiles[user_id][key] = value
 
-        self._user_profiles[user_id]["updated_at"] = datetime.utcnow().isoformat()
+        self._user_profiles[user_id]["updated_at"] = datetime.now(tz=UTC).isoformat()
 
         # Update in Supabase if available
         if self._use_supabase and self._client:
@@ -290,7 +290,7 @@ class LongTermMemory:
             session_id: Optional session that generated this summary
             metadata: Additional metadata
         """
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(tz=UTC).isoformat()
 
         summary_data = {
             "topic": topic,
