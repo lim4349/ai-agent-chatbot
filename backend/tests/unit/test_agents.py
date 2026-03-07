@@ -11,9 +11,9 @@ class TestChatAgent:
     """Test cases for Chat Agent."""
 
     @pytest.mark.asyncio
-    async def test_generates_response(self, mock_llm):
+    async def test_generates_response(self, mock_llm, mock_memory):
         """Test that chat agent generates a response."""
-        agent = ChatAgent(llm=mock_llm)
+        agent = ChatAgent(llm=mock_llm, memory=mock_memory)
         state = create_initial_state("Hello!", "test-session")
         result = await agent.process(state)
 
@@ -39,15 +39,15 @@ class TestCodeAgent:
     """Test cases for Code Agent."""
 
     @pytest.mark.asyncio
-    async def test_generates_code_response(self, mock_llm):
+    async def test_generates_code_response(self, mock_llm, mock_memory):
         """Test that code agent generates a response."""
 
-        async def mock_generate(messages, **kwargs):
-            return "```python\nprint('Hello')\n```"
+        async def mock_generate_with_usage(messages, **kwargs):
+            return "```python\nprint('Hello')\n```", {"input_tokens": 10, "output_tokens": 20}
 
-        mock_llm.generate = mock_generate
+        mock_llm.generate_with_usage = mock_generate_with_usage
 
-        agent = CodeAgent(llm=mock_llm)
+        agent = CodeAgent(llm=mock_llm, memory=mock_memory)
         state = create_initial_state("Write a hello world program", "test-session")
         result = await agent.process(state)
 

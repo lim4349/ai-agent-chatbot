@@ -3,15 +3,34 @@
 import pytest
 
 from src.core.config import AppConfig, LLMConfig, MemoryConfig, RAGConfig, ToolsConfig
-from src.core.container import Container
 from src.core.di_container import container as di_container
+
+# Note: DIContainer is kept for type hints in fixture signatures
+# ruff: noqa: F401
+
+DIContainer = di_container.__class__  # type alias for fixtures
+
+
+class MockLLMConfig:
+    """Mock LLM config for testing."""
+
+    model: str = "mock-model"
+    temperature: float = 0.7
+    max_tokens: int = 100
 
 
 class MockLLM:
     """Mock LLM provider for testing."""
 
+    def __init__(self):
+        self.config = MockLLMConfig()
+
     async def generate(self, messages, **kwargs) -> str:
         return "This is a mock response."
+
+    async def generate_with_usage(self, messages, **kwargs) -> tuple[str, dict]:
+        """Generate response with token usage info."""
+        return "This is a mock response.", {"input_tokens": 10, "output_tokens": 20}
 
     async def stream(self, messages, **kwargs):
         yield "This "
@@ -31,23 +50,58 @@ class MockMemoryStore:
     """Mock memory store for testing."""
 
     def __init__(self):
-        self._messages = []
+        self._sessions: dict[str, list] = {}
+        self._summaries: dict[str, str] = {}
 
-    async def add_message(self, message):
+    async def add_message(self, session_id: str, message: dict):
         """Add a message to memory."""
-        self._messages.append(message)
+        if session_id not in self._sessions:
+            self._sessions[session_id] = []
+        self._sessions[session_id].append(message)
 
-    async def get_messages(self, limit: int = 10):
-        """Get recent messages."""
-        return self._messages[-limit:]
+    async def get_messages(self, session_id: str) -> list[dict]:
+        """Get conversation history for a session."""
+        return self._sessions.get(session_id, []).copy()
 
-    async def clear(self):
-        """Clear all messages."""
-        self._messages = []
+    async def clear(self, session_id: str = None):
+        """Clear messages for a session or all sessions."""
+        if session_id:
+            self._sessions.pop(session_id, None)
+            self._summaries.pop(session_id, None)
+        else:
+            self._sessions.clear()
+            self._summaries.clear()
 
-    async def get_conversation_history(self, limit: int = 10):
-        """Get conversation history."""
-        return self._messages[-limit:]
+    async def get_messages_with_limit(
+        self,
+        session_id: str,
+        max_tokens: int,
+    ) -> list[dict]:
+        """Get conversation history limited by token count."""
+        messages = self._sessions.get(session_id, [])
+        # Simple implementation: estimate ~4 chars per token
+        result = []
+        total_tokens = 0
+        for msg in reversed(messages):
+            msg_tokens = len(str(msg.get("content", ""))) // 4
+            if total_tokens + msg_tokens > max_tokens:
+                break
+            result.insert(0, msg)
+            total_tokens += msg_tokens
+        return result
+
+    async def add_summary(self, session_id: str, summary: str) -> None:
+        """Add or update a conversation summary."""
+        self._summaries[session_id] = summary
+
+    async def get_summary(self, session_id: str) -> str | None:
+        """Get the conversation summary for a session."""
+        return self._summaries.get(session_id)
+
+    async def get_conversation_history(self, session_id: str, limit: int = 10):
+        """Get conversation history for a session."""
+        messages = self._sessions.get(session_id, [])
+        return messages[-limit:]
 
 
 @pytest.fixture
@@ -104,7 +158,8 @@ def override_memory(mock_memory):
 
 
 @pytest.fixture
-def test_container(test_config: AppConfig, mock_llm: MockLLM) -> Container:
-    """Create test container with mock dependencies (legacy container)."""
-    container = Container(config=test_config)
-    return container.override(llm_override=mock_llm)
+def test_container(test_config: AppConfig, mock_llm: MockLLM) -> DIContainer:
+    """Create test container with mock dependencies."""
+    # Use the global container with LLM override
+    with di_container.llm.override(mock_llm):
+        yield di_container

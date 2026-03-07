@@ -1,6 +1,6 @@
 """Topic memory for tracking conversation topics across sessions."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from src.core.logging import get_logger
@@ -151,7 +151,7 @@ Summary:"""
                 summary=summary or f"Session: {session_id}",
                 session_id=session_id,
                 metadata={
-                    "added_at": datetime.utcnow().isoformat(),
+                    "added_at": datetime.now(tz=UTC).isoformat(),
                 },
             )
 

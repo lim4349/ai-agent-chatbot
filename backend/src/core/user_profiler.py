@@ -1,6 +1,7 @@
 """User profiler for extracting and storing user information."""
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from src.core.logging import get_logger
@@ -290,8 +291,6 @@ Respond with valid JSON only."""
         if not self.memory:
             return
 
-        from datetime import datetime
-
         updates = {
             "interests": profile.interests,
             "technical_level": profile.technical_level,
@@ -300,7 +299,7 @@ Respond with valid JSON only."""
             "communication_preferences": profile.communication_preferences,
             "goals": profile.goals,
             "pain_points": profile.pain_points,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(tz=UTC).isoformat(),
         }
 
         await self.memory.update_user_profile(user_id, updates)
