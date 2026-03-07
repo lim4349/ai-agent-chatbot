@@ -219,8 +219,7 @@ class RestrictedPythonExecutor:
                 future = executor.submit(run_code)
                 try:
                     printed_output = await asyncio.wait_for(
-                        asyncio.wrap_future(future),
-                        timeout=self.timeout
+                        asyncio.wrap_future(future), timeout=self.timeout
                     )
                 except TimeoutError:
                     future.cancel()
@@ -356,6 +355,7 @@ class RestrictedPythonExecutor:
                 # Capture stdout in thread
                 import io
                 import sys
+
                 thread_buffer = io.StringIO()
                 old = sys.stdout
                 sys.stdout = thread_buffer
@@ -369,12 +369,12 @@ class RestrictedPythonExecutor:
                 return thread_buffer.getvalue()
 
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(run_code)
                 try:
                     output = await asyncio.wait_for(
-                        asyncio.wrap_future(future),
-                        timeout=self.timeout
+                        asyncio.wrap_future(future), timeout=self.timeout
                     )
                 except TimeoutError:
                     logger.warning("code_executor_timeout", timeout=self.timeout)

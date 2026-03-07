@@ -1,0 +1,6 @@
+backend/src/llm/.gitignore
+.env
+.env.*
+*.pyc
+__pycache__/
+*.pyo

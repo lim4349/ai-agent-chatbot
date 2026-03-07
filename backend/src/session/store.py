@@ -207,7 +207,7 @@ class SupabaseSessionStore:
             # Limit connection pool to reduce memory usage on Render Free Tier (512MB)
             # Use AsyncClient for non-blocking async operations
             limits = Limits(
-                max_connections=5,          # Total concurrent connections
+                max_connections=5,  # Total concurrent connections
                 max_keepalive_connections=2,  # Keep-alive pool size
             )
             http_client = AsyncClient(

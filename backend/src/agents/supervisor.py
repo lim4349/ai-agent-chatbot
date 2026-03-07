@@ -646,7 +646,10 @@ Provide a helpful response summarizing the results."""
             try:
                 # Wrap LLM call with metrics recording
                 messages = [
-                    {"role": "system", "content": "You are a helpful assistant summarizing workflow results."},
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant summarizing workflow results.",
+                    },
                     {"role": "user", "content": prompt},
                 ]
 

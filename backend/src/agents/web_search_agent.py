@@ -48,7 +48,7 @@ class WebSearchAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         search_tool: Tool = Provide[DIContainer.tool_registry],
         memory: MemoryStore = Provide[DIContainer.memory],
-        metrics_store = Provide[DIContainer.metrics_store],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, tools=[search_tool], memory=memory)
         self.search_tool = search_tool
@@ -119,7 +119,9 @@ Guidelines:
         ) as metrics:
             try:
                 search_results = await self.search_tool.execute(query=query)
-                tool_results.append({"tool": "web_search", "query": query, "results": search_results})
+                tool_results.append(
+                    {"tool": "web_search", "query": query, "results": search_results}
+                )
 
                 # Build messages with conversation history if memory is available
                 messages = [{"role": "system", "content": self.system_prompt}]

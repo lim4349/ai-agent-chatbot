@@ -35,6 +35,7 @@ class AnthropicProvider:
             client_kwargs["anthropic_api_url"] = config.base_url
         self.client = ChatAnthropic(**client_kwargs)
         self._cache = container.llm_cache()
+        self._rate_limit_store = container.rate_limit_store()
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -59,6 +60,14 @@ class AnthropicProvider:
             return cached, {"input_tokens": 0, "output_tokens": 0}
 
         response = await self.client.ainvoke(messages, **kwargs)
+
+        # Increment rate limit counters (actual LLM call)
+        try:
+            await self._rate_limit_store.increment_minute()
+            await self._rate_limit_store.increment_hour()
+            await self._rate_limit_store.increment_daily()
+        except Exception as e:
+            logger.warning(f"Failed to increment rate counters: {e}")
 
         # Normalize content: Anthropic returns a list of content blocks
         content = response.content
@@ -123,6 +132,15 @@ class AnthropicProvider:
             # Parse JSON from response
             result = self._parse_json_response(content)
             logger.debug("structured_output_parsed", result=result)
+
+            # Increment rate limit counters (actual LLM call)
+            try:
+                await self._rate_limit_store.increment_minute()
+                await self._rate_limit_store.increment_hour()
+                await self._rate_limit_store.increment_daily()
+            except Exception as e:
+                logger.warning(f"Failed to increment rate counters: {e}")
+
             return result
 
         except Exception as e:

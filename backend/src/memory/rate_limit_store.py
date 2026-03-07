@@ -114,16 +114,17 @@ class SupabaseRateLimitStore(RateLimitStore):
         try:
             # Use asyncio.to_thread for synchronous Supabase calls
             response = await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).select("*").eq(
-                    "metric_type", metric_type
-                ).execute()
+                lambda: (
+                    self._client.table(self._table_name)
+                    .select("*")
+                    .eq("metric_type", metric_type)
+                    .execute()
+                )
             )
 
             now = datetime.now(tz=UTC)
             ttl_seconds = (
-                60 if metric_type == "minute"
-                else 3600 if metric_type == "hour"
-                else 86400
+                60 if metric_type == "minute" else 3600 if metric_type == "hour" else 86400
             )
 
             if response.data and len(response.data) > 0:
@@ -138,11 +139,18 @@ class SupabaseRateLimitStore(RateLimitStore):
                         "reset_at": new_reset_at.isoformat(),
                     }
                     await asyncio.to_thread(
-                        lambda: self._client.table(self._table_name).update(updated).eq(
-                            "metric_type", metric_type
-                        ).execute()
+                        lambda: (
+                            self._client.table(self._table_name)
+                            .update(updated)
+                            .eq("metric_type", metric_type)
+                            .execute()
+                        )
                     )
-                    return {"metric_type": metric_type, "count": 0, "reset_at": new_reset_at.isoformat()}
+                    return {
+                        "metric_type": metric_type,
+                        "count": 0,
+                        "reset_at": new_reset_at.isoformat(),
+                    }
 
                 return record
 
@@ -179,9 +187,12 @@ class SupabaseRateLimitStore(RateLimitStore):
         try:
             record = await self._get_or_create_counter("minute")
             await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).update(
-                    {"count": record.get("count", 0) + 1}
-                ).eq("metric_type", "minute").execute()
+                lambda: (
+                    self._client.table(self._table_name)
+                    .update({"count": record.get("count", 0) + 1})
+                    .eq("metric_type", "minute")
+                    .execute()
+                )
             )
         except Exception as e:
             raise RuntimeError(f"Failed to increment minute counter: {e}") from e
@@ -205,9 +216,12 @@ class SupabaseRateLimitStore(RateLimitStore):
         try:
             record = await self._get_or_create_counter("hour")
             await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).update(
-                    {"count": record.get("count", 0) + 1}
-                ).eq("metric_type", "hour").execute()
+                lambda: (
+                    self._client.table(self._table_name)
+                    .update({"count": record.get("count", 0) + 1})
+                    .eq("metric_type", "hour")
+                    .execute()
+                )
             )
         except Exception as e:
             raise RuntimeError(f"Failed to increment hour counter: {e}") from e
@@ -231,9 +245,12 @@ class SupabaseRateLimitStore(RateLimitStore):
         try:
             record = await self._get_or_create_counter("daily")
             await asyncio.to_thread(
-                lambda: self._client.table(self._table_name).update(
-                    {"count": record.get("count", 0) + 1}
-                ).eq("metric_type", "daily").execute()
+                lambda: (
+                    self._client.table(self._table_name)
+                    .update({"count": record.get("count", 0) + 1})
+                    .eq("metric_type", "daily")
+                    .execute()
+                )
             )
         except Exception as e:
             raise RuntimeError(f"Failed to increment daily counter: {e}") from e
