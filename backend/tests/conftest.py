@@ -51,6 +51,7 @@ class MockMemoryStore:
 
     def __init__(self):
         self._sessions: dict[str, list] = {}
+        self._summaries: dict[str, str] = {}
 
     async def add_message(self, session_id: str, message: dict):
         """Add a message to memory."""
@@ -66,8 +67,36 @@ class MockMemoryStore:
         """Clear messages for a session or all sessions."""
         if session_id:
             self._sessions.pop(session_id, None)
+            self._summaries.pop(session_id, None)
         else:
             self._sessions.clear()
+            self._summaries.clear()
+
+    async def get_messages_with_limit(
+        self,
+        session_id: str,
+        max_tokens: int,
+    ) -> list[dict]:
+        """Get conversation history limited by token count."""
+        messages = self._sessions.get(session_id, [])
+        # Simple implementation: estimate ~4 chars per token
+        result = []
+        total_tokens = 0
+        for msg in reversed(messages):
+            msg_tokens = len(str(msg.get("content", ""))) // 4
+            if total_tokens + msg_tokens > max_tokens:
+                break
+            result.insert(0, msg)
+            total_tokens += msg_tokens
+        return result
+
+    async def add_summary(self, session_id: str, summary: str) -> None:
+        """Add or update a conversation summary."""
+        self._summaries[session_id] = summary
+
+    async def get_summary(self, session_id: str) -> str | None:
+        """Get the conversation summary for a session."""
+        return self._summaries.get(session_id)
 
     async def get_conversation_history(self, session_id: str, limit: int = 10):
         """Get conversation history for a session."""
