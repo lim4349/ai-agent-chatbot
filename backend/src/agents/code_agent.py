@@ -40,7 +40,7 @@ class CodeAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         code_executor: Tool | None = None,
         memory: MemoryStore = Provide[DIContainer.memory],
-        metrics_store = Provide[DIContainer.metrics_store],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
         self.code_executor = code_executor
@@ -118,11 +118,13 @@ Formatting Rules (IMPORTANT):
                 code_blocks = self._extract_python_code(response)
                 for i, code in enumerate(code_blocks, 1):
                     result = await self.code_executor.execute(code)
-                    tool_results.append({
-                        "tool": "code_executor",
-                        "block_number": i,
-                        "result": result,
-                    })
+                    tool_results.append(
+                        {
+                            "tool": "code_executor",
+                            "block_number": i,
+                            "result": result,
+                        }
+                    )
                     # Append execution result to response
                     exec_output = self._format_execution_result(result, i)
                     response = response + exec_output

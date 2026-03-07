@@ -50,7 +50,7 @@ class ChatAgent(BaseAgent):
         user_profiler: UserProfiler | None = Provide[DIContainer.user_profiler],
         topic_memory: TopicMemory | None = Provide[DIContainer.topic_memory],
         summarizer: Summarizer | None = Provide[DIContainer.summarizer],
-        metrics_store = Provide[DIContainer.metrics_store],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm)
         self.memory = memory
@@ -105,8 +105,7 @@ class ChatAgent(BaseAgent):
     @override
     def system_prompt(self) -> str:
         """System prompt for this agent."""
-        return (
-            """You are a helpful, friendly AI assistant. You engage in natural conversation and provide thoughtful, informative responses.
+        return """You are a helpful, friendly AI assistant. You engage in natural conversation and provide thoughtful, informative responses.
 
 Guidelines:
 - Be conversational but professional
@@ -148,7 +147,6 @@ Guidelines:
 내용입니다.- 항목 1- 항목 2
 ```
 """
-        )
 
     def _parse_memory_command(self, content: str) -> tuple[str, str | None]:
         """Parse user message for memory commands.

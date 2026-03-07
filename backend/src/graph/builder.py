@@ -69,7 +69,7 @@ def build_graph(container):
 
     # Create report agent with factory if available
     report = None
-    if hasattr(AgentFactory, 'create_report'):
+    if hasattr(AgentFactory, "create_report"):
         report = AgentFactory.create_report(
             llm=llm,
             memory=memory,

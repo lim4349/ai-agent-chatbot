@@ -57,6 +57,7 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+
 async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_store) -> None:
     """Check if global rate limits have been exceeded."""
     try:
@@ -89,16 +90,6 @@ async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_
         logger.warning(f"Rate limit check failed: {e}", exc_info=True)
 
 
-async def increment_rate_counters(rate_limit_store) -> None:
-    """Increment rate limit counters after successful API call."""
-    try:
-        await rate_limit_store.increment_minute()
-        await rate_limit_store.increment_hour()
-        await rate_limit_store.increment_daily()
-    except Exception as e:
-        logger.warning(f"Failed to increment rate counters: {e}", exc_info=True)
-
-
 async def _build_rate_limit_status(
     config: RateLimitConfig, rate_limit_store
 ) -> RateLimitStatusResponse:
@@ -106,7 +97,13 @@ async def _build_rate_limit_status(
 
     def _make_status(limit: int, used: int, reset_at: datetime) -> RateLimitStatus | None:
         if limit == 0:
-            return None
+            # When rate limiting is disabled, still show the count but with unlimited indicator
+            return RateLimitStatus(
+                limit=0,  # 0 means unlimited
+                used=used,
+                remaining=-1,  # -1 indicates unlimited
+                reset_at=reset_at.isoformat(),
+            )
         remaining = max(0, limit - used)
         return RateLimitStatus(
             limit=limit,
@@ -260,9 +257,6 @@ async def chat(
             status="success",
         )
 
-        # Increment rate counters after successful API call
-        await increment_rate_counters(rate_limit_store)
-
         return ChatResponse(
             message=response_message,
             session_id=request.session_id,
@@ -385,8 +379,6 @@ async def chat_stream(
             sent_content_hashes: set[int] = set()
             # Track all agents that ran during this workflow
             all_agents: list[str] = []
-            # Track if any error occurred during streaming
-            has_error = False
 
             # Stream events from graph
             async for event in graph.astream_events(
@@ -396,7 +388,6 @@ async def chat_stream(
 
                 # Check for error events
                 if kind == "on_chain_error" or kind == "on_tool_error":
-                    has_error = True
                     error_data = event.get("data", {})
                     error_msg = error_data.get("error", str(error_data))
                     logger.warning(f"Stream error event: {error_msg}")
@@ -437,10 +428,16 @@ async def chat_stream(
                         if agent != "done" and agent not in all_agents:
                             all_agents.append(agent)
                             # Send agent event for UI updates during streaming
-                            yield {"event": "agent", "data": json.dumps({"agent": agent, "all_agents": all_agents})}
+                            yield {
+                                "event": "agent",
+                                "data": json.dumps({"agent": agent, "all_agents": all_agents}),
+                            }
                         # When workflow completes, send final agent list
                         elif agent == "done" and all_agents:
-                            yield {"event": "agents_complete", "data": json.dumps({"agents": all_agents})}
+                            yield {
+                                "event": "agents_complete",
+                                "data": json.dumps({"agents": all_agents}),
+                            }
                         # When supervisor responds directly (no specialist agent ran, e.g. greetings),
                         # send the response as a token — no specialist on_chain_end will fire
                         if agent == "done" and not output.get("completed_steps"):
@@ -502,10 +499,6 @@ async def chat_stream(
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
 
-            # Increment rate counters after successful stream completion
-            if not has_error:
-                await increment_rate_counters(rate_limit_store)
-
             yield {"event": "done", "data": ""}
 
         except Exception as e:
@@ -542,9 +535,7 @@ async def health(
         per_minute_limit=config.rate_limit.per_minute,
         per_hour_limit=config.rate_limit.per_hour,
         token_limit=config.rate_limit.token_limit,
-        rate_limit_status=await _build_rate_limit_status(
-            config.rate_limit, rate_limit_store
-        ),
+        rate_limit_status=await _build_rate_limit_status(config.rate_limit, rate_limit_store),
     )
 
 

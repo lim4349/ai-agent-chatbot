@@ -53,6 +53,7 @@ class OpenAIProvider:
             client_kwargs["openai_api_base"] = config.base_url
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
+        self._rate_limit_store = container.rate_limit_store()
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -77,6 +78,14 @@ class OpenAIProvider:
             return cached, {"input_tokens": 0, "output_tokens": 0}
 
         response = await self.client.ainvoke(messages, **kwargs)
+
+        # Increment rate limit counters (actual LLM call)
+        try:
+            await self._rate_limit_store.increment_minute()
+            await self._rate_limit_store.increment_hour()
+            await self._rate_limit_store.increment_daily()
+        except Exception as e:
+            logger.warning(f"Failed to increment rate counters: {e}")
 
         # Normalize content
         content = response.content
@@ -127,6 +136,14 @@ class OpenAIProvider:
 
         if result is None:
             return None
+
+        # Increment rate limit counters (actual LLM call)
+        try:
+            await self._rate_limit_store.increment_minute()
+            await self._rate_limit_store.increment_hour()
+            await self._rate_limit_store.increment_daily()
+        except Exception as e:
+            logger.warning(f"Failed to increment rate counters: {e}")
 
         return self._extract_structured_result(result)
 

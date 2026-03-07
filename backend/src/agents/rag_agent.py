@@ -21,15 +21,13 @@ logger = get_logger(__name__)
 class RAGParagraph(BaseModel):
     """A paragraph/section of the RAG response."""
 
-    title: str | None = Field(
-        default=None, description="Optional title/subject for this paragraph"
-    )
+    title: str | None = Field(default=None, description="Optional title/subject for this paragraph")
     content: str = Field(
         description="Main text content. Each sentence should be complete and properly spaced."
     )
     bullet_points: list[str] = Field(
         default_factory=list,
-        description="Optional bullet points under this paragraph. Each item is a complete sentence."
+        description="Optional bullet points under this paragraph. Each item is a complete sentence.",
     )
 
 
@@ -40,12 +38,11 @@ class RAGResponse(BaseModel):
         description="List of paragraphs/sections that answer the question. Each paragraph has optional title, content text, and bullet points."
     )
     references: list[str] = Field(
-        default_factory=list,
-        description="List of source document names referenced in the answer"
+        default_factory=list, description="List of source document names referenced in the answer"
     )
     confidence: str = Field(
         default="high",
-        description="Confidence level: 'high' if documents clearly answer the question, 'medium' if partially, 'low' if unclear"
+        description="Confidence level: 'high' if documents clearly answer the question, 'medium' if partially, 'low' if unclear",
     )
 
 
@@ -94,7 +91,7 @@ class RAGAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         retriever: DocumentRetriever = Provide[DIContainer.retriever],
         memory: MemoryStore = Provide[DIContainer.memory],
-        metrics_store = Provide[DIContainer.metrics_store],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
         self.retriever = retriever
@@ -266,7 +263,7 @@ Respond in the user's language (Korean for Korean queries)."""
                     parsed = self._try_parse_json_response(response)
                     if parsed:
                         response = self._format_structured_response(parsed)
-                    elif response and response.strip().startswith('{'):
+                    elif response and response.strip().startswith("{"):
                         # If response looks like JSON but parsing failed, strip the JSON and show as plain text
                         response = f"Unable to parse structured response. Raw response:\n{response}"
 

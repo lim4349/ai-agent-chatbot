@@ -48,7 +48,7 @@ class ReportAgent(BaseAgent):
         self,
         llm: LLMProvider = Provide[DIContainer.llm],
         memory: MemoryStore = Provide[DIContainer.memory],
-        metrics_store = Provide[DIContainer.metrics_store],
+        metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
         self.metrics_store = metrics_store
@@ -124,7 +124,7 @@ Guidelines:
             return results
 
         # Pattern to match agent results: [agent_name]: content
-        pattern = r'\[([^\]]+)\]:\s*([^\[]+)(?=\[|$)'
+        pattern = r"\[([^\]]+)\]:\s*([^\[]+)(?=\[|$)"
         matches = re.findall(pattern, workflow_context, re.DOTALL)
 
         for agent_name, content in matches:
@@ -149,11 +149,20 @@ Guidelines:
                 results["chat"].append(entry)
             elif "previous" in agent_name:
                 # Context restored from memory - classify based on content
-                if any(kw in content.lower() for kw in ["검색", "search", "웹", "web", "사이트", "site"]):
+                if any(
+                    kw in content.lower()
+                    for kw in ["검색", "search", "웹", "web", "사이트", "site"]
+                ):
                     results["web_search"].append(entry)
-                elif any(kw in content.lower() for kw in ["문서", "document", "파일", "file", "업로드", "upload"]):
+                elif any(
+                    kw in content.lower()
+                    for kw in ["문서", "document", "파일", "file", "업로드", "upload"]
+                ):
                     results["rag"].append(entry)
-                elif any(kw in content.lower() for kw in ["코드", "code", "실행", "execute", "```python", "```javascript"]):
+                elif any(
+                    kw in content.lower()
+                    for kw in ["코드", "code", "실행", "execute", "```python", "```javascript"]
+                ):
                     results["code"].append(entry)
                 else:
                     results["chat"].append(entry)
@@ -217,9 +226,7 @@ Guidelines:
 
         # Executive Summary section
         sections.append("## 1. Executive Summary\n")
-        sections.append(
-            f"본 보고서는 '{query}'에 대한 연구 결과를 종합적으로 정리한 것입니다. "
-        )
+        sections.append(f"본 보고서는 '{query}'에 대한 연구 결과를 종합적으로 정리한 것입니다. ")
 
         source_types = []
         if "web_search" in classified_results:
@@ -232,9 +239,7 @@ Guidelines:
             source_types.append("대화 맥락")
 
         if source_types:
-            sections.append(
-                f"다음의 정보 소스를 활용했습니다: {', '.join(source_types)}.\n"
-            )
+            sections.append(f"다음의 정보 소스를 활용했습니다: {', '.join(source_types)}.\n")
 
         # Methodology section
         sections.append("\n## 2. Methodology\n")
@@ -248,7 +253,9 @@ Guidelines:
         sections.append("\n## 3. Findings by Source\n")
 
         for source_type, data in classified_results.items():
-            sections.append(f"\n### 3.{list(classified_results.keys()).index(source_type) + 1}. {data['description']}\n")
+            sections.append(
+                f"\n### 3.{list(classified_results.keys()).index(source_type) + 1}. {data['description']}\n"
+            )
 
             for i, item in enumerate(data["items"][:3], 1):  # Limit to top 3 per source
                 content_preview = item["content"][:300].replace("\n", " ")
@@ -397,7 +404,10 @@ Guidelines:
                     )
                     return {
                         **state,
-                        "messages": [*state["messages"], {"role": "assistant", "content": response}],
+                        "messages": [
+                            *state["messages"],
+                            {"role": "assistant", "content": response},
+                        ],
                     }
 
                 # Step 3: Structure the report
