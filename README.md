@@ -96,8 +96,3 @@ ai-agent-chatbot/
 - [아키텍처 문서](./ARCHITECTURE.md) — 시스템 설계 및 아키텍처 상세
 - [배포 가이드](./DEPLOYMENT.md) — Render.com + Vercel 배포 방법
 
----
-
-## 라이선스
-
-MIT
