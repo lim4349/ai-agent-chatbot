@@ -16,7 +16,8 @@ function classifyError(error: string): ChatError {
 
   // Network errors
   if (lowerError.includes('network') || lowerError.includes('fetch') ||
-      lowerError.includes('connection') || lowerError.includes('econnrefused')) {
+      lowerError.includes('connection') || lowerError.includes('econnrefused') ||
+      lowerError.includes('name or service not known') || lowerError.includes('dns')) {
     return {
       message: '네트워크 연결이 불안정합니다. 인터넷 연결을 확인해주세요.',
       type: 'network',
