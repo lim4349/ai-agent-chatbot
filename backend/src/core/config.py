@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env file from project root
@@ -147,6 +147,18 @@ class AppConfig(BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _coerce_debug_value(cls, value: Any) -> Any:
+        """Accept common non-boolean env values used by hosting platforms."""
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug", "development"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "production"}:
+                return False
+        return value
 
     model_config = SettingsConfigDict(
         env_file=str(_env_file),
