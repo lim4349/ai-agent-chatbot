@@ -31,6 +31,8 @@ class TopicMemory:
         """
         self.llm = llm
         self.memory = long_term_memory
+        self._min_relevance = 0.7
+        self._max_topics_per_pass = 3
 
     _TOPIC_EXTRACTION_PROMPT = """Analyze the following conversation and extract the main topics discussed.
 
@@ -47,12 +49,13 @@ Respond in JSON format:
     "topics": [
         {{
             "topic": "topic name",
-            "summary": "brief summary",
+            "summary": "brief, generalized summary without names, emails, companies, repos, URLs, ticket IDs, or secrets",
             "relevance": 0.8
         }}
     ]
 }}
 
+Do not include personal identifiers, company/customer names, repository names, URLs, issue keys, or secrets.
 Respond with valid JSON only."""
 
     _SUMMARY_GENERATION_PROMPT = """Summarize the following conversation about the topic "{topic}".
@@ -286,29 +289,33 @@ Summary:"""
         # Extract topics
         topics = await self.extract_topics(messages)
 
-        # Store each topic
-        for topic_data in topics:
-            topic_name = topic_data.get("topic")
-            if not topic_name:
-                continue
+        filtered_topics = [
+            topic
+            for topic in topics
+            if topic.get("topic") and topic.get("relevance", 0) >= self._min_relevance
+        ]
 
-            # Generate detailed summary
-            summary = await self.generate_topic_summary(topic_name, messages)
+        # Store only the top few high-signal topics
+        for topic_data in filtered_topics[: self._max_topics_per_pass]:
+            topic_name = topic_data.get("topic")
+            summary = (topic_data.get("summary") or "").strip()
+            if len(summary) < 24:
+                summary = await self.generate_topic_summary(topic_name, messages) or ""
 
             # Store in long-term memory
             await self.add_session_to_topic(
                 session_id=session_id,
                 topic=topic_name,
-                summary=summary or topic_data.get("summary", ""),
+                summary=summary,
             )
 
         logger.debug(
             "session_topics_processed",
             session_id=session_id,
-            topic_count=len(topics),
+            topic_count=len(filtered_topics[: self._max_topics_per_pass]),
         )
 
-        return topics
+        return filtered_topics[: self._max_topics_per_pass]
 
     def _format_conversation(self, messages: list[dict]) -> str:
         """Format messages for analysis.

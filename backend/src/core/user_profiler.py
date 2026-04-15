@@ -88,13 +88,15 @@ Respond in JSON format:
 {{
     "facts": [
         {{
-            "fact": "the specific fact",
+            "fact": "the specific fact, generalized without names, employers, repository names, URLs, issue IDs, or secrets",
             "category": "preferences|technical|domain|work|tools|goals",
             "confidence": 0.0-1.0
         }}
     ]
 }}
 
+Do not store direct identifiers such as names, emails, phone numbers, company names, customer names,
+repository names, URLs, ticket IDs, IPs, API keys, or secrets. Prefer durable preferences and working style.
 Only include facts with high confidence (>= 0.7).
 Respond with valid JSON only."""
 

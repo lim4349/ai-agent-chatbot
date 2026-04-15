@@ -48,7 +48,7 @@ Repository → Settings → Secrets and variables → Actions
 | `PINECONE_API_KEY` | Pinecone API 키 |
 | `SUPABASE_URL` | Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_KEY` | Supabase Service Role Key |
-| `UPSTASH_REDIS_URL` | Upstash Redis URL |
+| `MEMORY_REDIS_URL` | Upstash Redis URL |
 | `UPSTASH_REDIS_TOKEN` | Upstash Redis Token |
 
 ---
@@ -104,14 +104,14 @@ vercel --prod
 
 | 변수 | 예시 값 |
 |------|---------|
-| `LLM_PROVIDER` | lmstudio |
-| `LLM_MODEL` | local-model |
-| `LLM_OPENAI_API_KEY` | lm-studio |
-| `LLM_BASE_URL` | http://127.0.0.1:1234/v1 |
+| `LLM_PROVIDER` | openai |
+| `LLM_MODEL` | openai/gpt-4o-mini |
+| `LLM_OPENAI_API_KEY` | sk-or-v1-... |
+| `LLM_BASE_URL` | https://openrouter.ai/api/v1 |
 | `RAG_PINECONE_API_KEY` | xxx-xxx-xxx |
 | `SUPABASE_URL` | https://xxx.supabase.co |
 | `SUPABASE_SERVICE_KEY` | eyJ... |
-| `UPSTASH_REDIS_URL` | rediss://default:xxx@... |
+| `MEMORY_REDIS_URL` | rediss://default:xxx@... |
 | `MEMORY_BACKEND` | redis |
 
 ### Vercel (Frontend)

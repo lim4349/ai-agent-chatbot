@@ -26,7 +26,9 @@ from src.api.schemas import (
     SessionCreate,
     SessionListResponse,
     SessionResponse,
+    UserMemoryDeleteResponse,
 )
+from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger, log_request
 from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
@@ -652,6 +654,39 @@ async def delete_session(
             error=str(e),
         )
         raise HTTPException(status_code=500, detail=f"Failed to delete session: {e}") from e
+
+
+@router.delete("/users/{user_id}/memory", response_model=UserMemoryDeleteResponse)
+@inject
+async def delete_user_memory(
+    user_id: str,
+    device_id: str,
+    long_term_memory: LongTermMemory = Depends(Provide[DIContainer.long_term_memory]),  # noqa: B008
+) -> UserMemoryDeleteResponse:
+    """Delete long-term personalization data for the current guest user."""
+    if user_id != device_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this user memory")
+
+    try:
+        if long_term_memory:
+            await long_term_memory.clear_user_data(user_id)
+
+        return UserMemoryDeleteResponse(
+            user_id=user_id,
+            status="deleted",
+            message="User personalization data deleted successfully",
+        )
+    except Exception as e:
+        log_request(
+            method="DELETE",
+            path=f"/api/v1/users/{user_id}/memory",
+            session_id=None,
+            user_message="Failed to delete user memory",
+            duration_ms=0,
+            status="error",
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail="Failed to delete user memory") from e
 
 
 # === Logs Endpoints ===
