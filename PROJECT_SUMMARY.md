@@ -37,7 +37,7 @@ A production-ready **LangGraph-based multi-agent chatbot system** with advanced 
 | Server | Uvicorn | 0.32+ |
 | Agent Orchestration | LangGraph | 0.2+ |
 | AI Framework | LangChain | 0.3+ |
-| LLM Providers | OpenRouter, Google AI, Anthropic | Various |
+| LLM Providers | LM Studio, OpenAI-compatible, Anthropic | Various |
 | Config Management | Pydantic Settings | 2.0+ |
 | Streaming | sse-starlette | 2.1+ |
 | DI Container | dependency-injector | 4.41+ |
@@ -236,7 +236,7 @@ backend/src/
 │
 ├── llm/                 # LLM abstraction
 │   ├── factory.py       # LLMFactory pattern
-│   ├── openai_provider.py   # OpenRouter API
+│   ├── openai_provider.py   # OpenAI-compatible API (LM Studio 포함)
 │   ├── anthropic_provider.py # Claude API
 │   └── ollama_provider.py    # Local LLM
 │
@@ -547,4 +547,3 @@ docker-compose up -d
 **Last Updated**: 2026-03-18
 **Created for**: Portfolio PDF Presentation
 **Ready for**: Deployment, Scaling, Feature Extensions
-

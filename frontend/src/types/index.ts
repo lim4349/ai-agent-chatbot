@@ -3,6 +3,7 @@
 export interface ChatRequest {
   message: string;
   session_id: string;
+  device_id?: string;
   stream?: boolean;
 }
 
@@ -23,30 +24,12 @@ export interface ChatResponse {
   referenced_topics?: string[];
 }
 
-export interface RateLimitStatus {
-  limit: number;
-  used: number;
-  remaining: number;
-  reset_at: string;  // ISO datetime
-}
-
-export interface RateLimitStatusResponse {
-  per_minute?: RateLimitStatus;
-  per_hour?: RateLimitStatus;
-  daily?: RateLimitStatus;
-}
-
 export interface HealthResponse {
   status: string;
   llm_provider: string;
   llm_model: string;
   memory_backend: string;
   available_agents: string[];
-  daily_request_limit: number;  // 0 = unlimited, hide quota display
-  per_minute_limit: number;  // 0 = unlimited
-  per_hour_limit: number;  // 0 = unlimited
-  token_limit: number;  // 0 = unlimited
-  rate_limit_status?: RateLimitStatusResponse;
 }
 
 export interface AgentInfo {

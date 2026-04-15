@@ -75,18 +75,6 @@ class ToolsConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TOOLS_")
 
 
-class RateLimitConfig(BaseSettings):
-    """Rate limiting configuration."""
-
-    per_session: int = 20  # Max requests per session
-    per_minute: int = 0  # Requests per minute (0 = unlimited)
-    per_hour: int = 0  # Requests per hour (0 = unlimited)
-    daily_request_limit: int = 0  # Daily request limit (0 = unlimited, hide quota display)
-    # Note: token_limit was removed as it was never implemented
-
-    model_config = SettingsConfigDict(env_prefix="RATE_LIMIT_")
-
-
 class ObservabilityConfig(BaseSettings):
     """Observability and monitoring configuration."""
 
@@ -158,7 +146,6 @@ class AppConfig(BaseSettings):
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
-    rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     model_config = SettingsConfigDict(

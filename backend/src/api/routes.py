@@ -23,13 +23,10 @@ from src.api.schemas import (
     FileUploadResponse,
     HealthResponse,
     MetricsSummaryResponse,
-    RateLimitStatus,
-    RateLimitStatusResponse,
     SessionCreate,
     SessionListResponse,
     SessionResponse,
 )
-from src.core.config import AppConfig, RateLimitConfig
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger, log_request
 from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
@@ -50,81 +47,11 @@ from src.documents.models import Document
 from src.documents.pinecone_store import PineconeVectorStore
 from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
-from src.memory.rate_limit_store import RateLimitStore
 from src.tools.registry import ToolRegistry
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-async def check_rate_limit(session_id: str, config: RateLimitConfig, rate_limit_store) -> None:
-    """Check if global rate limits have been exceeded."""
-    try:
-        minute_count, _ = await rate_limit_store.get_minute_count()
-        if config.per_minute > 0 and minute_count >= config.per_minute:
-            raise HTTPException(
-                status_code=429,
-                detail=f"분당 최대 {config.per_minute}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
-            )
-
-        hour_count, _ = await rate_limit_store.get_hour_count()
-        if config.per_hour > 0 and hour_count >= config.per_hour:
-            raise HTTPException(
-                status_code=429,
-                detail=f"시간당 최대 {config.per_hour}회 호출 가능합니다. 잠시 후 다시 시도해주세요.",
-            )
-
-        daily_count, _ = await rate_limit_store.get_daily_count()
-        if config.daily_request_limit > 0 and daily_count >= config.daily_request_limit:
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    f"일일 최대 {config.daily_request_limit}회 호출 가능합니다. "
-                    "내일 다시 시도해주세요."
-                ),
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Rate limit check failed: {e}", exc_info=True)
-
-
-async def _build_rate_limit_status(
-    config: RateLimitConfig, rate_limit_store
-) -> RateLimitStatusResponse:
-    """Build current rate limit status from store."""
-
-    def _make_status(limit: int, used: int, reset_at: datetime) -> RateLimitStatus | None:
-        if limit == 0:
-            # When rate limiting is disabled, still show the count but with unlimited indicator
-            return RateLimitStatus(
-                limit=0,  # 0 means unlimited
-                used=used,
-                remaining=-1,  # -1 indicates unlimited
-                reset_at=reset_at.isoformat(),
-            )
-        remaining = max(0, limit - used)
-        return RateLimitStatus(
-            limit=limit,
-            used=used,
-            remaining=remaining,
-            reset_at=reset_at.isoformat(),
-        )
-
-    try:
-        minute_count, minute_reset = await rate_limit_store.get_minute_count()
-        hour_count, hour_reset = await rate_limit_store.get_hour_count()
-        daily_count, daily_reset = await rate_limit_store.get_daily_count()
-
-        return RateLimitStatusResponse(
-            per_minute=_make_status(config.per_minute, minute_count, minute_reset),
-            per_hour=_make_status(config.per_hour, hour_count, hour_reset),
-            daily=_make_status(config.daily_request_limit, daily_count, daily_reset),
-        )
-    except Exception as e:
-        logger.warning(f"Failed to build rate limit status: {e}", exc_info=True)
-        return RateLimitStatusResponse()
 
 
 def get_message_content(msg) -> str:
@@ -144,17 +71,11 @@ async def chat(
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
-    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
-    llm_provider=Depends(Provide[DIContainer.llm]),  # noqa: B008
-    rate_limit_store=Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
     The supervisor will route to the appropriate specialist agent.
     """
-    # Rate limiting
-    await check_rate_limit(request.session_id, config.rate_limit, rate_limit_store)
-
     start_time = time.perf_counter()
 
     # Security: Check for prompt injection attacks
@@ -287,16 +208,11 @@ async def chat_stream(
     vector_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
     session_store: SessionStore = Depends(Provide[DIContainer.session_store]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
-    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
-    rate_limit_store: RateLimitStore = Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ):
     """Send a message and get a streaming response (SSE).
 
     Yields tokens as they are generated.
     """
-    # Rate limiting
-    await check_rate_limit(request.session_id, config.rate_limit, rate_limit_store)
-
     # Security: Check for prompt injection attacks
     injection = detect_injection(request.message)
     if injection:
@@ -326,13 +242,14 @@ async def chat_stream(
     sanitized_message = sanitize_for_llm(request.message)
 
     # Get session to retrieve device_id
-    device_id = None
+    device_id = request.device_id
     has_docs = False
     if session_store:
         try:
             session = await session_store.get(request.session_id)
             if session:
-                device_id = session.user_id  # In guest mode, user_id is device_id
+                if not device_id:
+                    device_id = session.user_id  # In guest mode, user_id is device_id
                 if vector_store:
                     has_docs = await vector_store.has_documents_for_session(
                         device_id=device_id, session_id=request.session_id
@@ -513,7 +430,6 @@ async def health(
     config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
     tool_registry: ToolRegistry = Depends(Provide[DIContainer.tool_registry]),  # noqa: B008
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
-    rate_limit_store: RateLimitStore = Depends(Provide[DIContainer.rate_limit_store]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
     # Determine available agents based on configuration
@@ -531,10 +447,6 @@ async def health(
         llm_model=config.llm.model,
         memory_backend=config.memory.backend,
         available_agents=available_agents,
-        daily_request_limit=config.rate_limit.daily_request_limit,
-        per_minute_limit=config.rate_limit.per_minute,
-        per_hour_limit=config.rate_limit.per_hour,
-        rate_limit_status=await _build_rate_limit_status(config.rate_limit, rate_limit_store),
     )
 
 
@@ -612,20 +524,6 @@ async def upload_document(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail="문서 인덱싱 중 오류가 발생했습니다.") from e
-
-
-@router.delete("/sessions/{session_id}")
-@inject
-async def clear_session(
-    session_id: str,
-    memory: MemoryStore = Depends(Provide[DIContainer.memory]),  # noqa: B008
-):
-    """Clear conversation history for a session."""
-    try:
-        await memory.clear(session_id)
-        return {"status": "cleared", "session_id": session_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="세션 초기화 중 오류가 발생했습니다.") from e
 
 
 # === Session Management Endpoints ===

@@ -5,6 +5,7 @@ import { useChatStore, useActiveSession } from '@/stores/chat-store';
 import { Header } from '@/components/header/header';
 import { Sidebar } from '@/components/sidebar/sidebar';
 import { ChatContainer } from '@/components/chat/chat-container';
+import { ContextResetButton } from '@/components/chat/context-reset-button';
 import { CombinedDocumentUpload } from '@/components/documents/combined-document-upload';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -16,8 +17,8 @@ export default function ChatPage() {
   const toggleSidebar = useChatStore((state) => state.toggleSidebar);
   const hasHydrated = useChatStore((state) => state._hasHydrated);
   const sessions = useChatStore((state) => state.sessions);
-  const activeSessionId = useChatStore((state) => state.activeSessionId);
   const createSession = useChatStore((state) => state.createSession);
+  const clearCurrentSession = useChatStore((state) => state.clearCurrentSession);
   const activeSession = useActiveSession();
 
   // Mobile sidebar state (separate from desktop sidebar)
@@ -75,7 +76,10 @@ export default function ChatPage() {
             <div className="text-sm text-muted-foreground">
               {activeSession?.title || 'New Chat'}
             </div>
-            <CombinedDocumentUpload />
+            <div className="flex items-center gap-2">
+              <ContextResetButton onReset={() => { void clearCurrentSession(); }} />
+              <CombinedDocumentUpload />
+            </div>
           </div>
 
           {/* Chat Container */}

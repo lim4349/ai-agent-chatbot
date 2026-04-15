@@ -238,32 +238,6 @@ def _create_metrics_store(config):
     return None
 
 
-def _create_rate_limit_store(config):
-    """Create rate limit store with graceful fallback.
-
-    Returns SupabaseRateLimitStore if configured, otherwise InMemoryRateLimitStore.
-    """
-    from src.memory.rate_limit_store import (
-        InMemoryRateLimitStore,
-        SupabaseRateLimitStore,
-    )
-
-    if (
-        config.session.resolved_backend == "supabase"
-        and config.session.supabase_url
-        and config.session.supabase_key
-    ):
-        store = SupabaseRateLimitStore(
-            supabase_url=config.session.supabase_url,
-            supabase_key=config.session.supabase_key,
-        )
-        if store.is_available:
-            return store
-
-    # Fallback to in-memory
-    return InMemoryRateLimitStore()
-
-
 def _create_graph_factory():
     """Factory to create graph with container.
 
@@ -384,13 +358,5 @@ class DIContainer(containers.DeclarativeContainer):
         _create_metrics_store,
         config=config,
     )
-
-    # Rate Limit Store
-    rate_limit_store = providers.Singleton(
-        _create_rate_limit_store,
-        config=config,
-    )
-
-
 # Global container instance
 container = DIContainer()

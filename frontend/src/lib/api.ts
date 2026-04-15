@@ -194,13 +194,6 @@ export const api = {
       method: 'DELETE',
     });
   },
-
-  async clearSession(sessionId: string): Promise<void> {
-    await fetchApi(API_ENDPOINTS.session(sessionId), {
-      method: 'DELETE',
-    });
-  },
-
   // Metrics
   async getMetricsSummary(period: MetricsPeriod = '24h'): Promise<MetricsSummary> {
     return fetchApi<MetricsSummary>(`/api/v1/metrics/summary?period=${period}`);

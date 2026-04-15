@@ -54,11 +54,14 @@ class TestChatAPI:
         assert "supervisor" in agent_names
         assert "chat" in agent_names
 
-    def test_clear_session(self, client):
-        """Test session clearing endpoint."""
-        # Clear a session (doesn't need to exist)
-        response = client.delete("/api/v1/sessions/test-clear")
+    def test_create_session(self, client):
+        """Test session creation endpoint."""
+        response = client.post(
+            "/api/v1/sessions",
+            json={"title": "Test Session", "device_id": "device-test"},
+        )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "cleared"
+        assert data["title"] == "Test Session"
+        assert data["user_id"] == "device-test"
