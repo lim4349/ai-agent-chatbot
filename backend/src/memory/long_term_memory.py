@@ -68,10 +68,23 @@ class LongTermMemory:
         else:
             logger.info("long_term_memory_initialized", supabase=False, in_memory=True)
 
+    _MIN_FACT_CONFIDENCE = 0.8
+    _MIN_TOPIC_SUMMARY_LENGTH = 24
+    _GENERIC_FACT_PREFIXES = (
+        "the user",
+        "user prefers",
+        "user likes",
+        "user uses",
+    )
+
     def _anonymize(self, text: str) -> str:
         """Anonymize potentially sensitive information."""
         if not self.anonymize:
             return text
+
+        # Replace URLs and repository-like references first
+        text = re.sub(r"https?://\S+", "[URL_REDACTED]", text)
+        text = re.sub(r"\bgithub\.com/\S+\b", "[REPO_REDACTED]", text, flags=re.IGNORECASE)
 
         # Replace email addresses
         text = re.sub(
@@ -85,8 +98,49 @@ class LongTermMemory:
             "[PHONE_REDACTED]",
             text,
         )
+        # Replace IPv4 addresses
+        text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP_REDACTED]", text)
+        # Replace @handles and common ticket references
+        text = re.sub(r"(?<!\w)@[A-Za-z0-9_][A-Za-z0-9_.-]*", "[HANDLE_REDACTED]", text)
+        text = re.sub(r"\b[A-Z]{2,10}-\d{1,6}\b", "[TICKET_REDACTED]", text)
 
         return text
+
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for dedupe checks."""
+        normalized = re.sub(r"\s+", " ", text.strip().lower())
+        normalized = re.sub(r"[^\w\s\[\]]", "", normalized)
+        return normalized
+
+    def _is_fact_worth_storing(self, fact: str, confidence: float) -> bool:
+        """Reject vague or low-confidence facts before persistence."""
+        normalized = self._normalize_text(fact)
+        if confidence < self._MIN_FACT_CONFIDENCE:
+            return False
+        if len(normalized) < 12:
+            return False
+        return not any(normalized.startswith(prefix) for prefix in self._GENERIC_FACT_PREFIXES)
+
+    def _find_fact_index(
+        self,
+        facts: list[dict[str, Any]],
+        category: str,
+        normalized_fact: str,
+    ) -> int | None:
+        """Find an existing fact with matching normalized content."""
+        for index, fact_data in enumerate(facts):
+            if fact_data["category"] != category:
+                continue
+
+            existing_normalized = self._normalize_text(fact_data["fact"])
+            if (
+                existing_normalized == normalized_fact
+                or normalized_fact in existing_normalized
+                or existing_normalized in normalized_fact
+            ):
+                return index
+
+        return None
 
     def _generate_id(self, *parts: str) -> str:
         """Generate a unique ID from parts."""
@@ -109,7 +163,17 @@ class LongTermMemory:
             confidence: Confidence level of the fact (0.0-1.0)
         """
         anonymized_fact = self._anonymize(fact)
+        if not self._is_fact_worth_storing(anonymized_fact, confidence):
+            logger.debug(
+                "user_fact_skipped",
+                user_id=user_id,
+                category=category,
+                reason="low_confidence_or_generic",
+            )
+            return
+
         timestamp = datetime.now(tz=UTC).isoformat()
+        normalized_fact = self._normalize_text(anonymized_fact)
 
         fact_data = {
             "user_id": user_id,
@@ -122,19 +186,52 @@ class LongTermMemory:
         # Store in memory fallback
         if user_id not in self._facts:
             self._facts[user_id] = []
-        self._facts[user_id].append(fact_data)
+        existing_index = self._find_fact_index(self._facts[user_id], category, normalized_fact)
+        if existing_index is None:
+            self._facts[user_id].append(fact_data)
+        elif confidence >= self._facts[user_id][existing_index].get("confidence", 0):
+            self._facts[user_id][existing_index] = fact_data
 
         # Store in Supabase if available
         if self._use_supabase and self._client:
             try:
-                self._client.table("user_facts").insert(
-                    {
-                        "user_id": user_id,
-                        "fact": anonymized_fact,
-                        "category": category,
-                        "confidence": confidence,
-                    }
-                ).execute()
+                existing_facts = (
+                    self._client.table("user_facts")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .eq("category", category)
+                    .execute()
+                )
+
+                matching_row = None
+                for row in existing_facts.data:
+                    row_normalized = self._normalize_text(row["fact"])
+                    if (
+                        row_normalized == normalized_fact
+                        or normalized_fact in row_normalized
+                        or row_normalized in normalized_fact
+                    ):
+                        matching_row = row
+                        break
+
+                if matching_row:
+                    row_id = matching_row.get("id")
+                    if row_id and confidence >= matching_row.get("confidence", 0):
+                        self._client.table("user_facts").update(
+                            {
+                                "fact": anonymized_fact,
+                                "confidence": confidence,
+                            }
+                        ).eq("id", row_id).execute()
+                else:
+                    self._client.table("user_facts").insert(
+                        {
+                            "user_id": user_id,
+                            "fact": anonymized_fact,
+                            "category": category,
+                            "confidence": confidence,
+                        }
+                    ).execute()
             except Exception as e:
                 logger.error("failed_to_store_fact", error=str(e))
 
@@ -290,50 +387,97 @@ class LongTermMemory:
             session_id: Optional session that generated this summary
             metadata: Additional metadata
         """
+        clean_topic = " ".join(topic.strip().split())
+        clean_summary = self._anonymize(summary.strip())
+        if len(clean_summary) < self._MIN_TOPIC_SUMMARY_LENGTH:
+            logger.debug(
+                "topic_summary_skipped",
+                topic=clean_topic,
+                session_id=session_id,
+                reason="summary_too_short",
+            )
+            return
+
         timestamp = datetime.now(tz=UTC).isoformat()
 
         summary_data = {
-            "topic": topic,
-            "summary": summary,
+            "topic": clean_topic,
+            "summary": clean_summary,
             "session_id": session_id,
             "timestamp": timestamp,
             "metadata": metadata or {},
         }
 
         # Store in memory fallback
-        if topic not in self._topic_summaries:
-            self._topic_summaries[topic] = []
-        self._topic_summaries[topic].append(summary_data)
+        if clean_topic not in self._topic_summaries:
+            self._topic_summaries[clean_topic] = []
+        replaced = False
+        if session_id:
+            for index, existing in enumerate(self._topic_summaries[clean_topic]):
+                if existing.get("session_id") == session_id:
+                    self._topic_summaries[clean_topic][index] = summary_data
+                    replaced = True
+                    break
+        if not replaced:
+            self._topic_summaries[clean_topic].append(summary_data)
 
         # Link session to topic
         if session_id:
             if session_id not in self._session_topics:
                 self._session_topics[session_id] = set()
-            self._session_topics[session_id].add(topic)
+            self._session_topics[session_id].add(clean_topic)
 
-            if topic not in self._topic_sessions:
-                self._topic_sessions[topic] = set()
-            self._topic_sessions[topic].add(session_id)
+            if clean_topic not in self._topic_sessions:
+                self._topic_sessions[clean_topic] = set()
+            self._topic_sessions[clean_topic].add(session_id)
 
         # Store in Supabase if available
         if self._use_supabase and self._client:
             try:
-                self._client.table("topic_summaries").insert(
-                    {
-                        "topic": topic,
-                        "summary": summary,
-                        "session_id": session_id,
-                        "metadata": metadata or {},
-                    }
-                ).execute()
+                if session_id:
+                    existing_rows = (
+                        self._client.table("topic_summaries")
+                        .select("*")
+                        .eq("session_id", session_id)
+                        .eq("topic", clean_topic)
+                        .execute()
+                    )
+                else:
+                    existing_rows = None
+
+                if existing_rows and existing_rows.data:
+                    row_id = existing_rows.data[0].get("id")
+                    if row_id:
+                        self._client.table("topic_summaries").update(
+                            {
+                                "summary": clean_summary,
+                                "metadata": metadata or {},
+                            }
+                        ).eq("id", row_id).execute()
+                    else:
+                        self._client.table("topic_summaries").update(
+                            {
+                                "summary": clean_summary,
+                                "metadata": metadata or {},
+                            }
+                        ).eq("session_id", session_id).eq("topic", clean_topic).execute()
+                else:
+                    self._client.table("topic_summaries").insert(
+                        {
+                            "topic": clean_topic,
+                            "summary": clean_summary,
+                            "session_id": session_id,
+                            "metadata": metadata or {},
+                        }
+                    ).execute()
             except Exception as e:
                 logger.error("failed_to_store_topic", error=str(e))
 
         logger.debug(
             "topic_summary_stored",
-            topic=topic,
+            topic=clean_topic,
             session_id=session_id,
-            summary_length=len(summary),
+            summary_length=len(clean_summary),
         )
 
     async def get_topic_history(self, topic: str, limit: int = 10) -> list[dict]:

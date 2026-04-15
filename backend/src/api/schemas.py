@@ -130,6 +130,14 @@ class DocumentDeleteResponse(BaseModel):
     status: str = Field(..., description="Deletion status")
 
 
+class UserMemoryDeleteResponse(BaseModel):
+    """User memory deletion response."""
+
+    user_id: str = Field(..., description="User or device identifier")
+    status: str = Field(..., description="Deletion status")
+    message: str = Field(..., description="Status message")
+
+
 # --- Session Models ---
 
 
