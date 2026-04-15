@@ -104,8 +104,10 @@ vercel --prod
 
 | 변수 | 예시 값 |
 |------|---------|
-| `LLM_OPENAI_API_KEY` | sk-or-v1-... (OpenRouter) |
-| `LLM_BASE_URL` | https://openrouter.ai/api/v1 |
+| `LLM_PROVIDER` | lmstudio |
+| `LLM_MODEL` | local-model |
+| `LLM_OPENAI_API_KEY` | lm-studio |
+| `LLM_BASE_URL` | http://127.0.0.1:1234/v1 |
 | `RAG_PINECONE_API_KEY` | xxx-xxx-xxx |
 | `SUPABASE_URL` | https://xxx.supabase.co |
 | `SUPABASE_SERVICE_KEY` | eyJ... |

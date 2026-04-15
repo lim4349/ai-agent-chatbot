@@ -134,7 +134,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onCancel, placeholder
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
-            disabled={disabled}
+            disabled={disabled || isStreaming}
             className={cn(
               'min-h-[44px] max-h-[200px] resize-none pr-16 overflow-y-auto',
               isOverLimit && 'border-destructive focus-visible:ring-destructive',

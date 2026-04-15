@@ -10,10 +10,18 @@ from src.llm.factory import LLMFactory
 class TestLLMFactory:
     """Test cases for LLM Factory."""
 
+    @pytest.fixture(autouse=True)
+    def _stable_app_debug(self, monkeypatch):
+        """Keep factory tests isolated from shell-specific APP_DEBUG values."""
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("APP_DEBUG", "false")
+        yield
+
     def test_available_providers(self):
         """Test that providers are registered."""
         providers = LLMFactory.available_providers()
         assert "openai" in providers
+        assert "lmstudio" in providers
         assert "anthropic" in providers
         assert "ollama" in providers
 
@@ -36,6 +44,15 @@ class TestLLMFactory:
         )
         provider = LLMFactory.create(config)
         assert provider.__class__.__name__ == "OllamaProvider"
+
+    def test_create_lmstudio_provider(self):
+        """Test creating LM Studio provider via OpenAI-compatible adapter."""
+        config = LLMConfig(
+            provider="lmstudio",
+            model="local-model",
+        )
+        provider = LLMFactory.create(config)
+        assert provider.__class__.__name__ == "OpenAIProvider"
 
     def test_unknown_provider_raises(self):
         """Test that unknown provider raises error."""

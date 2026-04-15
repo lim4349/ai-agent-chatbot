@@ -24,12 +24,21 @@ warnings.filterwarnings(
 )
 
 
+@LLMFactory.register("lmstudio")
 @LLMFactory.register("openai")
 class OpenAIProvider:
     """OpenAI API provider using LangChain."""
 
     def __init__(self, config: LLMConfig):
         self.config = config
+        base_url = config.base_url
+        api_key = config.openai_api_key
+
+        if config.provider == "lmstudio":
+            base_url = base_url or "http://127.0.0.1:1234/v1"
+            api_key = api_key or "lm-studio"
+        elif base_url and not api_key:
+            api_key = "local-api-key"
 
         # Configure httpx client with memory-efficient limits for Render Free Tier
         limits = httpx.Limits(
@@ -44,16 +53,15 @@ class OpenAIProvider:
         # LangChain client
         client_kwargs = {
             "model": config.model,
-            "api_key": config.openai_api_key,
+            "api_key": api_key,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
             "http_client": http_client,
         }
-        if config.base_url:
-            client_kwargs["openai_api_base"] = config.base_url
+        if base_url:
+            client_kwargs["openai_api_base"] = base_url
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
-        self._rate_limit_store = container.rate_limit_store()
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
@@ -78,14 +86,6 @@ class OpenAIProvider:
             return cached, {"input_tokens": 0, "output_tokens": 0}
 
         response = await self.client.ainvoke(messages, **kwargs)
-
-        # Increment rate limit counters (actual LLM call)
-        try:
-            await self._rate_limit_store.increment_minute()
-            await self._rate_limit_store.increment_hour()
-            await self._rate_limit_store.increment_daily()
-        except Exception as e:
-            logger.warning(f"Failed to increment rate counters: {e}")
 
         # Normalize content
         content = response.content
@@ -136,14 +136,6 @@ class OpenAIProvider:
 
         if result is None:
             return None
-
-        # Increment rate limit counters (actual LLM call)
-        try:
-            await self._rate_limit_store.increment_minute()
-            await self._rate_limit_store.increment_hour()
-            await self._rate_limit_store.increment_daily()
-        except Exception as e:
-            logger.warning(f"Failed to increment rate counters: {e}")
 
         return self._extract_structured_result(result)
 

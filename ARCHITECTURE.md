@@ -65,7 +65,7 @@
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
-| **LLM** | 로컬: z.ai (GLM-5) / 배포: Google AI Studio (Gemini 2.5 Flash) | - |
+| **LLM** | LM Studio (OpenAI-compatible local model) | - |
 | **Vector DB** | Pinecone | - |
 | **임베딩** | multilingual-e5-large | - |
 | **세션 메모리** | Upstash Redis / In-Memory | TTL: 1시간 |

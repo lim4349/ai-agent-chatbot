@@ -10,25 +10,6 @@ import { useToastStore } from './toast-store';
 // Device ID for guest mode (no login required)
 const DEVICE_ID_KEY = 'device_id';
 
-// Calculate time until rate limit reset (UTC 00:00 = KST 09:00)
-function getRateLimitResetTime(): string {
-  const now = new Date();
-  const resetTime = new Date(now);
-  resetTime.setUTCHours(24, 0, 0, 0); // Next UTC midnight
-
-  const diffMs = resetTime.getTime() - now.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-  // KST reset time (UTC+9) is 9 AM
-  const kstResetHour = 9;
-
-  if (diffHours > 0) {
-    return `오전 ${kstResetHour}시에 리셋됩니다. (약 ${diffHours}시간 ${diffMinutes}분 남음)`;
-  }
-  return `오전 ${kstResetHour}시에 리셋됩니다. (약 ${diffMinutes}분 남음)`;
-}
-
 // Error classification utility
 function classifyError(error: string): ChatError {
   const lowerError = error.toLowerCase();
@@ -54,23 +35,10 @@ function classifyError(error: string): ChatError {
     };
   }
 
-  // Rate limiting (429) and Payment Required (402 - OpenRouter free tier quota)
-  if (lowerError.includes('rate limit') || lowerError.includes('too many requests') ||
-      lowerError.includes('429') || lowerError.includes('402') ||
-      lowerError.includes('payment required') || lowerError.includes('more credits') ||
-      lowerError.includes('resource_exhausted')) {
-    const resetInfo = getRateLimitResetTime();
-    return {
-      message: `API 요청 한도에 도달했습니다. ${resetInfo}`,
-      type: 'rate_limit',
-      retryable: true,
-      originalError: error,
-    };
-  }
-
   // Server errors
   if (lowerError.includes('500') || lowerError.includes('502') ||
-      lowerError.includes('503') || lowerError.includes('server error')) {
+      lowerError.includes('503') || lowerError.includes('429') ||
+      lowerError.includes('server error')) {
     return {
       message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
       type: 'server',
@@ -99,7 +67,7 @@ export function getDeviceId(): string {
 }
 
 // Error types for better error handling
-export type ErrorType = 'network' | 'timeout' | 'server' | 'rate_limit' | 'unknown';
+export type ErrorType = 'network' | 'timeout' | 'server' | 'unknown';
 
 export interface ChatError {
   message: string;
@@ -126,7 +94,8 @@ interface ChatStore {
   setError: (error: ChatError | null) => void;
   setHealth: (health: HealthResponse | null) => void;
   toggleSidebar: () => void;
-  clearCurrentSession: () => void;
+  clearCurrentSession: () => Promise<string | undefined>;
+  cancelStreaming: () => void;
   retryLastMessage: () => void;
 
   // Memory command handling
@@ -143,6 +112,7 @@ interface ChatStore {
 
   // Internal state for retry functionality
   _lastMessageContent: string;
+  _currentStreamAbort: (() => void) | null;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -164,6 +134,7 @@ export const useChatStore = create<ChatStore>()(
 
       // Internal state for retry functionality
       _lastMessageContent: '',
+      _currentStreamAbort: null,
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
@@ -341,8 +312,8 @@ export const useChatStore = create<ChatStore>()(
           }, CHECK_INTERVAL); // ~30fps check
         };
 
-        streamChat(
-          { message: content, session_id: sessionId },
+        const streamRequest = streamChat(
+          { message: content, session_id: sessionId, device_id: getDeviceId() },
           {
             onMetadata: () => {},
             onToken: (token) => {
@@ -405,9 +376,10 @@ export const useChatStore = create<ChatStore>()(
                       : s
                   ),
                   isStreaming: false,
+                  _currentStreamAbort: null,
                 }));
               } else {
-                set({ isStreaming: false });
+                set({ isStreaming: false, _currentStreamAbort: null });
               }
             },
             onError: (error) => {
@@ -419,6 +391,7 @@ export const useChatStore = create<ChatStore>()(
               const classifiedError = classifyError(error);
               set((state) => ({
                 isStreaming: false,
+                _currentStreamAbort: null,
                 error: classifiedError,
                 sessions: state.sessions.map((s) =>
                   s.id === sessionId
@@ -436,6 +409,7 @@ export const useChatStore = create<ChatStore>()(
             },
           }
         );
+        set({ _currentStreamAbort: streamRequest.abort });
       },
 
       setStreaming: (value) => set({ isStreaming: value }),
@@ -471,19 +445,49 @@ export const useChatStore = create<ChatStore>()(
       },
 
       clearCurrentSession: async () => {
-        const { activeSessionId } = get();
+        const { activeSessionId, sessions } = get();
         if (!activeSessionId) return;
 
-        try {
-          await api.clearSession(activeSessionId);
-          set((state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === activeSessionId ? { ...s, messages: [] } : s
-            ),
-          }));
-        } catch (error) {
-          console.error('Failed to clear session:', error);
+        get().cancelStreaming();
+        const currentSession = sessions.find((session) => session.id === activeSessionId);
+        if (!currentSession || currentSession.messages.length === 0) {
+          return activeSessionId;
         }
+
+        const nextSessionId = await get().createSession();
+        const { addToast } = useToastStore.getState();
+        addToast('새 대화를 시작했어요.', 'info');
+        return nextSessionId;
+      },
+
+      cancelStreaming: () => {
+        const { activeSessionId, _currentStreamAbort } = get();
+        _currentStreamAbort?.();
+
+        if (!activeSessionId) {
+          set({ isStreaming: false, _currentStreamAbort: null });
+          return;
+        }
+
+        set((state) => ({
+          isStreaming: false,
+          _currentStreamAbort: null,
+          sessions: state.sessions.map((session) => {
+            if (session.id !== activeSessionId) {
+              return session;
+            }
+
+            const lastMessage = session.messages[session.messages.length - 1];
+            if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.content.trim()) {
+              return session;
+            }
+
+            return {
+              ...session,
+              messages: session.messages.slice(0, -1),
+            };
+          }),
+        }));
       },
 
       // Memory command actions
