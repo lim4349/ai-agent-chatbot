@@ -29,15 +29,15 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: LLM_PROVIDER
-        value: lmstudio
+        value: openai
       - key: LLM_MODEL
-        value: local-model
+        value: openai/gpt-4o-mini
       - key: LLM_BASE_URL
-        value: https://your-openai-compatible-endpoint/v1
+        value: https://openrouter.ai/api/v1
       # Secrets - Set these in Render Dashboard
       - key: LLM_OPENAI_API_KEY
-        sync: false  # LM Studio can use a dummy value such as "lm-studio"
-      - key: TAVILY_API_KEY
+        sync: false  # OpenRouter API key (sk-or-v1-...)
+      - key: TOOLS_TAVILY_API_KEY
         sync: false
       # Memory configuration (Upstash Redis)
       - key: MEMORY_BACKEND

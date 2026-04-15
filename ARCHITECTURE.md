@@ -65,7 +65,7 @@
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
-| **LLM** | LM Studio (OpenAI-compatible local model) | - |
+| **LLM** | OpenRouter (OpenAI-compatible hosted model) | - |
 | **Vector DB** | Pinecone | - |
 | **임베딩** | multilingual-e5-large | - |
 | **세션 메모리** | Upstash Redis / In-Memory | TTL: 1시간 |
