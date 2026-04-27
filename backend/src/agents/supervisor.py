@@ -507,25 +507,29 @@ Continue with the next logical step or return 'done' if all tasks are complete."
         route_decision = create_route_decision_model(self.available_agents)
 
         # Wrap LLM call with metrics recording
-        if self.metrics_store:
-            async with record_agent_metrics(
-                metrics_store=self.metrics_store,
-                session_id=session_id,
-                agent_name=self.name,
-                model_name=self.llm.config.model,
-                user_id=user_id,
-            ) as metrics:
+        try:
+            if self.metrics_store:
+                async with record_agent_metrics(
+                    metrics_store=self.metrics_store,
+                    session_id=session_id,
+                    agent_name=self.name,
+                    model_name=self.llm.config.model,
+                    user_id=user_id,
+                ) as metrics:
+                    decision = await self.llm.generate_structured(
+                        messages=messages,
+                        output_schema=route_decision,
+                    )
+                    input_tokens, output_tokens = extract_token_usage_from_response(decision)
+                    metrics.set_token_count(input_tokens, output_tokens)
+            else:
                 decision = await self.llm.generate_structured(
                     messages=messages,
                     output_schema=route_decision,
                 )
-                input_tokens, output_tokens = extract_token_usage_from_response(decision)
-                metrics.set_token_count(input_tokens, output_tokens)
-        else:
-            decision = await self.llm.generate_structured(
-                messages=messages,
-                output_schema=route_decision,
-            )
+        except Exception as e:
+            logger.error("supervisor_generate_structured_failed", error=str(e), session_id=session_id)
+            raise
 
         # Handle None response from LLM (fallback to chat or done)
         if not decision:

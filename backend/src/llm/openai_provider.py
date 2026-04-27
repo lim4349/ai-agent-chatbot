@@ -61,11 +61,12 @@ class OpenAIProvider:
         if base_url:
             client_kwargs["openai_api_base"] = base_url
 
-        # OpenRouter fallback + cost guard via model_kwargs (passed as extra body params)
+        # OpenRouter fallback + cost guard
+        # openai SDK v2 requires unknown params in extra_body, not as top-level kwargs
         if base_url and "openrouter" in base_url and config.openrouter_fallback_model:
-            extra: dict = {
+            extra_body: dict = {
                 "models": [config.model, config.openrouter_fallback_model],
-                # Only route to models that support all requested params (e.g. tools/function calling)
+                # Only route to models supporting all requested params (e.g. tools/function calling)
                 "provider": {"require_parameters": True},
             }
             max_price: dict = {}
@@ -74,8 +75,8 @@ class OpenAIProvider:
             if config.openrouter_max_price_output is not None:
                 max_price["output"] = config.openrouter_max_price_output
             if max_price:
-                extra["max_price"] = max_price
-            client_kwargs["model_kwargs"] = extra
+                extra_body["max_price"] = max_price
+            client_kwargs["model_kwargs"] = {"extra_body": extra_body}
 
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
