@@ -19,7 +19,7 @@ class LLMConfig(BaseSettings):
     """LLM provider configuration."""
 
     provider: str = "openai"
-    model: str = "openrouter/auto"
+    model: str = "deepseek/deepseek-chat-v3-0324:free"
     temperature: float = 0.7
     max_tokens: int = 2048  # Reduced from 4096 for Render Free Tier memory constraints
     base_url: str | None = None
