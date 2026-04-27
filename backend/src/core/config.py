@@ -19,7 +19,7 @@ class LLMConfig(BaseSettings):
     """LLM provider configuration."""
 
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    model: str = "openrouter/auto"
     temperature: float = 0.7
     max_tokens: int = 2048  # Reduced from 4096 for Render Free Tier memory constraints
     base_url: str | None = None
@@ -31,6 +31,13 @@ class LLMConfig(BaseSettings):
     # Cache configuration
     cache_enabled: bool = True
     cache_ttl_seconds: int = 3600
+
+    # OpenRouter fallback & cost guard
+    # When set, requests use: models=[model, openrouter_fallback_model]
+    # free tier (openrouter/auto) is tried first; deepseek is the paid fallback
+    openrouter_fallback_model: str | None = "deepseek/deepseek-chat"
+    openrouter_max_price_input: float | None = 0.5
+    openrouter_max_price_output: float | None = 0.5
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
 

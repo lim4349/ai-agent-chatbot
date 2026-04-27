@@ -60,6 +60,21 @@ class OpenAIProvider:
         }
         if base_url:
             client_kwargs["openai_api_base"] = base_url
+
+        # OpenRouter fallback + cost guard via model_kwargs (passed as extra body params)
+        if base_url and "openrouter" in base_url and config.openrouter_fallback_model:
+            extra: dict = {
+                "models": [config.model, config.openrouter_fallback_model],
+            }
+            max_price: dict = {}
+            if config.openrouter_max_price_input is not None:
+                max_price["input"] = config.openrouter_max_price_input
+            if config.openrouter_max_price_output is not None:
+                max_price["output"] = config.openrouter_max_price_output
+            if max_price:
+                extra["max_price"] = max_price
+            client_kwargs["model_kwargs"] = extra
+
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
 
