@@ -65,6 +65,8 @@ class OpenAIProvider:
         if base_url and "openrouter" in base_url and config.openrouter_fallback_model:
             extra: dict = {
                 "models": [config.model, config.openrouter_fallback_model],
+                # Only route to models that support all requested params (e.g. tools/function calling)
+                "provider": {"require_parameters": True},
             }
             max_price: dict = {}
             if config.openrouter_max_price_input is not None:
