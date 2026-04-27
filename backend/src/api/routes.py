@@ -143,7 +143,7 @@ async def chat(
     initial_state["has_documents"] = has_docs
 
     # Configure with thread ID for state persistence
-    graph_config = {"configurable": {"thread_id": request.session_id}}
+    graph_config = {"configurable": {"thread_id": f"{request.session_id}:{uuid4()}"}}
 
     try:
         # Execute graph
@@ -282,7 +282,7 @@ async def chat_stream(
     )
     initial_state["has_documents"] = has_docs
 
-    graph_config = {"configurable": {"thread_id": request.session_id}}
+    graph_config = {"configurable": {"thread_id": f"{request.session_id}:{uuid4()}"}}
 
     async def event_generator():
         try:
