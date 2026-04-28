@@ -105,7 +105,7 @@ vercel --prod
 | 변수 | 예시 값 |
 |------|---------|
 | `LLM_PROVIDER` | openai |
-| `LLM_MODEL` | openai/gpt-4o-mini |
+| `LLM_MODEL` | openrouter/free |
 | `LLM_OPENAI_API_KEY` | sk-or-v1-... |
 | `LLM_BASE_URL` | https://openrouter.ai/api/v1 |
 | `RAG_PINECONE_API_KEY` | xxx-xxx-xxx |

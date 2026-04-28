@@ -677,10 +677,18 @@ async def delete_user_memory(
 # === Logs Endpoints ===
 
 
+def _require_debug_logs(config: AppConfig) -> None:
+    """Restrict log endpoints to debug deployments."""
+    if not config.debug:
+        raise HTTPException(status_code=403, detail="Log endpoints are disabled")
+
+
 @router.get("/logs")
+@inject
 async def get_logs(
     lines: int = 100,
     log_type: str = "app",
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
 ):
     """Get recent log entries.
 
@@ -693,6 +701,7 @@ async def get_logs(
     """
     from src.core.logging import get_recent_logs
 
+    _require_debug_logs(config)
     lines = min(lines, 1000)  # Cap at 1000 lines
     logs = get_recent_logs(lines=lines, log_type=log_type)
     return {
@@ -703,10 +712,14 @@ async def get_logs(
 
 
 @router.get("/logs/files")
-async def list_log_files():
+@inject
+async def list_log_files(
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
+):
     """List available log files."""
     from src.core.logging import LOG_DIR
 
+    _require_debug_logs(config)
     log_files = []
     if LOG_DIR.exists():
         for f in LOG_DIR.glob("*.log"):
@@ -726,8 +739,10 @@ async def list_log_files():
 
 
 @router.delete("/logs")
+@inject
 async def clear_logs(
     log_type: str = "all",
+    config: AppConfig = Depends(Provide[DIContainer.config]),  # noqa: B008
 ):
     """Clear log files.
 
@@ -736,6 +751,7 @@ async def clear_logs(
     """
     from src.core.logging import APP_LOG_FILE, ERROR_LOG_FILE, LOG_DIR
 
+    _require_debug_logs(config)
     cleared = []
 
     if log_type in ("app", "all") and APP_LOG_FILE.exists():

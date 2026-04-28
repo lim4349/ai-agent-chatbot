@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BrainIcon, XIcon, TrashIcon } from 'lucide-react';
+import { BrainIcon, TrashIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

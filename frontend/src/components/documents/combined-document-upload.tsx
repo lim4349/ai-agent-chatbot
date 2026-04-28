@@ -27,7 +27,6 @@ export function CombinedDocumentUpload() {
     isUploading,
     uploadProgress,
     uploadStatus,
-    uploadError,
     uploadFile,
     resetUploadStatus,
   } = useDocumentStore();

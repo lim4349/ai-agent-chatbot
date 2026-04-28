@@ -230,7 +230,7 @@ export async function validateMagicBytes(file: File): Promise<ValidationError | 
         };
       }
     }
-  } catch (error) {
+  } catch {
     // If we can't read the file, just warn
     return {
       code: 'READ_ERROR',

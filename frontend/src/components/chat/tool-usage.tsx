@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Wrench, FileText, Search, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslation } from '@/lib/i18n';
 
 interface ToolUsageProps {
   tools: Array<{
@@ -24,7 +23,6 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
 
 export function ToolUsage({ tools }: ToolUsageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { t } = useTranslation();
 
   if (!tools || tools.length === 0) return null;
 

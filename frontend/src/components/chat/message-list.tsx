@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Bot, MessageSquare, ArrowDown } from 'lucide-react';
 import type { Message } from '@/types';
 import { MessageBubble } from './message-bubble';

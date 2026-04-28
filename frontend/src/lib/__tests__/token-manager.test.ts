@@ -5,8 +5,7 @@
 
 import { tokenManager } from '../token-manager';
 
-// Mock localStorage
-const localStorageMock = (() => {
+const createStorageMock = () => {
   let store: Record<string, string> = {};
 
   return {
@@ -21,20 +20,22 @@ const localStorageMock = (() => {
       store = {};
     },
   };
-})();
+};
 
-// Mock window object
-Object.defineProperty(global, 'window', {
-  value: {
-    localStorage: localStorageMock,
-    sessionStorage: localStorageMock,
-  },
-  writable: true,
-});
+const localStorageMock = createStorageMock();
+const sessionStorageMock = createStorageMock();
 
 describe('tokenManager', () => {
   beforeEach(() => {
     localStorageMock.clear();
+    sessionStorageMock.clear();
+
+    vi.stubGlobal('localStorage', localStorageMock);
+    vi.stubGlobal('sessionStorage', sessionStorageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('getToken', () => {

@@ -19,7 +19,7 @@ class LLMConfig(BaseSettings):
     """LLM provider configuration."""
 
     provider: str = "openai"
-    model: str = "deepseek/deepseek-chat-v3-0324:free"
+    model: str = "openrouter/free"
     temperature: float = 0.7
     max_tokens: int = 2048  # Reduced from 4096 for Render Free Tier memory constraints
     base_url: str | None = None
@@ -31,11 +31,6 @@ class LLMConfig(BaseSettings):
     # Cache configuration
     cache_enabled: bool = True
     cache_ttl_seconds: int = 3600
-
-    # Free-tier fallback chain — no cost, handles rate limits on primary model
-    openrouter_fallback_model: str | None = "google/gemma-3-27b-it:free"
-    openrouter_max_price_input: float | None = None
-    openrouter_max_price_output: float | None = None
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
@@ -73,7 +68,7 @@ class ToolsConfig(BaseSettings):
     """External tools configuration."""
 
     tavily_api_key: str | None = None
-    code_execution_enabled: bool = True
+    code_execution_enabled: bool = False
     code_execution_timeout: int = 10
     code_execution_memory_limit_mb: int = 50  # Reduced from 100MB for Render Free Tier
 

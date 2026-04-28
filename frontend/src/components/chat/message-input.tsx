@@ -27,7 +27,7 @@ export function MessageInput({
   );
 
   const characterCount = message.length;
-  const { status, percentage } = getCharacterCountStatus(characterCount);
+  const { percentage } = getCharacterCountStatus(characterCount);
   const isOverLimit = characterCount > MAX_MESSAGE_LENGTH;
   const isNearLimit = characterCount >= WARNING_THRESHOLD;
   const hasInjectionWarning = !!validationResult.injectionPattern;

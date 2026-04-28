@@ -25,9 +25,9 @@ function calculateDuration(message: string): number {
   const length = message.length;
 
   if (length <= 30) {
-    return 2000; // 짧음: 2초
+    return MIN_DURATION; // 짧음: 2초
   } else if (length <= 80) {
-    return 3000; // 중간: 3초
+    return DEFAULT_DURATION; // 중간: 3초
   } else {
     return Math.min(5000 + (length - 80) * 50, MAX_DURATION); // 김: 5초 + 초과분당 50ms, 최대 8초
   }

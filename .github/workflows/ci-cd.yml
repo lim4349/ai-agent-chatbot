@@ -53,7 +53,7 @@ jobs:
         timeout-minutes: 2
         run: |
           if [ -d "tests/unit" ]; then
-            pytest tests/unit -v --timeout=60 || echo "Tests completed with issues"
+            pytest tests/unit -v --timeout=60
           else
             echo "No unit tests found, skipping pytest"
           fi

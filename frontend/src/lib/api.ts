@@ -36,8 +36,7 @@ export class ApiError extends Error {
  */
 async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit,
-  isRetry: boolean = false
+  options?: RequestInit
 ): Promise<T> {
   // Get current token
   const token = tokenManager.getToken();
@@ -83,8 +82,7 @@ async function fetchApi<T>(
  */
 async function fetchApiUpload<T>(
   endpoint: string,
-  options?: RequestInit,
-  isRetry: boolean = false
+  options?: RequestInit
 ): Promise<T> {
   const token = tokenManager.getToken();
 
