@@ -40,15 +40,14 @@ class OpenAIProvider:
         elif base_url and not api_key:
             api_key = "local-api-key"
 
-        # Configure httpx client with memory-efficient limits for Render Free Tier
+        # Configure httpx clients for Render Free Tier memory efficiency.
+        # Both sync and async clients must be set — langchain-openai uses
+        # http_client for sync calls and http_async_client for async calls.
         limits = httpx.Limits(
             max_connections=10,
             max_keepalive_connections=5,
         )
-        http_client = httpx.Client(
-            limits=limits,
-            timeout=httpx.Timeout(30.0, connect=5.0),
-        )
+        timeout = httpx.Timeout(30.0, connect=5.0)
 
         # LangChain client
         client_kwargs = {
@@ -56,18 +55,18 @@ class OpenAIProvider:
             "api_key": api_key,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
-            "http_client": http_client,
+            "http_client": httpx.Client(limits=limits, timeout=timeout),
+            "http_async_client": httpx.AsyncClient(limits=limits, timeout=timeout),
         }
         if base_url:
-            client_kwargs["openai_api_base"] = base_url
+            client_kwargs["base_url"] = base_url
 
-        # OpenRouter fallback + cost guard
-        # openai SDK v2 requires unknown params in extra_body, not as top-level kwargs
+        # OpenRouter fallback + cost guard.
+        # Use extra_body (first-class ChatOpenAI field) — NOT model_kwargs.
+        # langchain-openai v1 explicitly warns against model_kwargs for non-OpenAI params.
         if base_url and "openrouter" in base_url and config.openrouter_fallback_model:
             extra_body: dict = {
                 "models": [config.model, config.openrouter_fallback_model],
-                # Only route to models supporting all requested params (e.g. tools/function calling)
-                "provider": {"require_parameters": True},
             }
             max_price: dict = {}
             if config.openrouter_max_price_input is not None:
@@ -76,7 +75,7 @@ class OpenAIProvider:
                 max_price["output"] = config.openrouter_max_price_output
             if max_price:
                 extra_body["max_price"] = max_price
-            client_kwargs["model_kwargs"] = {"extra_body": extra_body}
+            client_kwargs["extra_body"] = extra_body
 
         self.client = ChatOpenAI(**client_kwargs)
         self._cache = container.llm_cache()
