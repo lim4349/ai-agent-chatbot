@@ -55,7 +55,10 @@ class RedisStore:
 
         if self._client is None:
             try:
-                self._client = redis.from_url(self.url, decode_responses=True)
+                url = self.url
+                if "upstash.io" in url and url.startswith("redis://"):
+                    url = "rediss://" + url[8:]
+                self._client = redis.from_url(url, decode_responses=True)
                 await self._client.ping()
                 logger.info("redis_client_created", url=self._masked_url())
             except Exception as e:

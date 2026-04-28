@@ -61,13 +61,13 @@ class OpenAIProvider:
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        # OpenRouter fallback + cost guard.
-        # Use extra_body (first-class ChatOpenAI field) — NOT model_kwargs.
-        # langchain-openai v1 explicitly warns against model_kwargs for non-OpenAI params.
-        if base_url and "openrouter" in base_url and config.openrouter_fallback_model:
-            extra_body: dict = {
-                "models": [config.model, config.openrouter_fallback_model],
-            }
+        # OpenRouter multi-model routing — always use models[] array for reliability.
+        # Single model[] avoids 404s on free-tier models vs plain model field.
+        if base_url and "openrouter" in base_url:
+            models = [config.model]
+            if config.openrouter_fallback_model:
+                models.append(config.openrouter_fallback_model)
+            extra_body: dict = {"models": models}
             max_price: dict = {}
             if config.openrouter_max_price_input is not None:
                 max_price["input"] = config.openrouter_max_price_input

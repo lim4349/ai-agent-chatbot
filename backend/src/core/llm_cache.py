@@ -35,11 +35,19 @@ class LLMCache:
         self._client: redis.Redis | None = None
         self._key_prefix = "llm:cache:"
 
+    @staticmethod
+    def _ensure_tls(url: str) -> str:
+        """Upgrade redis:// to rediss:// for Upstash (TLS required)."""
+        if "upstash.io" in url and url.startswith("redis://"):
+            return "rediss://" + url[8:]
+        return url
+
     async def _get_client(self) -> redis.Redis:
         """Get or create Redis client."""
         if self._client is None:
-            self._client = redis.from_url(self.redis_url, decode_responses=True)
-            logger.info("llm_cache_redis_client_created", url=self.redis_url)
+            url = self._ensure_tls(self.redis_url)
+            self._client = redis.from_url(url, decode_responses=True)
+            logger.info("llm_cache_redis_client_created", url=url)
         return self._client
 
     def _make_key(
