@@ -1,5 +1,6 @@
 """Chat agent for general conversation."""
 
+import asyncio
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
@@ -51,6 +52,8 @@ class ChatAgent(BaseAgent):
         topic_memory: TopicMemory | None = Provide[DIContainer.topic_memory],
         summarizer: Summarizer | None = Provide[DIContainer.summarizer],
         metrics_store=Provide[DIContainer.metrics_store],
+        search_tool=None,
+        retriever=None,
     ):
         super().__init__(llm)
         self.memory = memory
@@ -59,6 +62,8 @@ class ChatAgent(BaseAgent):
         self.topic_memory = topic_memory
         self.summarizer = summarizer
         self.metrics_store = metrics_store
+        self.search_tool = search_tool
+        self.retriever = retriever
         self._user_profiles: dict[str, dict] = {}
 
     def _get_capability_context(self, available_agents: list[str] | None) -> str:
@@ -416,6 +421,44 @@ Guidelines:
         current_messages = [message_to_dict(msg) for msg in state["messages"]]
         messages.extend(current_messages)
 
+        # Tool pre-fetching based on tools_hint (parallel, before LLM call)
+        tools_hint = state.get("tools_hint", [])
+        tool_context_parts = []
+        tool_results = []
+
+        if tools_hint:
+            query = last_content
+
+            tasks = []
+            if "web_search" in tools_hint and self.search_tool:
+                tasks.append(("web_search", self.search_tool.execute(query)))
+            if "retriever" in tools_hint and self.retriever and state.get("has_documents"):
+                tasks.append(("retriever", self.retriever.execute(query, top_k=3)))
+
+            if tasks:
+                results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
+                for (tool_name, _), result in zip(tasks, results, strict=True):
+                    if isinstance(result, Exception):
+                        logger.warning("tool_failed", tool=tool_name, error=str(result))
+                        continue
+                    if tool_name == "web_search":
+                        tool_context_parts.append(f"## 웹 검색 결과\n{result}")
+                        tool_results.append({"tool": "web_search", "query": query, "results": result})
+                    elif tool_name == "retriever":
+                        docs_text = "\n\n".join(
+                            f"[{d.get('metadata', {}).get('source', 'doc')}]\n{d.get('content', '')}"
+                            for d in result
+                            if isinstance(d, dict)
+                        )
+                        tool_context_parts.append(f"## 관련 문서\n{docs_text}")
+                        tool_results.append({"tool": "retriever", "query": query, "results": docs_text})
+
+        if tool_context_parts:
+            messages.append({
+                "role": "system",
+                "content": "\n\n".join(tool_context_parts) + "\n\n위 정보를 참고해서 답변하세요.",
+            })
+
         # Generate response with metrics
         async with record_agent_metrics(
             self.metrics_store,
@@ -451,6 +494,7 @@ Guidelines:
                 *state["messages"],
                 {"role": "assistant", "content": response},
             ],
+            "tool_results": [*state.get("tool_results", []), *tool_results],
             **workflow_updates,
         }
 

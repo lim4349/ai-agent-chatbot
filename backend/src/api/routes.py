@@ -312,11 +312,10 @@ async def chat_stream(
                     logger.warning(f"Stream error event: {error_msg}")
 
                 if kind == "on_chat_model_stream":
-                    # Skip supervisor's structured output tokens (routing decision)
-                    # Only stream tokens from actual response agents (chat, code, rag, web_search)
+                    # Skip routing nodes that don't produce user-facing tokens
                     metadata = event.get("metadata", {})
                     langgraph_node = metadata.get("langgraph_node", "")
-                    if langgraph_node == "supervisor":
+                    if langgraph_node in {"supervisor", "router"}:
                         continue
                     # code/report use non-streaming LLM calls; their output is sent via on_chain_end
                     if langgraph_node in non_streaming_nodes:
@@ -338,41 +337,25 @@ async def chat_stream(
                             streamed_nodes.add(langgraph_node)
                             yield {"event": "token", "data": text}
 
+                elif kind == "on_tool_start":
+                    tool_name = event.get("name", "")
+                    if tool_name == "web_search":
+                        yield {"event": "status", "data": json.dumps({"message": "웹 검색 중..."})}
+                    elif tool_name == "retriever":
+                        yield {"event": "status", "data": json.dumps({"message": "문서 검색 중..."})}
+
                 elif kind == "on_chain_end":
                     node_name = event.get("name", "")
-                    if node_name == "supervisor":
+                    if node_name == "router":
+                        # Router node (no LLM) sets next_agent; emit agent event for UI
                         output = event.get("data", {}).get("output", {})
                         agent = output.get("next_agent", "chat")
-                        # Track all agents that ran during workflow
-                        if agent != "done" and agent not in all_agents:
+                        if agent and agent not in all_agents:
                             all_agents.append(agent)
-                            # Send agent event for UI updates during streaming
                             yield {
                                 "event": "agent",
                                 "data": json.dumps({"agent": agent, "all_agents": all_agents}),
                             }
-                        # When workflow completes, send final agent list
-                        elif agent == "done" and all_agents:
-                            yield {
-                                "event": "agents_complete",
-                                "data": json.dumps({"agents": all_agents}),
-                            }
-                        # When supervisor responds directly (no specialist agent ran, e.g. greetings),
-                        # send the response as a token — no specialist on_chain_end will fire
-                        if agent == "done" and not output.get("completed_steps"):
-                            messages = output.get("messages", [])
-                            if messages:
-                                last_msg = messages[-1]
-                                content = (
-                                    last_msg.get("content", "")
-                                    if isinstance(last_msg, dict)
-                                    else getattr(last_msg, "content", "")
-                                )
-                                if content:
-                                    content_hash = hash(content[:100])
-                                    if content_hash not in sent_content_hashes:
-                                        sent_content_hashes.add(content_hash)
-                                        yield {"event": "token", "data": content}
                     elif node_name in non_streaming_nodes:
                         # code/report: always send full response (includes exec output) via on_chain_end
                         output = event.get("data", {}).get("output", {})
@@ -418,6 +401,8 @@ async def chat_stream(
                                     sent_content_hashes.add(content_hash)
                                     yield {"event": "token", "data": content}
 
+            if all_agents:
+                yield {"event": "agents_complete", "data": json.dumps({"agents": all_agents})}
             yield {"event": "done", "data": ""}
 
         except Exception as e:

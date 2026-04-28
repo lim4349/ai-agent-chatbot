@@ -32,12 +32,9 @@ class LLMConfig(BaseSettings):
     cache_enabled: bool = True
     cache_ttl_seconds: int = 3600
 
-    # OpenRouter fallback & cost guard
-    # When set, requests use: models=[model, openrouter_fallback_model]
-    # free tier (openrouter/auto) is tried first; deepseek is the paid fallback
-    openrouter_fallback_model: str | None = "deepseek/deepseek-chat"
-    openrouter_max_price_input: float | None = 0.5
-    openrouter_max_price_output: float | None = 0.5
+    openrouter_fallback_model: str | None = None
+    openrouter_max_price_input: float | None = None
+    openrouter_max_price_output: float | None = None
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
 

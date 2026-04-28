@@ -186,8 +186,8 @@ def extract_token_usage_from_response(response) -> tuple[int, int]:
             input_tokens = getattr(usage, "prompt_tokens", 0)
             output_tokens = getattr(usage, "completion_tokens", 0)
 
-    # Log warning if no token usage found
-    if input_tokens == 0 and output_tokens == 0:
+    # Dict responses (structured output) never carry usage metadata — skip warning
+    if input_tokens == 0 and output_tokens == 0 and not isinstance(response, dict):
         logger.warning(
             "token_usage_not_found",
             response_type=type(response).__name__,

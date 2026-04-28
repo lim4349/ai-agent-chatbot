@@ -286,7 +286,7 @@ class LongTermMemory:
                     .maybe_single()
                     .execute()
                 )
-                if profile_result.data:
+                if profile_result and profile_result.data:
                     profile_data = profile_result.data["profile_data"]
                     profile.update(profile_data)
                     profile["created_at"] = profile_result.data.get("created_at")
@@ -296,6 +296,8 @@ class LongTermMemory:
                 facts_result = (
                     self._client.table("user_facts").select("*").eq("user_id", user_id).execute()
                 )
+                if not (facts_result and facts_result.data):
+                    facts_result = type("_", (), {"data": []})()
                 for fact_row in facts_result.data:
                     category = fact_row["category"]
                     if category not in profile["facts"]:
@@ -524,6 +526,27 @@ class LongTermMemory:
         # Sort by timestamp and limit
         summaries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return summaries[:limit]
+
+    async def get_session_topic_names(self, session_id: str) -> set[str]:
+        """Get topic names stored for a session (no LLM call)."""
+        topics = self._session_topics.get(session_id, set())
+        if topics:
+            return topics
+
+        if self._use_supabase and self._client:
+            try:
+                result = (
+                    self._client.table("topic_summaries")
+                    .select("topic")
+                    .eq("session_id", session_id)
+                    .execute()
+                )
+                if result and result.data:
+                    return {row["topic"] for row in result.data}
+            except Exception as e:
+                logger.error("failed_to_get_session_topic_names", error=str(e))
+
+        return set()
 
     async def get_related_sessions(self, session_id: str) -> list[str]:
         """Get sessions related to the given session by topic.

@@ -374,40 +374,31 @@ Summary:"""
         session_id: str,
         messages: list[dict],
     ) -> str:
-        """Get cross-session context based on topic similarity.
+        """Get cross-session context using stored topic names (no LLM call).
 
-        Args:
-            session_id: Current session ID
-            messages: Recent conversation messages
-
-        Returns:
-            Context string with related session information
+        Topics are populated by _process_topics() after every 5 messages.
+        Returns empty string for new sessions with no stored topics yet.
         """
-        if not messages:
+        if not self.memory:
             return ""
 
-        # Extract current topics
-        current_topics = await self.extract_topics(messages[-5:])
-
-        if not current_topics:
+        # Use stored topic names — avoids LLM call inside the streaming node
+        stored_topics = await self.memory.get_session_topic_names(session_id)
+        if not stored_topics:
             return ""
 
         context_parts = []
 
-        # Get related sessions
         related_sessions = await self.get_related_sessions(session_id)
-
         if related_sessions:
             context_parts.append(
                 f"This topic has been discussed in {len(related_sessions)} previous conversation(s)."
             )
 
-        # Get context for top topic
-        top_topic = current_topics[0].get("topic")
-        if top_topic:
-            topic_context = await self.get_context_for_topic(top_topic, session_id)
-            if topic_context:
-                context_parts.append(topic_context)
+        top_topic = next(iter(stored_topics))
+        topic_context = await self.get_context_for_topic(top_topic, session_id)
+        if topic_context:
+            context_parts.append(topic_context)
 
         if not context_parts:
             return ""

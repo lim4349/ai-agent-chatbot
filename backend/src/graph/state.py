@@ -29,6 +29,7 @@ class AgentState(TypedDict, total=False):
     completed_steps: list[str]
     workflow_context: str
     available_agents: list[str]
+    tools_hint: list[str]
 
 
 def create_initial_state(
@@ -63,4 +64,5 @@ def create_initial_state(
         "completed_steps": [],
         "workflow_context": "",
         "available_agents": available_agents or ["supervisor", "chat", "report"],
+        "tools_hint": [],
     }
