@@ -1,95 +1,127 @@
 # AI Agent Chatbot
 
-LangGraph 기반 Multi-Agent 챗봇 시스템. Supervisor 패턴으로 4개 전문 에이전트를 오케스트레이션합니다.
+LangGraph 기반 챗봇 시스템입니다. Heuristic Router가 LLM 호출 없이 쿼리를 분류하고, Chat/Code/Report 에이전트가 단일 LLM 호출로 응답합니다.
 
-## 데모
+## 현재 상태
 
-**체험하기**: [https://ai-agent-chatbot-iota.vercel.app/chat](https://ai-agent-chatbot-iota.vercel.app/chat)
+- 프론트엔드: Next.js 16 + React 19 + Zustand
+- 백엔드: FastAPI + LangGraph + dependency-injector
+- LLM: OpenRouter (deepseek/deepseek-chat-v3-0324:free, 유료 fallback 없음)
+- 세션/메모리: Redis 우선, 로컬에서는 In-Memory fallback
+- RAG: Pinecone + 문서 업로드 파이프라인
+- 배포: Render(백엔드) + Vercel(프론트엔드)
 
-> **서버 켜지는 중**: 우측 상단이 빨간색이면 서버가 깨어나는 중이에요. 초록색으로 바뀌면 사용하실 수 있습니다. (최대 30초 소요)
-
----
-
-## 사용 방법
-
-### 채팅 모드
-
-1. 일반 질문: 자유롭게 질문하면 Supervisor가 적절한 에이전트로 라우팅합니다
-2. 문서 기반 Q&A: PDF/DOCX 업로드 후 문서에 대해 질문 (RAG 에이전트)
-3. 웹 검색: 실시간 정보가 필요한 질문 (Web Search 에이전트)
-4. 코드 작성: 프로그래밍 관련 질문 (Code 에이전트)
-
-### 메모리 명령
-
-| 명령 | 예시 | 설명 |
-|------|------|------|
-| `기억해:` | `기억해: 나는 커피를 좋아해` | 사용자 정보 저장 |
-| `알고 있니?` | `내가 좋아하는 게 뭐야?` | 저장된 메모리 검색 |
-| `잊어줘:` | `잊어줘: 커피` | 메모리 삭제 |
-| `요약해줘` | `지금까지 대화 요약해줘` | 즉시 요약 생성 |
-
-### 문서 업로드
-
-- 지원 형식: PDF, DOCX, TXT, MD, CSV, JSON
-- 최대 크기: 10MB
-- 업로드 후 자동으로 문서 내용을 기반으로 질문 가능
-
-### 대시보드 (관리자용)
-
-- URL: `/dashboard`
-- 기능: 에이전트별 요청 수, 성공률, 평균 응답시간, 토큰 사용량 모니터링
-- 기간 필터: 24시간, 7일, 30일
-
----
-
-## 기술 스택
-
-| 레이어 | 기술 |
-|--------|------|
-| **프론트엔드** | Next.js 16 + TypeScript + Tailwind CSS 4 + Zustand |
-| **백엔드** | Python 3.12 + FastAPI |
-| **AI 오케스트레이션** | LangGraph |
-| **LLM** | OpenRouter (OpenAI-compatible endpoint) |
-| **Vector DB** | Pinecone (multilingual-e5-large 임베딩) |
-| **세션 메모리** | Upstash Redis (프로덕션) / In-Memory (로컬) |
-| **인증** | Supabase Auth |
-| **메트릭** | Supabase + LangSmith (옵션) |
-| **배포** | Render (백엔드) + Vercel (프론트엔드) |
-
----
-
-## 프로젝트 구조
+## 그래프 구조
 
 ```
+사용자 입력
+  → heuristic_router (LLM 없음, 키워드 기반)
+      → chat  (웹검색/RAG tool pre-fetch 후 LLM 1회)
+      → code  (코드 실행 전용)
+      → report (리포트 생성 전용)
+  → END
+```
+
+LLM 호출: 쿼리당 1회 (기존 supervisor 방식 대비 50% 감소)
+
+## 주요 기능
+
+- Heuristic 라우팅 기반 단일 LLM 호출 챗
+- 문서 업로드 후 질의응답 (retriever tool)
+- 웹 검색 도구 연동 (Tavily)
+- 코드 관련 질의 처리
+- 세션 메모리 저장 및 요약
+- SSE 기반 스트리밍 응답
+- `/dashboard` 운영 대시보드
+
+## 디렉토리 구조
+
+```text
 ai-agent-chatbot/
-├── backend/           # FastAPI + LangGraph
+├── backend/
 │   ├── src/
-│   │   ├── agents/    # 멀티 에이전트 시스템 (Chat, RAG, WebSearch, Code)
-│   │   ├── api/       # REST API
-│   │   ├── core/      # DI 컨테이너, 설정, 보안
-│   │   ├── documents/ # 문서 처리 (파서, 청커)
-│   │   ├── graph/     # LangGraph 상태 머신
-│   │   ├── llm/       # LLM 프로바이더
-│   │   ├── memory/    # 메모리 저장소
-│   │   └── observability/ # 메트릭 & 트레이싱
+│   │   ├── agents/
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── documents/
+│   │   ├── graph/
+│   │   ├── llm/
+│   │   ├── memory/
+│   │   ├── observability/
+│   │   └── tools/
 │   └── tests/
-│
-├── frontend/          # Next.js
-│   ├── src/
-│   │   ├── app/       # App Router
-│   │   ├── components/# React 컴포넌트
-│   │   ├── lib/       # 유틸리티
-│   │   └── stores/    # Zustand 상태관리
-│   └── package.json
-│
-├── ARCHITECTURE.md    # 아키텍처 문서
-├── DEPLOYMENT.md      # 배포 가이드
-└── README.md          # 프로젝트 소개
+├── frontend/
+│   └── src/
+│       ├── app/
+│       ├── components/
+│       ├── lib/
+│       └── stores/
+├── nginx/
+├── ARCHITECTURE.md
+├── DEPLOYMENT.md
+├── PROJECT_SUMMARY.md
+└── docker-compose.yml
 ```
 
----
+## 로컬 실행
+
+### Backend
+
+```bash
+cd backend
+uv sync --group dev
+uv run uvicorn src.main:app --reload
+```
+
+기본 API:
+
+- `GET /`
+- `GET /docs`
+- `GET /api/v1/health`
+- `POST /api/v1/chat`
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+기본 페이지:
+
+- `/`
+- `/chat`
+- `/dashboard`
+
+### Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+기본 포트:
+
+- frontend: `3000`
+- backend: `8000`
+- nginx: `80`
+- redis: `6379`
+
+## 개발 체크
+
+```bash
+# backend
+cd backend
+uv run pytest -v
+
+# frontend
+cd frontend
+npm run lint
+npm run build
+```
 
 ## 문서
 
-- [아키텍처 문서](./ARCHITECTURE.md) — 시스템 설계 및 아키텍처 상세
-- [배포 가이드](./DEPLOYMENT.md) — Render.com + Vercel 배포 방법
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [DEPLOYMENT.md](./DEPLOYMENT.md)
+- [PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)

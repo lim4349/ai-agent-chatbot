@@ -1,267 +1,73 @@
 # AI Agent Chatbot - 개발 가이드
 
-> LangGraph 기반 멀티 에이전트 챗봇 시스템
+## 개요
 
----
+LangGraph 기반 챗봇입니다. FastAPI 백엔드와 Next.js 프론트엔드가 분리되어 있습니다.
 
-## 프로젝트 개요
+**그래프 구조**: `heuristic_router(LLM 없음)` → `[chat | code | report]` → END
+- LLM 호출: 쿼리당 최소 1회 (기존 supervisor 방식은 2회+)
+- `chat` 에이전트가 web_search/retriever 툴을 직접 pre-fetch해서 단일 LLM 호출로 처리
+- `code`, `report`는 전용 에이전트 유지
 
-Supervisor가 사용자 질의를 분석하여 RAG, Web Search, Code, Report, Chat 에이전트 중 적절한 것으로 라우팅합니다.
+## 현재 기술 스택
 
-**핵심 특징**:
-- 멀티 에이전트 오케스트레이션 (LangGraph)
-- RAG 파이프라인 (Pinecone + multilingual-e5-large)
-- 실시간 스트리밍 응답 (SSE)
-- 구조 기반 문서 청킹
-- 영구 세션 메모리 (Upstash Redis)
+- Backend: Python 3.12, FastAPI, LangGraph, dependency-injector
+- Frontend: Next.js 16, React 19, TypeScript, Zustand
+- LLM: OpenRouter/OpenAI-compatible provider 중심
+- Memory: Redis 우선, 로컬/장애 시 In-Memory fallback
+- RAG: Pinecone + 문서 파서(pdf/docx/txt/md/csv/json)
+- Observability: structlog, LangSmith optional
 
----
-
-## 기술 스택
-
-| 레이어 | 기술 | 버전 |
-|--------|------|------|
-| **프론트엔드** | Next.js + TypeScript | 16.x |
-| **백엔드** | FastAPI + Python | 3.12 |
-| **AI** | LangGraph + LangChain | 0.2.x |
-| **LLM** | OpenRouter | Gemini/GPT-4o/Claude |
-| **Vector DB** | Pinecone | - |
-| **세션** | Upstash Redis / In-Memory | - |
-| **배포** | Render + Vercel | - |
-
----
-
-## 개발 환경 설정
+## 실행
 
 ```bash
-# 1. 환경 변수 설정
-cp backend/.env.example backend/.env
-
-# 2. 가상환경 생성 및 활성화 (필수!)
+# backend
 cd backend
-python -m venv .venv
-source .venv/bin/activate
+uv sync --group dev
+uv run uvicorn src.main:app --reload
 
-# 3. 의존성 설치
-pip install -e ".[dev]"
-
-# 4. 프론트엔드
+# frontend
 cd ../frontend
 npm install
-
-# 5. 확인
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000/docs
+npm run dev
 ```
 
----
+## 테스트와 검증
 
-## 코드 스타일
-
-**Python (Ruff)**:
 ```bash
+# backend
 cd backend
-source .venv/bin/activate  # 가상환경 필수!
-ruff check src/            # 린트 체크
-ruff format src/           # 포맷팅
-```
+uv run pytest -v
+uv run ruff check src tests
 
-**TypeScript (ESLint)**:
-```bash
+# frontend
 cd frontend
-npm run lint               # 린트 체크
-npm run build              # 빌드 테스트
-```
-
----
-
-## 테스트
-
-```bash
-# 백엔드 테스트 (가상환경에서)
-cd backend
-source .venv/bin/activate
-pytest tests/ -v
-
-# 프론트엔드 테스트
-cd frontend
-npm test
-```
-
----
-
-## Git Workflow
-
-```
-dev (직접 커밋) → main (PR)
-```
-
-**브랜치 전략**:
-- `main`: 프로덕션 브랜치 (자동 배포)
-- `dev`: 개발 브랜치 (직접 커밋 가능)
-
-**⚠️ 작업 시작 전 필수 - 브랜치 동기화**:
-```bash
-# 1. 원격 브랜치 최신 정보 가져오기
-git fetch origin
-
-# 2. main 브랜치 동기화
-git checkout main
-git pull origin main
-
-# 3. dev 브랜치 동기화 및 main 변경사항 반영
-git checkout dev
-git pull origin dev
-git merge origin/main  # dev가 main보다 뒤처진 경우 필수
-
-# 4. 동기화 확인 (반드시 실행)
-git log --oneline main..dev  # dev가 main보다 앞서있거나 동일해야 함
-```
-
-**간단 버전**:
-```bash
-git fetch origin && git checkout main && git pull origin main \
-  && git checkout dev && git pull origin dev && git merge origin/main
-```
-
-**프로세스**:
-```bash
-# 1. dev에서 작업
-git checkout dev
-git pull origin dev
-
-# 2. 작업 & 커밋
-git add .
-git commit -m "feat: add new feature"
-git push origin dev
-
-# 3. dev → main PR 생성 (사용자 승인 필요)
-gh pr create --base main --head dev
-```
-
-**금지 사항**:
-- main에 직접 commit/push 금지
-- PR 생성 후 사용자 승인 없이 merge 금지
-- **`dev` 브랜치 삭제 절대 금지**
-  - `gh pr merge --delete-branch` 플래그 사용 금지
-  - `gh pr merge <number> --merge` 만 사용
-
----
-
-## 필수 규칙
-
-**Commit 메시지**:
-```
-<type>: <subject>
-
-[optional body]
-```
-
-**허용 타입**:
-- `feat`: 새로운 기능
-- `fix`: 버그 수정
-- `docs`: 문서 변경
-- `style`: 코드 스타일 변경
-- `refactor`: 리팩토링
-- `test`: 테스트 추가/수정
-- `chore`: 빌드/보조 도구 변경
-
-**규칙**:
-- subject는 소문자로 시작
-- subject 길이: 3~72자
-
-**Pre-commit Hooks**:
-```bash
-# 설치 (최초 1회)
-pip install pre-commit
-pre-commit install
-
-# 수동 실행
-pre-commit run --all-files
-```
-
-**Git Push 전 로컬 테스트 필수**:
-```bash
-# 백엔드
-cd backend
-source .venv/bin/activate
-ruff check src/
-
-# 프론트엔드
-cd frontend
+npm run lint
 npm run build
 ```
 
----
+## 코드 구조 원칙
 
-## 학습한 내용 (Lessons Learned)
+- API 진입점은 `backend/src/main.py`
+- 라우트는 `backend/src/api`
+- 에이전트 구현은 `backend/src/agents`
+- 상태 그래프는 `backend/src/graph`
+- 메모리/세션은 `backend/src/memory`
+- 프론트 라우트는 `frontend/src/app`
 
-### 2026-02-27
+## 작업 시 유의사항
 
-1. **GLM-5 (z.ai) 연동**
-   - Anthropic-compatible API 사용: `https://api.z.ai/api/anthropic`
-   - `.env` 설정:
-     ```
-     LLM_PROVIDER=anthropic
-     LLM_MODEL=glm-5
-     LLM_ANTHROPIC_API_KEY=your_z.ai_api_key
-     LLM_BASE_URL=https://api.z.ai/api/anthropic
-     ```
-   - Structured output은 JSON mode 사용 (function calling 미지원)
+- 설정은 `.env`와 `src/core/config` 계층을 우선 확인
+- 새 기능은 DI 컨테이너와 기존 service/tool registry 구조를 따라야 함
+- Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
+- 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
+- LLM 모델: `deepseek/deepseek-chat-v3-0324:free` (OpenRouter free tier, 유료 fallback 없음)
+- 라우팅 수정은 `src/graph/router.py`의 regex 패턴 조정
+- chat agent의 tool pre-fetch 로직은 `src/agents/chat_agent.py` `process()` 내 tools_hint 처리 부분
 
-2. **Supabase Service Role Key vs Anon Key**
-   - **service_role** (eyJ...): RLS 우회, 서버사이드 사용
-   - **anon** (sb_publishable...): RLS 적용, 클라이언트용
-   - 백엔드에서는 반드시 `SUPABASE_SERVICE_KEY` 사용해야 함
+## 커밋 전 최소 확인
 
-3. **Session 삭제 시 topic_summaries 정리**
-   - 기존: 세션 삭제 시 `topic_summaries`가 남아있는 버그
-   - 수정: `LongTermMemory.delete_session_topics()` 메서드 추가
-   - `DELETE /sessions/{session_id}/full`에서 함께 삭제됨
-
-4. **3-Tier Memory 시스템**
-   - **단기 (Redis/Upstash)**: 대화 메시지, TTL 1시간
-   - **장기 (Supabase)**: user_profiles, user_facts (영구)
-   - **토픽 (Supabase)**: topic_summaries (세션과 함께 삭제)
-
-### 2026-02-24
-
-1. **Report Agent 구현**
-   - 멀티소스 연구 결과 종합 보고서 작성 에이전트 추가
-   - Supervisor의 `remaining_tasks`를 활용한 워크플로우: web_search → rag → report
-   - workflow_context에서 연구 결과 추출 및 분류 (웹검색/문서/코드실행)
-
-2. **Code Agent 코드 실행 기능**
-   - 주석 처리되었던 코드 실행 로직 활성화
-   - 응답 내 Python 코드 블록 자동 감지 및 실행
-   - 실행 결과를 응답에 자동 포함
-
-3. **Pydantic 직렬화 경고 수정**
-   - LLM provider의 `_extract_structured_result()`에서 warnings.catch_warnings() 적용
-   - LangChain wrapper 객체의 `parsed` 필드 접근 시 발생하던 경고 해결
-
-### 2026-02-16
-
-1. **Protocol 반환 타입 일치**
-   - 구현체의 반환 타입을 변경하면 Protocol도 함께 수정해야 함
-
-2. **asyncio.to_thread 사용**
-   - 동기 SDK 호출은 이벤트 루프 차단 가능
-   - Pinecone SDK: `await asyncio.to_thread(client.inference.embed, ...)`
-
-3. **LLM 모델 토큰화 이슈**
-   - 일부 모델이 문장 끝 punctuation 뒤 공백 없이 토큰 생성
-   - 해결: `fixSentenceSpacing()` 함수로 후처리
-
----
-
-## 참고 문서
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - 상세 아키텍처
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - 배포 가이드
-- [backend/AGENTS.md](./backend/AGENTS.md) - 백엔드 상세 가이드
-- [frontend/AGENTS.md](./frontend/AGENTS.md) - 프론트엔드 상세 가이드
-
----
-
-*마지막 업데이트: 2026-02-27*
+```bash
+cd backend && uv run pytest -v
+cd frontend && npm run lint && npm run build
+```
