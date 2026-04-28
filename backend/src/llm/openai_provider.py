@@ -61,20 +61,29 @@ class OpenAIProvider:
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        # OpenRouter multi-model routing — always use models[] array for reliability.
-        # Single model[] avoids 404s on free-tier models vs plain model field.
+        # OpenRouter multi-model routing with diverse free-tier fallback chain.
+        # Multiple providers (DeepSeek/Google/Meta/Mistral) have independent rate limits,
+        # so spreading across them reduces the chance of all being rate-limited simultaneously.
         if base_url and "openrouter" in base_url:
+            # Build fallback chain: primary → config fallback → hardcoded free models
+            _FREE_FALLBACKS = [
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemma-3-27b-it:free",
+                "mistralai/mistral-7b-instruct:free",
+                "qwen/qwen3-8b:free",
+                "google/gemma-3-12b-it:free",
+            ]
             models = [config.model]
             if config.openrouter_fallback_model:
                 models.append(config.openrouter_fallback_model)
-            extra_body: dict = {"models": models}
-            max_price: dict = {}
-            if config.openrouter_max_price_input is not None:
-                max_price["input"] = config.openrouter_max_price_input
-            if config.openrouter_max_price_output is not None:
-                max_price["output"] = config.openrouter_max_price_output
-            if max_price:
-                extra_body["max_price"] = max_price
+            for m in _FREE_FALLBACKS:
+                if m not in models:
+                    models.append(m)
+            # max_price: 0 ensures no paid model is ever used regardless of routing
+            extra_body: dict = {
+                "models": models,
+                "max_price": {"input": 0, "output": 0},
+            }
             client_kwargs["extra_body"] = extra_body
 
         self.client = ChatOpenAI(**client_kwargs)
