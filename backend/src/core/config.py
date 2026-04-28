@@ -32,7 +32,8 @@ class LLMConfig(BaseSettings):
     cache_enabled: bool = True
     cache_ttl_seconds: int = 3600
 
-    openrouter_fallback_model: str | None = None
+    # Free-tier fallback chain — no cost, handles rate limits on primary model
+    openrouter_fallback_model: str | None = "google/gemma-3-27b-it:free"
     openrouter_max_price_input: float | None = None
     openrouter_max_price_output: float | None = None
 
