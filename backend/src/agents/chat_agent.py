@@ -512,35 +512,7 @@ Guidelines:
         return None
 
     async def _extract_user_facts(self, user_id: str, messages: list[dict]) -> None:
-        """Extract and save facts about the user."""
-        if not self.user_profiler or not self.long_term_memory:
-            return
-
-        try:
-            # Update profile incrementally
-            if messages:
-                await self.user_profiler.update_from_message(
-                    user_id,
-                    messages[-1],
-                    messages[:-1] if len(messages) > 1 else None,
-                )
-        except Exception as e:
-            logger.error("fact_extraction_failed", error=str(e), user_id=user_id)
+        """Disabled: LLM-based fact extraction was consuming 2 extra LLM calls per query."""
 
     async def _process_topics(self, session_id: str, messages: list[dict]) -> None:
-        """Process and store topics from conversation."""
-        if not self.topic_memory:
-            return
-
-        try:
-            # Process topics periodically (every 5 messages)
-            if len(messages) >= 5 and len(messages) % 5 == 0:
-                logger.info(
-                    "topic_extraction_triggered",
-                    session_id=session_id,
-                    message_count=len(messages),
-                )
-                await self.topic_memory.process_session_topics(session_id, messages)
-                logger.info("topic_extraction_completed", session_id=session_id)
-        except Exception as e:
-            logger.error("topic_processing_failed", error=str(e), session_id=session_id)
+        """Disabled: LLM-based topic extraction was consuming extra LLM calls every 5 messages."""
