@@ -428,12 +428,25 @@ Guidelines:
 
         if tools_hint:
             query = last_content
+            metadata = state.get("metadata", {})
+            tool_session_id = metadata.get("session_id", session_id)
+            device_id = metadata.get("device_id") or metadata.get("user_id")
 
             tasks = []
             if "web_search" in tools_hint and self.search_tool:
                 tasks.append(("web_search", self.search_tool.execute(query)))
             if "retriever" in tools_hint and self.retriever and state.get("has_documents"):
-                tasks.append(("retriever", self.retriever.execute(query, top_k=3)))
+                tasks.append(
+                    (
+                        "retriever",
+                        self.retriever.execute(
+                            query,
+                            top_k=3,
+                            session_id=tool_session_id,
+                            device_id=device_id,
+                        ),
+                    )
+                )
 
             if tasks:
                 results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)

@@ -76,12 +76,16 @@ class AgentFactory:
     def create_report(
         llm: LLMProvider,
         memory: MemoryStore,
+        search_tool=None,
+        retriever=None,
     ):
         """Create report agent instance.
 
         Args:
             llm: LLM provider
             memory: Memory store
+            search_tool: Web search tool (optional)
+            retriever: Document retriever tool (optional)
 
         Returns:
             ReportAgent instance
@@ -91,4 +95,6 @@ class AgentFactory:
         return ReportAgent(
             llm=llm,
             memory=memory,
+            search_tool=search_tool,
+            retriever=retriever,
         )

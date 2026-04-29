@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 from contextlib import asynccontextmanager
 
 import structlog
@@ -15,6 +16,37 @@ from src.core.logging import setup_logging
 logger = structlog.get_logger()
 
 
+def _setup_langsmith_tracing(config) -> None:
+    """Enable LangSmith tracing from application config."""
+    if not config.observability.langsmith_tracing or not config.observability.langsmith_api_key:
+        return
+
+    # Current LangSmith env vars.
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_API_KEY"] = config.observability.langsmith_api_key
+    os.environ["LANGSMITH_PROJECT"] = config.observability.langsmith_project
+
+    # Backward-compatible LangChain env vars.
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = config.observability.langsmith_api_key
+    os.environ["LANGCHAIN_PROJECT"] = config.observability.langsmith_project
+
+    # langsmith caches env lookups. If anything checked tracing before startup,
+    # clear the stale "disabled" value after writing the env vars.
+    try:
+        from langsmith import utils as langsmith_utils
+
+        langsmith_utils.get_env_var.cache_clear()
+        langsmith_utils.get_tracer_project.cache_clear()
+    except (ImportError, AttributeError):
+        pass
+
+    logger.info(
+        "langsmith_enabled",
+        project=config.observability.langsmith_project,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""
@@ -24,16 +56,7 @@ async def lifespan(app: FastAPI):
     setup_logging(log_level=config.log_level, json_format=not config.debug)
 
     # Setup LangSmith tracing if enabled
-    if config.observability.langsmith_tracing and config.observability.langsmith_api_key:
-        import os
-
-        os.environ["LANGCHAIN_TRACING_V2"] = "true"
-        os.environ["LANGCHAIN_API_KEY"] = config.observability.langsmith_api_key
-        os.environ["LANGCHAIN_PROJECT"] = config.observability.langsmith_project
-        logger.info(
-            "langsmith_enabled",
-            project=config.observability.langsmith_project,
-        )
+    _setup_langsmith_tracing(config)
 
     # Wire DI container
     di_container.wire(

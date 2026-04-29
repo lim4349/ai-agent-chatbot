@@ -46,9 +46,12 @@ async def heuristic_route(state: AgentState) -> AgentState:
         content = getattr(last_msg, "content", "")
 
     has_documents = state.get("has_documents", False)
+    available_agents = set(state.get("available_agents", []))
 
     # Code: route to dedicated code agent
     if _CODE_PATTERNS.search(content):
+        if "code" not in available_agents:
+            return {**state, "next_agent": "chat", "tools_hint": []}
         return {**state, "next_agent": "code", "tools_hint": []}
 
     # Report: complex multi-source synthesis (pre-fetch web search)

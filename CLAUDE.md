@@ -61,7 +61,7 @@ npm run build
 - 새 기능은 DI 컨테이너와 기존 service/tool registry 구조를 따라야 함
 - Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
-- LLM 모델: `deepseek/deepseek-chat-v3-0324:free` (OpenRouter free tier, 유료 fallback 없음)
+- LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
 - 라우팅 수정은 `src/graph/router.py`의 regex 패턴 조정
 - chat agent의 tool pre-fetch 로직은 `src/agents/chat_agent.py` `process()` 내 tools_hint 처리 부분
 

@@ -59,6 +59,8 @@ def build_graph(container):
     report = AgentFactory.create_report(
         llm=llm,
         memory=memory,
+        search_tool=search_tool,
+        retriever=retriever_tool,
     )
 
     # Build graph

@@ -1,5 +1,6 @@
 """Report agent for generating comprehensive research reports."""
 
+import asyncio
 import re
 from typing import override
 
@@ -49,9 +50,13 @@ class ReportAgent(BaseAgent):
         llm: LLMProvider = Provide[DIContainer.llm],
         memory: MemoryStore = Provide[DIContainer.memory],
         metrics_store=Provide[DIContainer.metrics_store],
+        search_tool=None,
+        retriever=None,
     ):
         super().__init__(llm, memory=memory)
         self.metrics_store = metrics_store
+        self.search_tool = search_tool
+        self.retriever = retriever
 
     @property
     @override
@@ -346,6 +351,83 @@ Guidelines:
         messages.append({"role": "user", "content": user_prompt})
         return messages
 
+    async def _collect_direct_context(
+        self,
+        state: AgentState,
+        query: str,
+        session_id: str,
+    ) -> tuple[list[str], list[dict]]:
+        """Collect direct tool context when no workflow context exists."""
+        metadata = state.get("metadata", {})
+        tool_session_id = metadata.get("session_id", session_id)
+        device_id = metadata.get("device_id") or metadata.get("user_id")
+        tools_hint = state.get("tools_hint", [])
+
+        tasks = []
+        if "web_search" in tools_hint and self.search_tool:
+            tasks.append(("web_search", self.search_tool.execute(query)))
+        if "retriever" in tools_hint and self.retriever and state.get("has_documents"):
+            tasks.append(
+                (
+                    "retriever",
+                    self.retriever.execute(
+                        query,
+                        top_k=3,
+                        session_id=tool_session_id,
+                        device_id=device_id,
+                    ),
+                )
+            )
+
+        context_parts: list[str] = []
+        tool_results: list[dict] = []
+        if not tasks:
+            return context_parts, tool_results
+
+        results = await asyncio.gather(*[task[1] for task in tasks], return_exceptions=True)
+        for (tool_name, _), result in zip(tasks, results, strict=True):
+            if isinstance(result, Exception):
+                logger.warning("report_tool_failed", tool=tool_name, error=str(result))
+                continue
+            if tool_name == "web_search":
+                context_parts.append(f"## 웹 검색 결과\n{result}")
+                tool_results.append({"tool": "web_search", "query": query, "results": result})
+            elif tool_name == "retriever":
+                docs_text = "\n\n".join(
+                    f"[{doc.get('metadata', {}).get('source', 'doc')}]\n{doc.get('content', '')}"
+                    for doc in result
+                    if isinstance(doc, dict)
+                )
+                if docs_text:
+                    context_parts.append(f"## 관련 문서\n{docs_text}")
+                    tool_results.append({"tool": "retriever", "query": query, "results": docs_text})
+
+        return context_parts, tool_results
+
+    def _build_direct_report_messages(self, query: str, context_parts: list[str]) -> list[dict]:
+        """Build a direct report prompt from the user query and optional tool context."""
+        context_text = "\n\n".join(context_parts).strip()
+        if not context_text:
+            context_text = "사용 가능한 외부 자료가 없습니다. 모델의 일반 지식을 바탕으로 작성하세요."
+
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {
+                "role": "user",
+                "content": f"""사용자 질의: {query}
+
+다음 참고 자료를 바탕으로 종합 보고서를 작성해주세요:
+
+{context_text}
+
+보고서 작성 지침:
+1. Executive Summary, Findings, Analysis, Conclusion, References를 포함하세요.
+2. 참고 자료에 URL이 있으면 References에 포함하세요.
+3. 근거가 부족한 내용은 불확실하다고 표시하세요.
+4. 마크다운 형식으로 작성하세요.""",
+            },
+        ]
+
     @override
     async def process(self, state: AgentState) -> AgentState:
         """Generate comprehensive report from workflow context."""
@@ -371,15 +453,48 @@ Guidelines:
             query=query[:100],
         )
 
-        # If no workflow context, provide a simple response
+        tool_results: list[dict] = []
+
+        # Direct report path for the current heuristic-router graph. The old
+        # supervisor loop populated workflow_context before report ran; that
+        # loop no longer exists.
         if not workflow_context:
-            response = (
-                "보고서를 작성하기 위한 연구 결과가 없습니다. "
-                "먼저 웹 검색, 문서 검색, 또는 코드 실행을 통해 정보를 수집해주세요."
+            context_parts, tool_results = await self._collect_direct_context(
+                state,
+                query,
+                session_id,
             )
+            messages = self._build_direct_report_messages(query, context_parts)
+
+            async with record_agent_metrics(
+                self.metrics_store,
+                session_id,
+                self.name,
+                self.llm.config.model,
+                user_id,
+            ) as metrics:
+                try:
+                    response, usage = await self.llm.generate_with_usage(messages)
+                    metrics.set_token_count(
+                        usage.get("input_tokens", 0),
+                        usage.get("output_tokens", 0),
+                    )
+                except Exception as e:
+                    logger.error("direct_report_generation_failed", error=str(e), session_id=session_id)
+                    response = "보고서 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+                    metrics.set_error(e)
+
+            if self.memory:
+                last_msg = state["messages"][-1]
+                await self.memory.add_message(session_id, message_to_dict(last_msg))
+                await self.memory.add_message(session_id, {"role": "assistant", "content": response})
+
+            workflow_updates = self._update_workflow_state(state, response)
             return {
                 **state,
                 "messages": [*state["messages"], {"role": "assistant", "content": response}],
+                "tool_results": [*state.get("tool_results", []), *tool_results],
+                **workflow_updates,
             }
 
         response = ""
