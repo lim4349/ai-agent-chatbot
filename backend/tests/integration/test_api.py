@@ -42,6 +42,7 @@ class TestChatAPI:
         assert data["status"] == "ok"
         assert "llm_provider" in data
         assert "available_agents" in data
+        assert "available_tools" in data
 
     def test_agents_endpoint(self, client):
         """Test agents list endpoint."""
@@ -51,9 +52,7 @@ class TestChatAPI:
         data = response.json()
         assert "agents" in data
         agent_names = [a["name"] for a in data["agents"]]
-        assert "chat" in agent_names
-        assert "code" in agent_names
-        assert "report" in agent_names
+        assert agent_names == ["chat", "research"]
 
     def test_create_session(self, client):
         """Test session creation endpoint."""

@@ -66,16 +66,3 @@ class ConfigurationError(AppError):
 
     def __init__(self, message: str):
         super().__init__(message, code="CONFIG_ERROR")
-
-
-class MCPError(AppError):
-    """MCP server communication error."""
-
-    def __init__(self, message: str, server_name: str):
-        self.server_name = server_name
-        super().__init__(message, code="MCP_ERROR")
-
-    def to_dict(self) -> dict[str, Any]:
-        result = super().to_dict()
-        result["error"]["details"] = {"mcp_server": self.server_name}
-        return result

@@ -96,7 +96,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
                 content_preview=result.chunk_content[:100] if result.chunk_content else "",
             )
 
-        # Format results for RAGAgent with confidence filtering
+        # Format results for the research agent with confidence filtering
         formatted_results = []
         for result in results:
             # Skip low-relevance results (anti-hallucination)
@@ -122,7 +122,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
                     "document_id": result.document_id,
                 },
                 "score": result.score,
-                # Flag low-confidence results for RAGAgent to handle
+                # Flag low-confidence results for the research agent to handle
                 "low_confidence": result.score < LOW_CONFIDENCE_THRESHOLD,
             }
             formatted_results.append(formatted_result)

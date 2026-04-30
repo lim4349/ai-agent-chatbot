@@ -7,25 +7,18 @@ from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Nodes that use non-streaming LLM calls (ainvoke)
-NON_STREAMING_NODES = frozenset({"code", "rag", "report"})
+# Nodes that use non-streaming LLM calls.
+NON_STREAMING_NODES = frozenset({"research"})
 
 # All graph nodes that produce traceable events
 GRAPH_TRACE_NODES = frozenset({
-    "web_search_collect",
-    "retriever_collect",
     "chat",
-    "code",
-    "rag",
-    "report",
+    "research",
 })
 
 # Status messages per node
 NODE_STATUS_MESSAGES: dict[str, str] = {
-    "web_search_collect": "웹 검색 중...",
-    "retriever_collect": "문서 검색 중...",
-    "report": "보고서 작성 중...",
-    "rag": "문서 기반 답변 생성 중...",
+    "research": "리서치 중...",
 }
 
 # Status messages per tool
@@ -127,15 +120,13 @@ class SSEStreamer:
                     "data": json.dumps({"agent": agent, "all_agents": self.all_agents}),
                 })
 
-        elif node_name in {"web_search_collect", "retriever_collect"}:
-            tool_results = output.get("tool_results", [])
-            if tool_results:
+        elif node_name in NON_STREAMING_NODES:
+            for tool_result in output.get("tool_results", []):
                 events.append({
                     "event": "tool",
-                    "data": json.dumps(tool_results[-1], default=str),
+                    "data": json.dumps(tool_result, default=str),
                 })
 
-        elif node_name in NON_STREAMING_NODES:
             content = self._extract_last_message(output)
             if content:
                 content_hash = hash(content[:100])

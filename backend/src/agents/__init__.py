@@ -2,14 +2,10 @@
 
 from src.agents.base import BaseAgent
 from src.agents.chat_agent import ChatAgent
-from src.agents.code_agent import CodeAgent
-from src.agents.rag_agent import RAGAgent
-from src.agents.report_agent import ReportAgent
+from src.agents.research_agent import ResearchAgent
 
 __all__ = [
     "BaseAgent",
-    "RAGAgent",
-    "CodeAgent",
     "ChatAgent",
-    "ReportAgent",
+    "ResearchAgent",
 ]

@@ -10,11 +10,8 @@ import {
 import type { AgentType } from '@/types';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
-  BookOpen,
-  Code,
-  FileText,
-  Globe,
   MessageCircle,
+  Search,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,11 +22,7 @@ interface AgentBadgeProps {
 
 const AGENT_I18N_KEYS: Record<string, TranslationKey> = {
   chat: 'agent.chat',
-  code: 'agent.code',
-  rag: 'agent.rag',
-  web_search_collect: 'agent.web_search_collect',
-  retriever_collect: 'agent.retriever_collect',
-  report: 'agent.report',
+  research: 'agent.research',
 };
 
 const AGENT_CONFIG: Record<string, {
@@ -38,41 +31,17 @@ const AGENT_CONFIG: Record<string, {
   label: string;
   description: string;
 }> = {
-  rag: {
-    icon: BookOpen,
-    color: 'bg-blue-500',
-    label: '문서 검색',
-    description: '업로드된 문서에서 검색'
-  },
-  code: {
-    icon: Code,
-    color: 'bg-purple-500',
-    label: '코드',
-    description: '코드 생성 및 분석'
-  },
-  web_search_collect: {
-    icon: Globe,
-    color: 'bg-green-500',
-    label: '웹 검색',
-    description: '실시간 웹 정보 검색'
-  },
-  retriever_collect: {
-    icon: BookOpen,
-    color: 'bg-cyan-500',
-    label: '문서 검색',
-    description: '업로드된 문서 검색'
-  },
   chat: {
     icon: MessageCircle,
     color: 'bg-gray-500',
     label: '대화',
     description: '일반 대화'
   },
-  report: {
-    icon: FileText,
-    color: 'bg-pink-500',
-    label: '보고서',
-    description: '종합 연구 보고서 작성'
+  research: {
+    icon: Search,
+    color: 'bg-blue-500',
+    label: '리서치',
+    description: '웹 검색과 업로드 문서 검색'
   },
 };
 

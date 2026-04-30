@@ -284,33 +284,6 @@ class TopicMemory(Protocol):
 
 
 @runtime_checkable
-class MemoryTool(Protocol):
-    """Memory tool interface for semantic memory search."""
-
-    @property
-    def name(self) -> str:
-        """Tool name."""
-        ...
-
-    @property
-    def description(self) -> str:
-        """Tool description."""
-        ...
-
-    async def execute(self, query: str, **kwargs: Any) -> str:
-        """Execute memory search.
-
-        Args:
-            query: Search query
-            **kwargs: Additional arguments
-
-        Returns:
-            Search results as formatted string
-        """
-        ...
-
-
-@runtime_checkable
 class SessionStore(Protocol):
     """Session storage interface."""
 

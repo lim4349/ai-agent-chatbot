@@ -68,9 +68,6 @@ class ToolsConfig(BaseSettings):
     """External tools configuration."""
 
     tavily_api_key: str | None = None
-    code_execution_enabled: bool = False
-    code_execution_timeout: int = 10
-    code_execution_memory_limit_mb: int = 50  # Reduced from 100MB for Render Free Tier
 
     model_config = SettingsConfigDict(env_prefix="TOOLS_")
 
@@ -82,26 +79,6 @@ class ObservabilityConfig(BaseSettings):
     langsmith_api_key: str | None = None
     langsmith_project: str = "ai-agent-chatbot"
     langsmith_tracing: bool = False
-
-
-class MCPConfig(BaseSettings):
-    """MCP (Model Context Protocol) server configuration."""
-
-    enabled: bool = False
-    servers_json: str = "[]"
-    default_timeout: int = 30
-    health_check_enabled: bool = True
-
-    @property
-    def servers(self) -> list[dict[str, Any]]:
-        """Parse servers from JSON string."""
-        import json
-
-        try:
-            raw = json.loads(self.servers_json)
-            return raw if isinstance(raw, list) else []
-        except json.JSONDecodeError:
-            return []
 
 
 class SessionConfig(BaseSettings):
@@ -144,7 +121,6 @@ class AppConfig(BaseSettings):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
-    mcp: MCPConfig = Field(default_factory=MCPConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 

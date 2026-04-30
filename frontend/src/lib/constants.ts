@@ -18,11 +18,7 @@ export const API_ENDPOINTS = {
 
 export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: string }> = {
   chat: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Chat' },
-  code: { bg: 'bg-purple-500/20', text: 'text-purple-400', label: 'Code' },
-  rag: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'RAG' },
-  report: { bg: 'bg-pink-500/20', text: 'text-pink-400', label: 'Report' },
-  web_search_collect: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Web Search' },
-  retriever_collect: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Document Search' },
+  research: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Research' },
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;

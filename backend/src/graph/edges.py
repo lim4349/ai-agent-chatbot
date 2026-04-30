@@ -6,11 +6,7 @@ from src.graph.state import AgentState
 
 GraphRoute = Literal[
     "chat",
-    "code",
-    "rag",
-    "report",
-    "web_search_collect",
-    "retriever_collect",
+    "research",
     "__end__",
 ]
 
@@ -18,14 +14,7 @@ GraphRoute = Literal[
 def route_to_next_task(state: AgentState) -> GraphRoute:
     """Route to the next queued graph task."""
     next_agent = state.get("next_agent", "chat")
-    valid = {
-        "chat",
-        "code",
-        "rag",
-        "report",
-        "web_search_collect",
-        "retriever_collect",
-    }
+    valid = {"chat", "research"}
     if not next_agent:
         return "__end__"
     if next_agent not in valid:

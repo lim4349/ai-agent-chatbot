@@ -83,7 +83,6 @@ def _create_long_term_memory(config):
 
 def _create_tool_registry(config, retriever):
     """Create tool registry."""
-    from src.tools.code_executor import CodeExecutorTool
     from src.tools.registry import ToolRegistry
     from src.tools.retriever import RetrieverTool
     from src.tools.web_search import WebSearchTool
@@ -95,14 +94,6 @@ def _create_tool_registry(config, retriever):
 
     if retriever:
         registry.register(RetrieverTool(retriever))
-
-    if config.tools.code_execution_enabled:
-        registry.register(
-            CodeExecutorTool(
-                timeout=config.tools.code_execution_timeout,
-                memory_limit_mb=config.tools.code_execution_memory_limit_mb,
-            )
-        )
 
     return registry
 
@@ -136,18 +127,6 @@ def _create_topic_memory(config, long_term_memory):
 
     llm = LLMFactory.create(config.llm)
     return TopicMemory(llm=llm, long_term_memory=long_term_memory)
-
-
-def _create_memory_tool(memory, embedding_generator):
-    """Create memory tool."""
-    from src.tools.memory_tool import MemoryTool
-
-    if not memory or not embedding_generator:
-        return None
-    return MemoryTool(
-        memory_store=memory,
-        embedding_provider=embedding_generator,
-    )
 
 
 def _create_document_parser():
@@ -320,13 +299,6 @@ class DIContainer(containers.DeclarativeContainer):
         _create_topic_memory,
         config=config,
         long_term_memory=long_term_memory,
-    )
-
-    # Memory Tool
-    memory_tool = providers.Factory(
-        _create_memory_tool,
-        memory=memory,
-        embedding_generator=embedding_generator,
     )
 
     # Document Parser

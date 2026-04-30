@@ -95,9 +95,9 @@ export function HealthIndicator() {
             <p>
               <strong>Agents:</strong> {health.available_agents.join(', ')}
             </p>
-            {health.tool_nodes && health.tool_nodes.length > 0 && (
+            {health.available_tools && health.available_tools.length > 0 && (
               <p>
-                <strong>Tool nodes:</strong> {health.tool_nodes.join(', ')}
+                <strong>Tools:</strong> {health.available_tools.join(', ')}
               </p>
             )}
           </div>

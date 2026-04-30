@@ -1,4 +1,4 @@
-"""Integration tests for the LangGraph task queue."""
+"""Integration tests for the minimal LangGraph agent architecture."""
 
 import pytest
 
@@ -23,25 +23,27 @@ class CountingLLM:
         self.calls += 1
         schema_name = getattr(output_schema, "__name__", "")
         if schema_name == "RouterDecision":
-            user_prompt = messages[-1]["content"].split("Available graph nodes:", 1)[0]
+            user_prompt = messages[-1]["content"].split("Available agents:", 1)[0]
             if "보고서" in user_prompt or "종합" in user_prompt:
-                return {
-                    "tasks": ["web_search_collect", "retriever_collect", "report"],
-                    "reasoning": "mock report route",
-                }
+                return {"agent": "research", "reasoning": "mock report route"}
             if "문서" in user_prompt or "업로드" in user_prompt or "rag" in user_prompt.lower():
-                return {"tasks": ["retriever_collect", "rag"], "reasoning": "mock rag route"}
+                return {"agent": "research", "reasoning": "mock document route"}
             if "뉴스" in user_prompt or "검색" in user_prompt or "오늘" in user_prompt:
-                return {
-                    "tasks": ["web_search_collect", "chat"],
-                    "reasoning": "mock web route",
-                }
-            return {"tasks": ["chat"], "reasoning": "mock chat route"}
-        if schema_name == "RAGResponse":
+                return {"agent": "research", "reasoning": "mock web route"}
+            return {"agent": "chat", "reasoning": "mock chat route"}
+        if schema_name == "ResearchToolDecision":
+            user_prompt = messages[-1]["content"]
+            tools = []
+            if "뉴스" in user_prompt or "검색" in user_prompt or "오늘" in user_prompt:
+                tools.append("web_search")
+            if "문서" in user_prompt or "업로드" in user_prompt or "rag" in user_prompt.lower():
+                tools.append("retriever")
+            if "보고서" in user_prompt or "종합" in user_prompt:
+                tools = ["web_search", "retriever"]
             return {
-                "paragraphs": [{"title": "요약", "content": "문서 기반 답변입니다.", "bullet_points": []}],
-                "references": ["doc"],
-                "confidence": "high",
+                "tools": tools,
+                "response_mode": "report" if "보고서" in user_prompt else "answer",
+                "reasoning": "mock tool decision",
             }
         return {}
 
@@ -124,60 +126,81 @@ def _config(name: str):
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_web_search_collect_then_chat_with_router_and_agent_calls():
+async def test_graph_routes_web_query_to_research_with_web_tool():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
         "오늘 뉴스 검색해서 알려줘",
         "test-session",
         "device-1",
-        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+        ["chat", "research"],
     )
 
     result = await graph.ainvoke(state, config=_config("web-search"))
 
-    assert result["completed_steps"] == ["web_search_collect", "chat"]
+    assert result["completed_steps"] == ["research"]
     assert result["next_agent"] is None
-    assert llm.calls == 2
+    assert result["tool_results"][0]["tool"] == "web_search"
+    assert llm.calls == 3
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_retriever_collect_then_rag_with_router_and_agent_calls():
+async def test_graph_routes_document_query_to_research_with_retriever_tool():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
         "업로드한 문서에서 찾아줘",
         "test-session",
         "device-1",
-        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+        ["chat", "research"],
     )
     state["has_documents"] = True
 
     result = await graph.ainvoke(state, config=_config("rag"))
 
-    assert result["completed_steps"] == ["retriever_collect", "rag"]
+    assert result["completed_steps"] == ["research"]
     assert result["next_agent"] is None
-    assert llm.calls == 2
+    assert result["tool_results"][0]["tool"] == "retriever"
+    assert llm.calls == 3
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_report_context_collection_then_report_with_router_and_agent_calls():
+async def test_graph_routes_report_query_to_research_with_both_tools():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
         "최신 자료와 문서를 종합해서 보고서 작성해줘",
         "test-session",
         "device-1",
-        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+        ["chat", "research"],
     )
     state["has_documents"] = True
 
     result = await graph.ainvoke(state, config=_config("report"))
 
-    assert result["completed_steps"] == [
-        "web_search_collect",
-        "retriever_collect",
-        "report",
-    ]
+    assert result["completed_steps"] == ["research"]
     assert result["next_agent"] is None
+    assert [tool_result["tool"] for tool_result in result["tool_results"]] == [
+        "web_search",
+        "retriever",
+    ]
+    assert llm.calls == 3
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_simple_query_to_chat():
+    llm = CountingLLM()
+    graph = build_graph(MockContainer(llm))
+    state = create_initial_state(
+        "안녕",
+        "test-session",
+        "device-1",
+        ["chat", "research"],
+    )
+
+    result = await graph.ainvoke(state, config=_config("chat"))
+
+    assert result["completed_steps"] == ["chat"]
+    assert result["next_agent"] is None
+    assert result["tool_results"] == []
     assert llm.calls == 2

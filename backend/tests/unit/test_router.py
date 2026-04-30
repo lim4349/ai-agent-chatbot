@@ -8,7 +8,7 @@ from src.graph.state import create_initial_state
 
 class FakeRouterLLM:
     def __init__(self, decision=None, error: Exception | None = None):
-        self.decision = decision or {"tasks": ["chat"], "reasoning": "test route"}
+        self.decision = decision or {"agent": "chat", "reasoning": "test route"}
         self.error = error
         self.calls = 0
 
@@ -21,20 +21,17 @@ class FakeRouterLLM:
 
 @pytest.mark.asyncio
 async def test_llm_router_uses_structured_route_decision():
-    llm = FakeRouterLLM(
-        {"tasks": ["retriever_collect", "rag"], "reasoning": "document query"}
-    )
+    llm = FakeRouterLLM({"agent": "research", "reasoning": "document query"})
     router = LLMRouterNode(llm)
     state = create_initial_state(
         "지금 rag 문서에 있는 모든 리스트 알려줘",
-        available_nodes=["chat", "rag", "web_search_collect", "retriever_collect", "report"],
+        available_nodes=["chat", "research"],
     )
 
     result = await router(state)
 
     assert llm.calls == 1
-    assert result["next_agent"] == "retriever_collect"
-    assert result["remaining_tasks"] == ["retriever_collect", "rag"]
+    assert result["next_agent"] == "research"
     assert result["metadata"]["route_source"] == "llm"
 
 
@@ -43,101 +40,84 @@ async def test_llm_router_falls_back_to_heuristic_on_failure():
     router = LLMRouterNode(FakeRouterLLM(error=RuntimeError("boom")))
     state = create_initial_state(
         "오늘 뉴스 검색해서 알려줘",
-        available_nodes=["chat", "web_search_collect", "report"],
+        available_nodes=["chat", "research"],
     )
 
     result = await router(state)
 
-    assert result["next_agent"] == "web_search_collect"
-    assert result["remaining_tasks"] == ["web_search_collect", "chat"]
+    assert result["next_agent"] == "research"
     assert result["metadata"]["route_source"] == "heuristic_fallback"
 
 
 @pytest.mark.asyncio
-async def test_code_query_routes_to_code_when_code_agent_available():
+async def test_code_query_routes_to_chat():
     state = create_initial_state(
         "python 코드 실행해줘",
-        available_nodes=["chat", "code", "rag", "report"],
+        available_nodes=["chat", "research"],
     )
 
     result = await heuristic_route(state)
 
-    assert result["next_agent"] == "code"
-    assert result["remaining_tasks"] == ["code"]
+    assert result["next_agent"] == "chat"
 
 
 @pytest.mark.asyncio
 async def test_code_query_falls_back_to_chat_when_code_agent_unavailable():
     state = create_initial_state(
         "python 코드 실행해줘",
-        available_nodes=["chat", "report"],
+        available_nodes=["chat"],
     )
 
     result = await heuristic_route(state)
 
     assert result["next_agent"] == "chat"
-    assert result["remaining_tasks"] == ["chat"]
 
 
 @pytest.mark.asyncio
-async def test_current_info_query_uses_chat_with_web_search_hint():
+async def test_current_info_query_routes_to_research():
     state = create_initial_state(
         "오늘 뉴스 검색해서 알려줘",
-        available_nodes=["chat", "web_search_collect", "report"],
+        available_nodes=["chat", "research"],
     )
 
     result = await heuristic_route(state)
 
-    assert result["next_agent"] == "web_search_collect"
-    assert result["remaining_tasks"] == ["web_search_collect", "chat"]
+    assert result["next_agent"] == "research"
 
 
 @pytest.mark.asyncio
-async def test_document_query_routes_to_retriever_then_rag_when_documents_exist():
+async def test_document_query_routes_to_research_when_documents_exist():
     state = create_initial_state(
         "업로드한 문서에서 찾아줘",
-        available_nodes=["chat", "rag", "retriever_collect", "report"],
+        available_nodes=["chat", "research"],
     )
     state["has_documents"] = True
 
     result = await heuristic_route(state)
 
-    assert result["next_agent"] == "retriever_collect"
-    assert result["remaining_tasks"] == ["retriever_collect", "rag"]
+    assert result["next_agent"] == "research"
 
 
 @pytest.mark.asyncio
-async def test_explicit_rag_query_does_not_fall_through_to_web_search_without_documents():
+async def test_explicit_rag_query_routes_to_research():
     state = create_initial_state(
         "지금 rag 문서에 있는 모든 리스트 알려줘",
-        available_nodes=["chat", "rag", "web_search_collect", "retriever_collect", "report"],
+        available_nodes=["chat", "research"],
     )
 
     result = await heuristic_route(state)
 
-    assert result["next_agent"] == "retriever_collect"
-    assert result["remaining_tasks"] == ["retriever_collect", "rag"]
+    assert result["next_agent"] == "research"
 
 
 @pytest.mark.asyncio
-async def test_report_query_collects_available_context_then_report():
+async def test_report_query_routes_to_research():
     state = create_initial_state(
         "최신 자료와 문서를 종합해서 보고서 작성해줘",
-        available_nodes=[
-            "chat",
-            "rag",
-            "report",
-            "web_search_collect",
-            "retriever_collect",
-        ],
+        available_nodes=["chat", "research"],
     )
     state["has_documents"] = True
 
     result = await heuristic_route(state)
 
-    assert result["next_agent"] == "web_search_collect"
-    assert result["remaining_tasks"] == [
-        "web_search_collect",
-        "retriever_collect",
-        "report",
-    ]
+    assert result["next_agent"] == "research"

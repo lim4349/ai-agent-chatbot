@@ -34,7 +34,6 @@ dependencies = [
 
     # Tools
     "tavily-python>=0.5",
-    "RestrictedPython>=7.0",
 
     # Document Processing
     "pdfplumber>=0.11",

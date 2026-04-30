@@ -49,7 +49,7 @@ class ChatResponse(BaseModel):
     message: str = Field(..., description="Assistant response")
     session_id: str = Field(..., description="Session ID")
     agent_used: str = Field(..., description="Agent that processed the request")
-    route_reasoning: str | None = Field(default=None, description="Router/task queue reasoning")
+    route_reasoning: str | None = Field(default=None, description="Router reasoning")
     tool_results: list[dict[str, Any]] = Field(
         default_factory=list, description="Tool execution results"
     )
@@ -64,8 +64,8 @@ class HealthResponse(BaseModel):
     llm_model: str = Field(..., description="Active LLM model")
     memory_backend: str = Field(..., description="Active memory backend")
     available_agents: list[str] = Field(..., description="Available LLM-backed agent names")
-    tool_nodes: list[str] = Field(
-        default_factory=list, description="Available deterministic graph tool node names"
+    available_tools: list[str] = Field(
+        default_factory=list, description="Available tools for agentic tool use"
     )
 
 

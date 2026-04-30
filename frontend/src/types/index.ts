@@ -30,7 +30,7 @@ export interface HealthResponse {
   llm_model: string;
   memory_backend: string;
   available_agents: string[];
-  tool_nodes?: string[];
+  available_tools?: string[];
 }
 
 export interface AgentInfo {
@@ -128,13 +128,7 @@ export interface Session {
   isLocalOnly?: boolean;
 }
 
-export type AgentType =
-  | 'chat'
-  | 'code'
-  | 'rag'
-  | 'report'
-  | 'web_search_collect'
-  | 'retriever_collect';
+export type AgentType = 'chat' | 'research';
 
 export interface SSECallbacks {
   onMetadata: (data: { session_id: string }) => void;

@@ -1,6 +1,6 @@
 # AI Agent Chatbot: 아키텍처 개요
 
-> LangGraph 기반 LLM-routed 4-agent 챗봇 - 시스템 설계
+> LangGraph 기반 LLM-routed 2-agent 챗봇 - 시스템 설계
 
 ---
 
@@ -39,13 +39,12 @@
 ┌─────────────────────────────▼───────────────────────────────────────┐
 │                        오케스트레이션 레이어                          │
 │   ┌─────────────────────────────────────────────────────────────┐   │
-│   │  LangGraph StateGraph (Task Queue Pattern)                 │   │
+│   │  LangGraph StateGraph (Agent Routing Pattern)              │   │
 │   │  LLMRouter                                                  │   │
 │   │    ├─▶ Chat                                                 │   │
-│   │    ├─▶ Code                                                 │   │
-│   │    ├─▶ WebSearchCollect ─▶ Chat                             │   │
-│   │    ├─▶ RetrieverCollect ─▶ RAG                              │   │
-│   │    └─▶ WebSearchCollect ─▶ RetrieverCollect ─▶ Report      │   │
+│   │    └─▶ Research                                             │   │
+│   │          ├─ web_search                                      │   │
+│   │          └─ retriever                                       │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -86,9 +85,7 @@ backend/src/
 │   ├── base.py          # BaseAgent ABC
 │   ├── factory.py       # AgentFactory
 │   ├── chat_agent.py    # 일반 대화 + 메모리 명령
-│   ├── code_agent.py    # 코드 생성/실행
-│   ├── rag_agent.py     # 문서 기반 Q&A
-│   └── report_agent.py  # 연구 결과 종합 보고서 작성
+│   └── research_agent.py # 웹/RAG/보고서 리서치
 │
 ├── api/                 # REST API
 │   ├── routes.py        # 엔드포인트 정의
@@ -112,8 +109,6 @@ backend/src/
 │   ├── builder.py       # 그래프 빌드
 │   ├── state.py         # AgentState TypedDict
 │   ├── router.py        # LLM 라우터 + 휴리스틱 fallback
-│   ├── task_queue.py    # task queue helper
-│   ├── tool_nodes.py    # LLM 없는 WebSearch/Retriever collect node
 │   └── edges.py         # 조건부 라우팅
 │
 ├── llm/                 # LLM 프로바이더
@@ -132,7 +127,6 @@ backend/src/
 │
 ├── tools/               # 에이전트 도구
 │   ├── web_search.py    # Tavily 웹 검색
-│   ├── code_executor.py # Python 실행
 │   └── retriever.py     # 문서 검색 도구
 │
 └── utils/               # 공통 유틸리티
@@ -153,17 +147,16 @@ backend/src/
 | 에이전트 | 역할 | 주요 기능 |
 |----------|------|----------|
 | **ChatAgent** | 일반 대화 | 메모리 명령, 사용자 프로파일링 |
-| **CodeAgent** | 코드 | 코드 생성/설명/디버깅/실행 |
-| **RAGAgent** | 문서 Q&A | 문서 검색 + 컨텍스트 기반 답변 |
-| **ReportAgent** | 보고서 | 다중 소스 연구 결과 종합 보고서 |
+| **ResearchAgent** | 리서치/RAG/보고서 | 도구 선택, 웹 검색, 문서 검색, 근거 기반 답변 |
 
-### Tool Nodes
+### 라우팅 및 도구
 
-| 노드 | 역할 | LLM 호출 |
-|------|------|----------|
-| **router** | LLM 기반 task queue 생성 | 1회 |
-| **web_search_collect** | Tavily 검색 결과 수집 | 없음 |
-| **retriever_collect** | Pinecone 문서 검색 결과 수집 | 없음 |
+| 구성요소 | 역할 | LLM 호출 |
+|----------|------|----------|
+| **router** | `chat` 또는 `research` 선택 | 1회 |
+| **ResearchAgent tool decision** | `web_search`/`retriever` 필요 여부 선택 | 1회 |
+| **web_search** | Tavily 검색 결과 수집 | 없음 |
+| **retriever** | Pinecone 문서 검색 결과 수집 | 없음 |
 
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
@@ -286,11 +279,11 @@ create_initial_state(message, session_id)
     ▼
 graph.ainvoke(state, config)
     ▼
-router creates task queue
+router selects chat or research
     ▼
-run queued graph nodes
+selected agent processes the state
     ▼
-{chat|code|rag|report}.process(state)
+chat.process(state) or research.process(state)
     ▼
 record_metrics(agent, duration, status)
     ▼

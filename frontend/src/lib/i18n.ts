@@ -84,11 +84,7 @@ const translations = {
 
     // Agent labels
     'agent.chat': '대화',
-    'agent.code': '코드',
-    'agent.rag': 'RAG',
-    'agent.web_search_collect': '웹 검색',
-    'agent.retriever_collect': '문서 검색',
-    'agent.report': '보고서',
+    'agent.research': '리서치',
     'agent.additionalAgents': '추가 에이전트',
 
     // Security
@@ -206,11 +202,7 @@ const translations = {
     'health.unlimited': 'Unlimited',
 
     'agent.chat': 'Chat',
-    'agent.code': 'Code',
-    'agent.rag': 'RAG',
-    'agent.web_search_collect': 'Web Search',
-    'agent.retriever_collect': 'Document Search',
-    'agent.report': 'Report',
+    'agent.research': 'Research',
     'agent.additionalAgents': 'Additional agents',
 
     // Security

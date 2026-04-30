@@ -14,8 +14,6 @@ class AgentFactory:
         user_profiler,
         topic_memory,
         summarizer,
-        search_tool=None,
-        retriever=None,
     ):
         """Create chat agent instance.
 
@@ -26,9 +24,6 @@ class AgentFactory:
             user_profiler: User profiler (optional)
             topic_memory: Topic memory (optional)
             summarizer: Summarizer (optional)
-            search_tool: Web search tool (optional)
-            retriever: Document retriever tool (optional)
-
         Returns:
             ChatAgent instance
         """
@@ -41,58 +36,16 @@ class AgentFactory:
             user_profiler=user_profiler,
             topic_memory=topic_memory,
             summarizer=summarizer,
-            search_tool=search_tool,
-            retriever=retriever,
         )
 
     @staticmethod
-    def create_code(
-        llm: LLMProvider,
-        memory: MemoryStore,
-        tool_registry,
-    ):
-        """Create code agent instance.
-
-        Args:
-            llm: LLM provider
-            memory: Memory store
-            tool_registry: Tool registry
-
-        Returns:
-            CodeAgent instance. It degrades to code generation/review when execution is disabled.
-        """
-        from src.agents.code_agent import CodeAgent
-
-        code_executor = tool_registry.get("code_executor") if tool_registry else None
-        return CodeAgent(
-            llm=llm,
-            code_executor=code_executor,
-            memory=memory,
-        )
-
-    @staticmethod
-    def create_rag(
-        llm: LLMProvider,
-        retriever,
-        memory: MemoryStore,
-    ):
-        """Create RAG agent instance."""
-        from src.agents.rag_agent import RAGAgent
-
-        return RAGAgent(
-            llm=llm,
-            retriever=retriever,
-            memory=memory,
-        )
-
-    @staticmethod
-    def create_report(
+    def create_research(
         llm: LLMProvider,
         memory: MemoryStore,
         search_tool=None,
         retriever=None,
     ):
-        """Create report agent instance.
+        """Create research agent instance.
 
         Args:
             llm: LLM provider
@@ -101,11 +54,11 @@ class AgentFactory:
             retriever: Document retriever tool (optional)
 
         Returns:
-            ReportAgent instance
+            ResearchAgent instance
         """
-        from src.agents.report_agent import ReportAgent
+        from src.agents.research_agent import ResearchAgent
 
-        return ReportAgent(
+        return ResearchAgent(
             llm=llm,
             memory=memory,
             search_tool=search_tool,

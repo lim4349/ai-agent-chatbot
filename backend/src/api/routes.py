@@ -61,18 +61,16 @@ def get_graph_capabilities(
     tool_registry: ToolRegistry | None,
     retriever: DocumentRetriever | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
-    """Return available LLM agents, tool nodes, and all routable graph nodes."""
-    agent_nodes = ["chat", "code", "report"]
-    if retriever or (tool_registry and tool_registry.get("retriever")):
-        agent_nodes.insert(2, "rag")
+    """Return available agent nodes, tools, and routable graph nodes."""
+    agent_nodes = ["chat", "research"]
 
-    tool_nodes = []
+    available_tools = []
     if tool_registry and tool_registry.get("web_search"):
-        tool_nodes.append("web_search_collect")
+        available_tools.append("web_search")
     if retriever or (tool_registry and tool_registry.get("retriever")):
-        tool_nodes.append("retriever_collect")
+        available_tools.append("retriever")
 
-    return agent_nodes, tool_nodes, [*agent_nodes, *tool_nodes]
+    return agent_nodes, available_tools, agent_nodes
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -86,7 +84,7 @@ async def chat(
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
-    The LLM router builds a task queue for the appropriate specialist agent.
+    The LLM router selects the appropriate specialist agent.
     """
     start_time = time.perf_counter()
 
@@ -304,7 +302,7 @@ async def health(
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
-    available_agents, tool_nodes, _ = get_graph_capabilities(tool_registry, retriever)
+    available_agents, available_tools, _ = get_graph_capabilities(tool_registry, retriever)
 
     return HealthResponse(
         status="ok",
@@ -312,7 +310,7 @@ async def health(
         llm_model=config.llm.model,
         memory_backend=config.memory.backend,
         available_agents=available_agents,
-        tool_nodes=tool_nodes,
+        available_tools=available_tools,
     )
 
 
@@ -323,32 +321,24 @@ async def list_agents(
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> AgentListResponse:
     """List all available agents and their descriptions."""
+    research_tools = []
+    if tool_registry.get("web_search"):
+        research_tools.append("web_search")
+    if retriever or tool_registry.get("retriever"):
+        research_tools.append("retriever")
+
     agents = [
         AgentInfo(
             name="chat",
-            description="General conversation and answers over collected web context",
+            description="General conversation, memory commands, and ordinary Q&A",
             tools=["memory"],
         ),
         AgentInfo(
-            name="code",
-            description="Code generation, analysis, and debugging",
-            tools=["code_executor"] if tool_registry.get("code_executor") else [],
-        ),
-        AgentInfo(
-            name="report",
-            description="Synthesize collected web and document context into structured reports",
-            tools=[],
+            name="research",
+            description="Agentic web search, uploaded-document retrieval, and report synthesis",
+            tools=research_tools,
         ),
     ]
-
-    if retriever:
-        agents.append(
-            AgentInfo(
-                name="rag",
-                description="Answer questions based on uploaded documents",
-                tools=["retriever"],
-            )
-        )
 
     return AgentListResponse(agents=agents)
 

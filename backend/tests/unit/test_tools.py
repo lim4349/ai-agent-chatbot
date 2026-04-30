@@ -2,7 +2,6 @@
 
 import pytest
 
-from src.tools.code_executor import CodeExecutorTool
 from src.tools.registry import ToolRegistry
 from src.tools.retriever import RetrieverTool
 
@@ -40,42 +39,6 @@ class TestToolRegistry:
         result = registry.unregister("test")
         assert result is True
         assert not registry.has_tool("test")
-
-
-class TestCodeExecutorTool:
-    """Test cases for Code Executor Tool."""
-
-    @pytest.mark.asyncio
-    async def test_execute_simple_code(self):
-        """Test executing simple Python code."""
-        tool = CodeExecutorTool(timeout=5)
-        result = await tool.execute("print('Hello, World!')")
-
-        assert result["success"] is True
-        assert "Hello, World!" in result["stdout"]
-
-    @pytest.mark.asyncio
-    async def test_block_dangerous_import(self):
-        """Test that dangerous imports are blocked."""
-        tool = CodeExecutorTool(timeout=5)
-        result = await tool.execute("import os\nos.system('echo test')")
-
-        assert result["success"] is False
-        # The implementation returns "Security: Module 'os' is not allowed"
-        assert "Security" in result["stderr"]
-        assert "os" in result["stderr"]
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="Timeout test with RLIMIT_CPU affects entire process, causing pytest to be killed"
-    )
-    async def test_timeout(self):
-        """Test that long-running code times out."""
-        tool = CodeExecutorTool(timeout=1)
-        result = await tool.execute("while True: pass")
-
-        assert result["success"] is False
-        assert "timed out" in result["stderr"]
 
 
 class TestRetrieverTool:

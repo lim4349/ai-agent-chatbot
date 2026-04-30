@@ -40,9 +40,11 @@ class MockLLM:
         yield "response."
 
     async def generate_structured(self, messages, output_schema, **kwargs) -> dict:
-        # Return a valid routing decision by default
-        if hasattr(output_schema, "__name__") and "Route" in output_schema.__name__:
-            return {"selected_agent": "chat", "reasoning": "Mock routing decision"}
+        schema_name = getattr(output_schema, "__name__", "")
+        if schema_name == "RouterDecision":
+            return {"agent": "chat", "reasoning": "Mock routing decision"}
+        if schema_name == "ResearchToolDecision":
+            return {"tools": [], "response_mode": "answer", "reasoning": "Mock tool decision"}
         return {}
 
 
@@ -120,7 +122,6 @@ def test_config() -> AppConfig:
         rag=RAGConfig(collection_name="test_documents"),
         tools=ToolsConfig(
             tavily_api_key=None,
-            code_execution_enabled=False,
         ),
     )
 

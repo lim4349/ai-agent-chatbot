@@ -3,8 +3,7 @@
 import pytest
 
 from src.agents.chat_agent import ChatAgent
-from src.agents.code_agent import CodeAgent
-from src.agents.report_agent import ReportAgent
+from src.agents.research_agent import ResearchAgent
 from src.graph.state import create_initial_state
 
 
@@ -35,9 +34,12 @@ class TestChatAgent:
         messages = await memory.get_messages("test-session")
         assert len(messages) == 2  # user + assistant
 
+class TestResearchAgent:
+    """Test cases for Research Agent."""
+
     @pytest.mark.asyncio
-    async def test_retriever_prefetch_uses_session_and_device_scope(self, mock_llm, mock_memory):
-        """Document prefetch should search the user's uploaded-document namespace."""
+    async def test_retriever_uses_session_and_device_scope(self, mock_llm, mock_memory):
+        """Document retrieval should search the user's uploaded-document namespace."""
 
         class MockRetrieverTool:
             def __init__(self):
@@ -59,21 +61,20 @@ class TestChatAgent:
                     }
                 ]
 
+        async def mock_generate_structured(messages, output_schema, **kwargs):
+            return {
+                "tools": ["retriever"],
+                "response_mode": "answer",
+                "reasoning": "document query",
+            }
+
+        mock_llm.generate_structured = mock_generate_structured
         retriever = MockRetrieverTool()
-        agent = ChatAgent(
-            llm=mock_llm,
-            memory=mock_memory,
-            long_term_memory=None,
-            user_profiler=None,
-            topic_memory=None,
-            summarizer=None,
-            retriever=retriever,
-        )
+        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, retriever=retriever)
         state = create_initial_state("문서에서 찾아줘", "test-session", "device-1")
         state["has_documents"] = True
-        state["tools_hint"] = ["retriever"]
 
-        await agent.process(state)
+        result = await agent.process(state)
 
         assert retriever.calls == [
             {
@@ -83,34 +84,12 @@ class TestChatAgent:
                 "device_id": "device-1",
             }
         ]
-
-
-class TestCodeAgent:
-    """Test cases for Code Agent."""
+        assert result["messages"][-1]["role"] == "assistant"
+        assert result["tool_results"][0]["tool"] == "retriever"
 
     @pytest.mark.asyncio
-    async def test_generates_code_response(self, mock_llm, mock_memory):
-        """Test that code agent generates a response."""
-
-        async def mock_generate_with_usage(messages, **kwargs):
-            return "```python\nprint('Hello')\n```", {"input_tokens": 10, "output_tokens": 20}
-
-        mock_llm.generate_with_usage = mock_generate_with_usage
-
-        agent = CodeAgent(llm=mock_llm, memory=mock_memory)
-        state = create_initial_state("Write a hello world program", "test-session")
-        result = await agent.process(state)
-
-        assert len(result["messages"]) == 2
-        assert "```python" in result["messages"][-1]["content"]
-
-
-class TestReportAgent:
-    """Test cases for Report Agent."""
-
-    @pytest.mark.asyncio
-    async def test_direct_report_uses_web_search_context(self, mock_llm, mock_memory):
-        """Report route should work when called outside the task-queue graph."""
+    async def test_web_search_tool_decision_executes_search(self, mock_llm, mock_memory):
+        """Research agent should execute selected web search tool."""
 
         class MockSearchTool:
             def __init__(self):
@@ -120,13 +99,59 @@ class TestReportAgent:
                 self.calls.append(query)
                 return "### [Source](https://example.com)\n검색 결과"
 
+        async def mock_generate_structured(messages, output_schema, **kwargs):
+            return {
+                "tools": ["web_search"],
+                "response_mode": "answer",
+                "reasoning": "current info",
+            }
+
+        mock_llm.generate_structured = mock_generate_structured
         search_tool = MockSearchTool()
-        agent = ReportAgent(llm=mock_llm, memory=mock_memory, search_tool=search_tool)
-        state = create_initial_state("AI 시장 보고서 작성해줘", "test-session")
-        state["tools_hint"] = ["web_search"]
+        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, search_tool=search_tool)
+        state = create_initial_state("오늘 AI 뉴스 검색해줘", "test-session")
 
         result = await agent.process(state)
 
-        assert search_tool.calls == ["AI 시장 보고서 작성해줘"]
+        assert search_tool.calls == ["오늘 AI 뉴스 검색해줘"]
         assert result["messages"][-1]["role"] == "assistant"
         assert result["tool_results"][0]["tool"] == "web_search"
+
+    @pytest.mark.asyncio
+    async def test_fallback_prefers_retriever_for_explicit_rag_query(self, mock_llm, mock_memory):
+        """Fallback tool routing should not web-search explicit uploaded-document questions."""
+
+        class MockSearchTool:
+            def __init__(self):
+                self.calls = []
+
+            async def execute(self, query):
+                self.calls.append(query)
+                return "검색 결과"
+
+        class MockRetrieverTool:
+            async def execute(self, query, top_k=3, session_id=None, device_id=None):
+                return [{"content": "리스트 A", "metadata": {"source": "doc.txt"}}]
+
+        async def mock_generate_structured(messages, output_schema, **kwargs):
+            raise RuntimeError("structured output unavailable")
+
+        mock_llm.generate_structured = mock_generate_structured
+        search_tool = MockSearchTool()
+        agent = ResearchAgent(
+            llm=mock_llm,
+            memory=mock_memory,
+            search_tool=search_tool,
+            retriever=MockRetrieverTool(),
+        )
+        state = create_initial_state(
+            "지금 rag 문서에 있는 모든 리스트 알려줘",
+            "test-session",
+            "device-1",
+        )
+        state["has_documents"] = True
+
+        result = await agent.process(state)
+
+        assert search_tool.calls == []
+        assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]

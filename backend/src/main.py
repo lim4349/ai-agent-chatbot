@@ -63,9 +63,7 @@ async def lifespan(app: FastAPI):
         modules=[
             "src.api.routes",
             "src.agents.chat_agent",
-            "src.agents.code_agent",
-            "src.agents.rag_agent",
-            "src.agents.report_agent",
+            "src.agents.research_agent",
         ]
     )
 
@@ -81,23 +79,6 @@ async def lifespan(app: FastAPI):
     # Initialize container (uses dependency to respect test overrides)
     container = get_container_dependency()
 
-    # Initialize MCP tools
-    mcp_manager = None
-    if config.mcp.enabled:
-        from src.tools.mcp.manager import MCPClientManager
-
-        mcp_manager = MCPClientManager(config.mcp)
-        await mcp_manager.initialize()
-        tools = await mcp_manager.discover_tools()
-
-        tool_registry = container.tool_registry()
-        for tool in tools:
-            if not tool_registry.has_tool(tool.name):
-                tool_registry.register(tool)
-                logger.info("mcp_tool_registered", tool=tool.name, server=tool.server_name)
-            else:
-                logger.warning("mcp_tool_name_conflict", tool_name=tool.name)
-
     logger.info(
         "container_initialized",
         llm_providers=type(container.llm()).__name__,
@@ -108,10 +89,6 @@ async def lifespan(app: FastAPI):
 
     # Unwire DI container
     di_container.unwire()
-
-    # Cleanup
-    if mcp_manager:
-        await mcp_manager.close()
 
     logger.info("application_shutting_down")
     # Close Redis connection if needed

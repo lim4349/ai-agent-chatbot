@@ -3,12 +3,13 @@
 ## Executive Overview
 
 A production-ready **LangGraph-based LLM-routed multi-agent chatbot system** with advanced features including:
-- LLM task-queue orchestration (4 LLM-backed specialist agents + deterministic tool nodes)
+- LLM agent routing (2 LLM-backed specialist agents)
+- Agentic tool calling inside ResearchAgent (`web_search`, `retriever`)
 - Retrieval-Augmented Generation (RAG) with Pinecone vector DB
 - Real-time SSE streaming responses
 - 3-tier memory architecture (session/topic/user)
 - Full-stack deployment (Render + Vercel, zero-cost)
-- 82 Python backend + 69 TypeScript frontend source files
+- Python FastAPI backend + TypeScript Next.js frontend
 
 ---
 
@@ -74,22 +75,24 @@ A production-ready **LangGraph-based LLM-routed multi-agent chatbot system** wit
 ## 2. KEY FEATURES & CAPABILITIES
 
 ### Multi-Agent Orchestration
-**4 LLM-backed specialist agents** orchestrated by a deterministic LangGraph router:
+**2 LLM-backed specialist agents** orchestrated by a LangGraph LLM router:
 
 | Agent | Role | Capabilities |
 |-------|------|--------------|
 | **Chat Agent** | General conversation | Memory commands, user profiling, context awareness |
-| **Code Agent** | Programming | Code generation, execution (Python), debugging, explanation |
-| **RAG Agent** | Document Q&A | Vector search → context-aware answers from uploaded docs |
-| **Report Agent** | Multi-source synthesis | Combines web search + RAG + code results into reports |
+| **Research Agent** | Web/RAG/reports | Chooses `web_search` and/or `retriever`, then produces evidence-grounded answers |
 
-Deterministic graph/tool nodes:
+Research tools:
 
-| Node | Role | LLM Call |
+| Tool | Role | LLM Call |
 |------|------|----------|
-| **router** | LLM-based task queue creation | Yes |
-| **web_search_collect** | Tavily result collection | No |
-| **retriever_collect** | Pinecone document retrieval | No |
+| **web_search** | Tavily result collection | No |
+| **retriever** | Pinecone document retrieval | No |
+
+LLM call count by path:
+
+- Chat: router decision + final ChatAgent response = 2 calls
+- Research: router decision + tool decision + final ResearchAgent response = 3 calls
 
 ### Memory System (3-Tier Architecture)
 ```
@@ -188,10 +191,9 @@ User Memory (Supabase, permanent)
 │   │  ┌────────┐    ┌──────┐                                      │   │
 │   │  │ Router │───▶│ Chat │                                      │   │
 │   │  └───┬────┘    └──────┘                                      │   │
-│   │      ├────────▶ Code                                         │   │
-│   │      ├────────▶ RetrieverCollect ─▶ RAG                      │   │
-│   │      ├────────▶ WebSearchCollect ─▶ Chat                     │   │
-│   │      └────────▶ WebSearchCollect ─▶ RetrieverCollect ─▶ Report│   │
+│   │      └────────▶ Research                                     │   │
+│   │                   ├─ web_search                              │   │
+│   │                   └─ retriever                               │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -204,16 +206,14 @@ User Memory (Supabase, permanent)
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Backend Module Structure (83 Python files)
+### Backend Module Structure
 ```
 backend/src/
 ├── agents/              # Multi-agent system
-│   ├── chat_agent.py    # General conversation (~250 lines)
-│   ├── code_agent.py    # Code generation/execution (~200 lines)
-│   ├── rag_agent.py     # Document Q&A (~350 lines)
-│   ├── report_agent.py  # Report synthesis (~250 lines)
-│   ├── base.py          # Abstract base (~100 lines)
-│   └── factory.py       # Factory pattern (~80 lines)
+│   ├── chat_agent.py    # General conversation
+│   ├── research_agent.py # Web/RAG/report research
+│   ├── base.py          # Abstract base
+│   └── factory.py       # Factory pattern
 │
 ├── api/                 # REST API layer
 │   ├── routes.py        # 15+ endpoints
@@ -224,9 +224,7 @@ backend/src/
 ├── graph/               # LangGraph state machine
 │   ├── state.py         # AgentState TypedDict
 │   ├── builder.py       # Graph construction
-│   ├── router.py        # LLM task queue routing + fallback
-│   ├── task_queue.py    # Task queue helper
-│   ├── tool_nodes.py    # LLM-free WebSearch/Retriever collection
+│   ├── router.py        # LLM agent routing + fallback
 │   └── edges.py         # Conditional routing logic
 │
 ├── core/                # Core infrastructure
@@ -256,9 +254,7 @@ backend/src/
 │
 ├── tools/               # Agent tools
 │   ├── web_search.py    # Tavily integration
-│   ├── code_executor.py # Python execution
-│   ├── retriever.py     # Document search
-│   └── mcp/             # Model Context Protocol
+│   └── retriever.py     # Document search
 │
 └── observability/       # Metrics & tracing
     ├── metrics_store.py
@@ -385,9 +381,9 @@ RootLayout (layout.tsx)
 
 **State Machine** (LangGraph):
 - AgentState as central state
-- LLM router creates task queues
-- Deterministic tool nodes collect context before final specialist agent generation
-- Conditional edges advance through queued graph tasks
+- LLM router selects `chat` or `research`
+- ResearchAgent makes the tool-use decision internally
+- Conditional edges route once from router to the selected agent
 
 **Strategy Pattern** (Document Chunking):
 - `auto`: Format detection
@@ -397,19 +393,15 @@ RootLayout (layout.tsx)
 
 ### Advanced Features
 
-**Multi-Step Workflows**:
-- Router queues graph tasks via `remaining_tasks`
-- Example: `web_search_collect` → `retriever_collect` → `report` synthesis
+**Agentic Research Workflow**:
+- Router selects ResearchAgent for web/RAG/report requests
+- ResearchAgent chooses `web_search`, `retriever`, both, or neither
+- Final answer is generated from the collected context
 
 **Auto-Summarization Trigger**:
 - Token count > 2000 OR
 - Message count > 20 OR
 - Time since last summary > 10 minutes
-
-**Model Context Protocol (MCP)** Support:
-- Optional integration (400+ lines)
-- Discover tools from remote servers
-- Register with agent tooling
 
 **LangSmith Integration** (Optional):
 - Full LLM call tracing
@@ -438,7 +430,7 @@ Docker Compose Services:
 **Backend**: Render.com Free Tier
 - 512MB RAM, 0.1 CPU
 - 15-minute auto-sleep
-- Code execution DISABLED (memory constraint)
+- Minimal active tools for predictable memory use
 
 **External Services**:
 - Pinecone (Vector DB): Free tier ~1M vectors
@@ -476,7 +468,7 @@ On: Push to main
 ## 8. SCALABILITY & FUTURE IMPROVEMENTS
 
 **Current Free Tier Constraints**:
-- Render: 512MB RAM → disable code execution
+- Render: 512MB RAM → keep active tool surface small
 - Redis: 10K req/day → batch requests
 - Pinecone: 1M vectors → namespace by session
 
@@ -497,7 +489,7 @@ On: Push to main
 1. **GLM-5 Integration**: Anthropic-compatible API at `https://api.z.ai/api/anthropic`
 2. **Supabase Keys**: Always use `service_role` (not `anon`) in backend
 3. **3-Tier Memory**: Session (fast) → Topic (preserved) → User (permanent)
-4. **Report Agent**: Leverages `remaining_tasks` queue for multi-step workflows
+4. **Research Agent**: Keeps web/RAG/report behavior in one tool-using specialist
 5. **Token Accounting**: Use tiktoken for accuracy, log separately (input/output)
 
 ---
@@ -506,12 +498,13 @@ On: Push to main
 
 | Metric | Value |
 |--------|-------|
-| Backend Files | 82 Python |
+| Backend Files | Python FastAPI/LangGraph modules |
 | Frontend Files | 69 TypeScript |
 | REST Endpoints | 15+ |
-| Agents | 4 LLM-backed + 3 deterministic graph/tool nodes |
+| Agents | 2 LLM-backed |
+| Active Tools | 2 (`web_search`, `retriever`) |
 | Database Tables | 5+ |
-| Config Variables | 95+ |
+| Config Variables | Environment-driven |
 | Supported Formats | 6 (PDF, DOCX, TXT, MD, CSV, JSON) |
 | Deployment Cost | $0/month |
 | Cold Start | 10-30s (Render free) |

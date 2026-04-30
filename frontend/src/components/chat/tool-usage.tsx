@@ -18,10 +18,7 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   search: Search,
   web_search: Globe,
   document_search: FileText,
-  rag: FileText,
   retriever: FileText,
-  web_search_collect: Globe,
-  retriever_collect: FileText,
   default: Wrench,
 };
 

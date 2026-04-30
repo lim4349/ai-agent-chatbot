@@ -14,15 +14,19 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 // Agent color mapping for consistent theming
 const AGENT_COLORS: Record<string, string> = {
   chat: '#3b82f6',       // Blue
-  rag: '#10b981',        // Green
-  code: '#8b5cf6',       // Purple
-  web_search_collect: '#f59e0b', // Amber
-  retriever_collect: '#06b6d4',  // Cyan
-  report: '#ec4899',     // Pink
+  research: '#10b981',   // Green
 };
 
 // Nodes to exclude from legacy stats if older deployments recorded them.
-const EXCLUDED_AGENTS = ['supervisor', 'router'];
+const EXCLUDED_AGENTS = [
+  'supervisor',
+  'router',
+  'code',
+  'rag',
+  'report',
+  'web_search_collect',
+  'retriever_collect',
+];
 
 // Get agent color with fallback
 function getAgentColor(agentName: string, index: number): string {
