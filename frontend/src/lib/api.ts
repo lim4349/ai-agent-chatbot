@@ -194,10 +194,10 @@ export const api = {
   },
   // Metrics
   async getMetricsSummary(period: MetricsPeriod = '24h'): Promise<MetricsSummary> {
-    return fetchApi<MetricsSummary>(`/api/v1/metrics/summary?period=${period}`);
+    return fetchApi<MetricsSummary>(`${API_ENDPOINTS.metricsSummary}?period=${period}`);
   },
 
   async getAgentMetrics(agentName: string, period: MetricsPeriod = '24h'): Promise<AgentMetricsResponse> {
-    return fetchApi<AgentMetricsResponse>(`/api/v1/metrics/agents?agent_name=${encodeURIComponent(agentName)}&period=${period}`);
+    return fetchApi<AgentMetricsResponse>(`${API_ENDPOINTS.metricsAgents}?agent_name=${encodeURIComponent(agentName)}&period=${period}`);
   },
 };

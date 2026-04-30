@@ -204,7 +204,9 @@ class MetricsStore:
         total_requests = len(metrics)
         successful_requests = sum(1 for m in metrics if m.get("status") == "success")
         failed_requests = sum(1 for m in metrics if m.get("status") == "error")
-        blocked_requests = sum(1 for m in metrics if m.get("status") == "blocked")
+        blocked_requests = sum(
+            1 for m in metrics if m.get("status") in ("blocked", "timeout")
+        )
 
         total_duration = sum(m.get("duration_ms", 0) for m in metrics)
         avg_duration_ms = total_duration / total_requests if total_requests > 0 else 0
@@ -232,7 +234,7 @@ class MetricsStore:
                 agent_stats_map[agent]["successful_requests"] += 1
             elif m.get("status") == "error":
                 agent_stats_map[agent]["failed_requests"] += 1
-            elif m.get("status") == "timeout":
+            elif m.get("status") in ("timeout", "blocked"):
                 agent_stats_map[agent]["timeout_requests"] += 1
 
             agent_stats_map[agent]["total_duration_ms"] += m.get("duration_ms", 0)
