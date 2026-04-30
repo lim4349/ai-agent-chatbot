@@ -155,3 +155,29 @@ class TestResearchAgent:
 
         assert search_tool.calls == []
         assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]
+
+    @pytest.mark.asyncio
+    async def test_llm_under_selection_still_uses_retriever_for_rag_query(
+        self, mock_llm, mock_memory
+    ):
+        """Explicit RAG questions should use retriever even when the LLM omits tools."""
+
+        class MockRetrieverTool:
+            async def execute(self, query, top_k=3, session_id=None, device_id=None):
+                return [{"content": "리스트 A", "metadata": {"source": "doc.txt"}}]
+
+        async def mock_generate_structured(messages, output_schema, **kwargs):
+            return {"tools": [], "response_mode": "answer", "reasoning": "under-selected"}
+
+        mock_llm.generate_structured = mock_generate_structured
+        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, retriever=MockRetrieverTool())
+        state = create_initial_state(
+            "지금 rag 문서에 있는 모든 리스트 알려줘",
+            "test-session",
+            "device-1",
+        )
+        state["has_documents"] = True
+
+        result = await agent.process(state)
+
+        assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]

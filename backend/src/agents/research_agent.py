@@ -158,7 +158,13 @@ Rules:
         try:
             data = await self.llm.generate_structured(messages, output_schema=ResearchToolDecision)
             if data:
-                return self._sanitize_decision(data, available_tools)
+                decision = self._sanitize_decision(data, available_tools)
+                return self._enforce_explicit_tool_intent(
+                    decision,
+                    query,
+                    available_tools,
+                    has_documents=state.get("has_documents", False),
+                )
         except Exception as e:
             logger.warning("research_tool_decision_failed", error=str(e))
 
@@ -183,15 +189,43 @@ Rules:
             reasoning=data.get("reasoning", ""),
         )
 
-    def _fallback_decision(
+    def _enforce_explicit_tool_intent(
         self,
+        decision: ResearchToolDecision,
         query: str,
         available_tools: list[str],
         has_documents: bool = False,
     ) -> ResearchToolDecision:
-        """Deterministic fallback if structured tool choice fails."""
+        """Guard obvious tool requirements even if the LLM under-selects tools."""
+        document_requested, web_requested, report_requested = self._intent_flags(query)
+        tools = list(decision.tools)
+
+        if "retriever" in available_tools and document_requested and "retriever" not in tools:
+            tools.append("retriever")
+        if (
+            "retriever" in available_tools
+            and report_requested
+            and has_documents
+            and "retriever" not in tools
+        ):
+            tools.append("retriever")
+        if (
+            "web_search" in available_tools
+            and web_requested
+            and (not document_requested or report_requested)
+            and "web_search" not in tools
+        ):
+            tools.append("web_search")
+
+        return ResearchToolDecision(
+            tools=tools,
+            response_mode=decision.response_mode,
+            reasoning=decision.reasoning,
+        )
+
+    def _intent_flags(self, query: str) -> tuple[bool, bool, bool]:
+        """Return document, web, and report intent flags for guardrail routing."""
         lowered = query.lower()
-        tools = []
         document_requested = any(
             term in lowered for term in ("rag", "문서", "자료", "파일", "업로드", "pdf", "document")
         )
@@ -214,6 +248,17 @@ Rules:
         report_requested = any(
             term in lowered for term in ("보고서", "리포트", "report", "종합")
         )
+        return document_requested, web_requested, report_requested
+
+    def _fallback_decision(
+        self,
+        query: str,
+        available_tools: list[str],
+        has_documents: bool = False,
+    ) -> ResearchToolDecision:
+        """Deterministic fallback if structured tool choice fails."""
+        tools = []
+        document_requested, web_requested, report_requested = self._intent_flags(query)
 
         if "retriever" in available_tools and document_requested:
             tools.append("retriever")
