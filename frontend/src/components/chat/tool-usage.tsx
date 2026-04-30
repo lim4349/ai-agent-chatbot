@@ -104,12 +104,6 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                     )}
                   </div>
 
-                  {tool.query && (
-                    <div className="text-muted-foreground truncate">
-                      Query: {tool.query}
-                    </div>
-                  )}
-
                   {tool.documentSources && tool.documentSources.length > 0 && (
                     <div className="space-y-0.5">
                       <span className="text-muted-foreground">Sources:</span>

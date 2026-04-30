@@ -60,6 +60,19 @@ async def test_document_query_routes_to_retriever_then_rag_when_documents_exist(
 
 
 @pytest.mark.asyncio
+async def test_explicit_rag_query_does_not_fall_through_to_web_search_without_documents():
+    state = create_initial_state(
+        "지금 rag 문서에 있는 모든 리스트 알려줘",
+        available_nodes=["chat", "rag", "web_search_collect", "retriever_collect", "report"],
+    )
+
+    result = await heuristic_route(state)
+
+    assert result["next_agent"] == "retriever_collect"
+    assert result["remaining_tasks"] == ["retriever_collect", "rag"]
+
+
+@pytest.mark.asyncio
 async def test_report_query_collects_available_context_then_report():
     state = create_initial_state(
         "최신 자료와 문서를 종합해서 보고서 작성해줘",

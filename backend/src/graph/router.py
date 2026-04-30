@@ -75,7 +75,13 @@ async def heuristic_route(state: AgentState) -> AgentState:
         return _with_tasks(state, tasks)
 
     # Document-grounded answer: retrieve first, then answer with RAG agent.
-    if has_documents and _DOCUMENT_PATTERNS.search(content) and "retriever_collect" in available_nodes:
+    # Do this even when has_documents is false so explicit RAG/document queries
+    # do not fall through to web search because of words like "지금" or "현재".
+    if (
+        _DOCUMENT_PATTERNS.search(content)
+        and "retriever_collect" in available_nodes
+        and "rag" in available_nodes
+    ):
         return _with_tasks(state, ["retriever_collect", "rag"])
 
     # Current information: collect web search results, then chat over them.
