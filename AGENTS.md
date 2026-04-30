@@ -12,6 +12,25 @@ Project-wide guidance for AI coding agents working in this repository.
 - Short-term memory: Redis/Upstash in production, in-memory fallback locally
 - Deployment: Render backend, Vercel frontend
 
+## Current Agent Architecture
+
+Active LangGraph flow:
+
+```text
+FastAPI
+→ LangGraph
+   → LLMRouterNode
+      ├─ ChatAgent
+      └─ ResearchAgent
+            ├─ web_search
+            └─ retriever
+```
+
+- Active agents: `chat`, `research`
+- Active tools: `web_search`, `retriever`
+- `ResearchAgent` decides when to call tools. Explicit RAG/document questions must use `retriever`; current/news/search questions use `web_search`.
+- Do not reintroduce separate `code`, `rag`, `report`, collect-node, MCP, or code-execution surfaces unless the user explicitly requests a new architecture.
+
 ## Current LLM Policy
 
 Use OpenRouter's free router as the single production model.
@@ -31,8 +50,7 @@ so paid routing is not used accidentally.
 
 ## Security Defaults
 
-- Keep `TOOLS_CODE_EXECUTION_ENABLED=false` by default.
-- Render Free Tier should not enable code execution.
+- Keep the active tool surface limited to `web_search` and `retriever`.
 - Log endpoints are debug-only. Do not expose `/api/v1/logs` in production.
 - Do not commit real secrets. Use `.env.example` placeholders and configure secrets in
   Render, Vercel, or GitHub Actions.
@@ -164,7 +182,7 @@ S246 RAG 시스템 요구사항 정의 및 기술 스택 확정 (Mar 11, 10:02 A
 4685 10:59a 🔴 Fixed Ruff lint violation and hardened CI test reliability
 4686 " 🔴 Fixed frontend test failures and added missing test script
 4687 11:00a 🔴 All frontend tests now passing after test infrastructure fixes
-4688 " 🟣 Production security hardening for code execution and log endpoints
+4688 " 🟣 Production security hardening for debug log endpoints
 4689 11:23a 🔵 OpenRouter free model endpoint validated
 4690 11:25a 🔵 Free-model-only LLM configuration with enforced cost protection
 4691 " 🔵 Multi-provider free-tier fallback chain mitigates rate limits

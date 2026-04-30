@@ -4,10 +4,10 @@
 
 LangGraph 기반 챗봇입니다. FastAPI 백엔드와 Next.js 프론트엔드가 분리되어 있습니다.
 
-**그래프 구조**: `heuristic_router(LLM 없음)` → `[chat | code | report]` → END
-- LLM 호출: 쿼리당 최소 1회 (기존 supervisor 방식은 2회+)
-- `chat` 에이전트가 web_search/retriever 툴을 직접 pre-fetch해서 단일 LLM 호출로 처리
-- `code`, `report`는 전용 에이전트 유지
+**그래프 구조**: `LLMRouterNode` → `[chat | research]` → END
+- 일반 대화: 라우팅 1회 + ChatAgent 응답 1회
+- 리서치/RAG/보고서: 라우팅 1회 + ResearchAgent 도구 선택 1회 + 최종 응답 1회
+- `research` 에이전트가 `web_search`/`retriever` 도구 사용 여부를 직접 결정
 
 ## 현재 기술 스택
 
@@ -58,16 +58,17 @@ npm run build
 ## 작업 시 유의사항
 
 - 설정은 `.env`와 `src/core/config` 계층을 우선 확인
-- 새 기능은 DI 컨테이너와 기존 service/tool registry 구조를 따라야 함
+- 새 기능은 DI 컨테이너와 기존 agent/tool registry 구조를 따라야 함
 - Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
 - LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
-- 라우팅 수정은 `src/graph/router.py`의 regex 패턴 조정
-- chat agent의 tool pre-fetch 로직은 `src/agents/chat_agent.py` `process()` 내 tools_hint 처리 부분
+- 라우팅 수정은 `src/graph/router.py`의 LLM router/fallback 패턴 조정
+- 도구 선택 수정은 `src/agents/research_agent.py`의 `ResearchToolDecision` 및 guardrail 로직 조정
 
 ## 커밋 전 최소 확인
 
 ```bash
 cd backend && uv run pytest -v
-cd frontend && npm run lint && npm run build
+cd backend && uv run --with ruff ruff check .
+cd frontend && npm run lint && npm test && npm run build
 ```

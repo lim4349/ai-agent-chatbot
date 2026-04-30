@@ -84,7 +84,7 @@ npm install
 
 # 환경변수
 cp .env.example .env.local
-# NEXT_PUBLIC_API_URL=http://localhost:8000  (기본값)
+# NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # 개발 서버
 npm run dev     # http://localhost:3000
@@ -103,8 +103,8 @@ npm start
 - 자동 스크롤 + "아래로" 버튼 (스크롤 위치 감지)
 
 ### 에이전트 시각화
-- 에이전트별 색상 배지 (Chat: 초록, Code: 보라, RAG: 파랑, WebSearch: 주황)
-- 에이전트 전환 애니메이션 (Framer Motion)
+- 에이전트별 색상 배지 (Chat, Research)
+- 에이전트 전환 애니메이션
 - 도구 사용 내역 접기/펼치기 표시
 - 이전 대화 참조 배지 (메모리 기반)
 
