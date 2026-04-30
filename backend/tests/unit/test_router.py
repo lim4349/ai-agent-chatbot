@@ -1,9 +1,56 @@
-"""Tests for the heuristic graph router."""
+"""Tests for the graph router."""
 
 import pytest
 
-from src.graph.router import heuristic_route
+from src.graph.router import LLMRouterNode, heuristic_route
 from src.graph.state import create_initial_state
+
+
+class FakeRouterLLM:
+    def __init__(self, decision=None, error: Exception | None = None):
+        self.decision = decision or {"tasks": ["chat"], "reasoning": "test route"}
+        self.error = error
+        self.calls = 0
+
+    async def generate_structured(self, messages, output_schema, **kwargs):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.decision
+
+
+@pytest.mark.asyncio
+async def test_llm_router_uses_structured_route_decision():
+    llm = FakeRouterLLM(
+        {"tasks": ["retriever_collect", "rag"], "reasoning": "document query"}
+    )
+    router = LLMRouterNode(llm)
+    state = create_initial_state(
+        "지금 rag 문서에 있는 모든 리스트 알려줘",
+        available_nodes=["chat", "rag", "web_search_collect", "retriever_collect", "report"],
+    )
+
+    result = await router(state)
+
+    assert llm.calls == 1
+    assert result["next_agent"] == "retriever_collect"
+    assert result["remaining_tasks"] == ["retriever_collect", "rag"]
+    assert result["metadata"]["route_source"] == "llm"
+
+
+@pytest.mark.asyncio
+async def test_llm_router_falls_back_to_heuristic_on_failure():
+    router = LLMRouterNode(FakeRouterLLM(error=RuntimeError("boom")))
+    state = create_initial_state(
+        "오늘 뉴스 검색해서 알려줘",
+        available_nodes=["chat", "web_search_collect", "report"],
+    )
+
+    result = await router(state)
+
+    assert result["next_agent"] == "web_search_collect"
+    assert result["remaining_tasks"] == ["web_search_collect", "chat"]
+    assert result["metadata"]["route_source"] == "heuristic_fallback"
 
 
 @pytest.mark.asyncio

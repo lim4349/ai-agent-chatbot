@@ -21,7 +21,23 @@ class CountingLLM:
 
     async def generate_structured(self, messages, output_schema, **kwargs):
         self.calls += 1
-        if getattr(output_schema, "__name__", "") == "RAGResponse":
+        schema_name = getattr(output_schema, "__name__", "")
+        if schema_name == "RouterDecision":
+            user_prompt = messages[-1]["content"].split("Available graph nodes:", 1)[0]
+            if "보고서" in user_prompt or "종합" in user_prompt:
+                return {
+                    "tasks": ["web_search_collect", "retriever_collect", "report"],
+                    "reasoning": "mock report route",
+                }
+            if "문서" in user_prompt or "업로드" in user_prompt or "rag" in user_prompt.lower():
+                return {"tasks": ["retriever_collect", "rag"], "reasoning": "mock rag route"}
+            if "뉴스" in user_prompt or "검색" in user_prompt or "오늘" in user_prompt:
+                return {
+                    "tasks": ["web_search_collect", "chat"],
+                    "reasoning": "mock web route",
+                }
+            return {"tasks": ["chat"], "reasoning": "mock chat route"}
+        if schema_name == "RAGResponse":
             return {
                 "paragraphs": [{"title": "요약", "content": "문서 기반 답변입니다.", "bullet_points": []}],
                 "references": ["doc"],
@@ -108,7 +124,7 @@ def _config(name: str):
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_web_search_collect_then_chat_with_one_llm_call():
+async def test_graph_routes_web_search_collect_then_chat_with_router_and_agent_calls():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
@@ -122,11 +138,11 @@ async def test_graph_routes_web_search_collect_then_chat_with_one_llm_call():
 
     assert result["completed_steps"] == ["web_search_collect", "chat"]
     assert result["next_agent"] is None
-    assert llm.calls == 1
+    assert llm.calls == 2
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_retriever_collect_then_rag_with_one_llm_call():
+async def test_graph_routes_retriever_collect_then_rag_with_router_and_agent_calls():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
@@ -141,11 +157,11 @@ async def test_graph_routes_retriever_collect_then_rag_with_one_llm_call():
 
     assert result["completed_steps"] == ["retriever_collect", "rag"]
     assert result["next_agent"] is None
-    assert llm.calls == 1
+    assert llm.calls == 2
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_report_context_collection_then_report_with_one_llm_call():
+async def test_graph_routes_report_context_collection_then_report_with_router_and_agent_calls():
     llm = CountingLLM()
     graph = build_graph(MockContainer(llm))
     state = create_initial_state(
@@ -164,4 +180,4 @@ async def test_graph_routes_report_context_collection_then_report_with_one_llm_c
         "report",
     ]
     assert result["next_agent"] is None
-    assert llm.calls == 1
+    assert llm.calls == 2

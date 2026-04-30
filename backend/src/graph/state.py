@@ -10,7 +10,7 @@ class AgentState(TypedDict, total=False):
 
     Attributes:
         messages: Conversation messages (uses add_messages reducer)
-        next_agent: Next graph task selected by the heuristic router
+        next_agent: Next graph task selected by the LLM router
         tool_results: Accumulated tool execution results
         metadata: Session metadata (session_id, user_id, routing info)
         has_documents: Whether documents are available for RAG

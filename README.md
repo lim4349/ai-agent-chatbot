@@ -1,6 +1,6 @@
 # AI Agent Chatbot
 
-LangGraph 기반 cost-aware 멀티 에이전트 챗봇 시스템입니다. Heuristic Router가 LLM 호출 없이 작업 큐를 만들고, Web Search/Retriever tool node가 필요한 컨텍스트를 수집한 뒤 Chat/Code/RAG/Report 전문 에이전트가 응답합니다.
+LangGraph 기반 멀티 에이전트 챗봇 시스템입니다. LLM Router가 작업 큐를 만들고, Web Search/Retriever tool node가 필요한 컨텍스트를 수집한 뒤 Chat/Code/RAG/Report 전문 에이전트가 응답합니다.
 
 ## 현재 상태
 
@@ -15,7 +15,7 @@ LangGraph 기반 cost-aware 멀티 에이전트 챗봇 시스템입니다. Heuri
 
 ```
 사용자 입력
-  → router (LLM 없음, 키워드 기반 task queue)
+  → router (LLM 기반 task queue)
       → chat
       → code
       → web_search_collect → chat
@@ -24,11 +24,11 @@ LangGraph 기반 cost-aware 멀티 에이전트 챗봇 시스템입니다. Heuri
   → END
 ```
 
-기본 LLM 호출: 쿼리당 1회. 검색/RAG 수집은 deterministic tool node로 처리합니다.
+기본 LLM 호출: 라우팅 1회 + 최종 응답 1회. 검색/RAG 수집은 deterministic tool node로 처리합니다.
 
 ## 주요 기능
 
-- Heuristic task queue 기반 단일 LLM 호출 챗
+- LLM task queue 기반 멀티 에이전트 라우팅
 - 문서 업로드 후 질의응답 (retriever tool)
 - 웹 검색 도구 연동 (Tavily)
 - 코드 관련 질의 처리

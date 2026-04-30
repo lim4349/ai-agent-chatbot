@@ -2,8 +2,8 @@
 
 ## Executive Overview
 
-A production-ready **LangGraph-based cost-aware multi-agent chatbot system** with advanced features including:
-- Heuristic task-queue orchestration (4 LLM-backed specialist agents + deterministic tool nodes)
+A production-ready **LangGraph-based LLM-routed multi-agent chatbot system** with advanced features including:
+- LLM task-queue orchestration (4 LLM-backed specialist agents + deterministic tool nodes)
 - Retrieval-Augmented Generation (RAG) with Pinecone vector DB
 - Real-time SSE streaming responses
 - 3-tier memory architecture (session/topic/user)
@@ -87,7 +87,7 @@ Deterministic graph/tool nodes:
 
 | Node | Role | LLM Call |
 |------|------|----------|
-| **router** | Keyword-based task queue creation | No |
+| **router** | LLM-based task queue creation | Yes |
 | **web_search_collect** | Tavily result collection | No |
 | **retriever_collect** | Pinecone document retrieval | No |
 
@@ -224,7 +224,7 @@ backend/src/
 ├── graph/               # LangGraph state machine
 │   ├── state.py         # AgentState TypedDict
 │   ├── builder.py       # Graph construction
-│   ├── router.py        # Deterministic task queue routing
+│   ├── router.py        # LLM task queue routing + fallback
 │   ├── task_queue.py    # Task queue helper
 │   ├── tool_nodes.py    # LLM-free WebSearch/Retriever collection
 │   └── edges.py         # Conditional routing logic
@@ -385,7 +385,7 @@ RootLayout (layout.tsx)
 
 **State Machine** (LangGraph):
 - AgentState as central state
-- Heuristic router creates task queues
+- LLM router creates task queues
 - Deterministic tool nodes collect context before final specialist agent generation
 - Conditional edges advance through queued graph tasks
 

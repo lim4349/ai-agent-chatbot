@@ -14,7 +14,7 @@ def build_graph(container):
     """Build and compile the multi-agent graph.
 
     Graph flow:
-    START → router → deterministic tool nodes → specialist agent → END
+    START → LLM router → deterministic tool nodes → specialist agent → END
 
     Args:
         container: DI container with all dependencies
@@ -23,7 +23,7 @@ def build_graph(container):
         Compiled LangGraph
     """
     from src.agents.factory import AgentFactory
-    from src.graph.router import heuristic_route
+    from src.graph.router import LLMRouterNode
     from src.graph.tool_nodes import RetrieverCollectNode, WebSearchCollectNode
     from src.tools.retriever import RetrieverTool
 
@@ -73,7 +73,7 @@ def build_graph(container):
     graph = StateGraph(AgentState)
 
     # Add nodes
-    graph.add_node("router", heuristic_route)
+    graph.add_node("router", LLMRouterNode(llm))
     graph.add_node("web_search_collect", WebSearchCollectNode(search_tool))
     graph.add_node("retriever_collect", RetrieverCollectNode(retriever_tool))
     graph.add_node("chat", chat.as_node())

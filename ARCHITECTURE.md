@@ -1,6 +1,6 @@
 # AI Agent Chatbot: 아키텍처 개요
 
-> LangGraph 기반 cost-aware 4-agent 챗봇 - 시스템 설계
+> LangGraph 기반 LLM-routed 4-agent 챗봇 - 시스템 설계
 
 ---
 
@@ -40,7 +40,7 @@
 │                        오케스트레이션 레이어                          │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │  LangGraph StateGraph (Task Queue Pattern)                 │   │
-│   │  HeuristicRouter (no LLM)                                   │   │
+│   │  LLMRouter                                                  │   │
 │   │    ├─▶ Chat                                                 │   │
 │   │    ├─▶ Code                                                 │   │
 │   │    ├─▶ WebSearchCollect ─▶ Chat                             │   │
@@ -111,7 +111,7 @@ backend/src/
 ├── graph/               # LangGraph 상태 머신
 │   ├── builder.py       # 그래프 빌드
 │   ├── state.py         # AgentState TypedDict
-│   ├── router.py        # 휴리스틱 라우터 (LLM 없음)
+│   ├── router.py        # LLM 라우터 + 휴리스틱 fallback
 │   ├── task_queue.py    # task queue helper
 │   ├── tool_nodes.py    # LLM 없는 WebSearch/Retriever collect node
 │   └── edges.py         # 조건부 라우팅
@@ -161,7 +161,7 @@ backend/src/
 
 | 노드 | 역할 | LLM 호출 |
 |------|------|----------|
-| **router** | 키워드 기반 task queue 생성 | 없음 |
+| **router** | LLM 기반 task queue 생성 | 1회 |
 | **web_search_collect** | Tavily 검색 결과 수집 | 없음 |
 | **retriever_collect** | Pinecone 문서 검색 결과 수집 | 없음 |
 

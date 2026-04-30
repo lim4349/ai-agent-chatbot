@@ -86,7 +86,7 @@ async def chat(
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
-    The router builds a deterministic task queue for the appropriate specialist agent.
+    The LLM router builds a task queue for the appropriate specialist agent.
     """
     start_time = time.perf_counter()
 
