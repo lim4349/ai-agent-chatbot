@@ -59,16 +59,29 @@ class AgentFactory:
             tool_registry: Tool registry
 
         Returns:
-            CodeAgent instance or None if code_executor not available
+            CodeAgent instance. It degrades to code generation/review when execution is disabled.
         """
         from src.agents.code_agent import CodeAgent
 
         code_executor = tool_registry.get("code_executor") if tool_registry else None
-        if not code_executor:
-            return None
         return CodeAgent(
             llm=llm,
             code_executor=code_executor,
+            memory=memory,
+        )
+
+    @staticmethod
+    def create_rag(
+        llm: LLMProvider,
+        retriever,
+        memory: MemoryStore,
+    ):
+        """Create RAG agent instance."""
+        from src.agents.rag_agent import RAGAgent
+
+        return RAGAgent(
+            llm=llm,
+            retriever=retriever,
             memory=memory,
         )
 

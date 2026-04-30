@@ -95,6 +95,11 @@ export function HealthIndicator() {
             <p>
               <strong>Agents:</strong> {health.available_agents.join(', ')}
             </p>
+            {health.tool_nodes && health.tool_nodes.length > 0 && (
+              <p>
+                <strong>Tool nodes:</strong> {health.tool_nodes.join(', ')}
+              </p>
+            )}
           </div>
         ) : (
           <p className="text-xs">Backend unavailable</p>

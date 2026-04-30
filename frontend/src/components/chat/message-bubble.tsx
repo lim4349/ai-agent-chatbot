@@ -126,6 +126,9 @@ function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightC
             aria-live={isStreaming ? 'polite' : undefined}
             aria-atomic="true"
           >
+            {isStreaming && message.status && (
+              <p className="mb-2 text-xs text-muted-foreground">{message.status}</p>
+            )}
             <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
             {/* Streaming cursor - only show when there's actual content */}
             {isStreaming && message.content && (
@@ -194,6 +197,13 @@ export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps)
   if (prevProps.message.content !== nextProps.message.content) return false;
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
   if (prevProps.message.agent !== nextProps.message.agent) return false;
+  if (prevProps.message.status !== nextProps.message.status) return false;
+  if ((prevProps.message.agents || []).join('|') !== (nextProps.message.agents || []).join('|')) {
+    return false;
+  }
+  if ((prevProps.message.tools?.length || 0) !== (nextProps.message.tools?.length || 0)) {
+    return false;
+  }
 
   // Props are equal - skip re-render
   return true;

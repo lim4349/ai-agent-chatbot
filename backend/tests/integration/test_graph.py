@@ -1,56 +1,167 @@
-"""Integration tests for the LangGraph.
-
-Note: These tests require proper mock setup or API keys.
-"""
+"""Integration tests for the LangGraph task queue."""
 
 import pytest
 
+from src.graph.builder import build_graph
+from src.graph.state import create_initial_state
 
-@pytest.mark.skip(reason="Integration tests require full mock setup - use unit tests instead")
-class TestGraphIntegration:
-    """Integration tests for the complete graph."""
 
-    @pytest.mark.asyncio
-    async def test_graph_processes_message(self):
-        """Test that the graph processes a message end-to-end."""
-        from src.core.di_container import container
-        from src.graph.state import create_initial_state
+class CountingLLMConfig:
+    model = "mock-model"
 
-        # Check if LLM is properly configured
-        try:
-            llm = container.llm()
-            if llm is None:
-                pytest.skip("LLM not configured")
-        except Exception:
-            pytest.skip("LLM not available")
 
-        graph = container.graph()
-        state = create_initial_state("Hello!", "test-session")
+class CountingLLM:
+    def __init__(self):
+        self.config = CountingLLMConfig()
+        self.calls = 0
 
-        result = await graph.ainvoke(state)
+    async def generate_with_usage(self, messages, **kwargs):
+        self.calls += 1
+        return "mock response", {"input_tokens": 1, "output_tokens": 1}
 
-        # Check we got a response
-        assert "messages" in result
-        assert len(result["messages"]) >= 2
-        assert result["messages"][-1]["role"] == "assistant"
+    async def generate_structured(self, messages, output_schema, **kwargs):
+        self.calls += 1
+        if getattr(output_schema, "__name__", "") == "RAGResponse":
+            return {
+                "paragraphs": [{"title": "요약", "content": "문서 기반 답변입니다.", "bullet_points": []}],
+                "references": ["doc"],
+                "confidence": "high",
+            }
+        return {}
 
-    @pytest.mark.asyncio
-    async def test_graph_routes_to_chat(self):
-        """Test that the graph routes general chat to chat agent."""
-        from src.core.di_container import container
-        from src.graph.state import create_initial_state
 
-        # Check if LLM is properly configured
-        try:
-            llm = container.llm()
-            if llm is None:
-                pytest.skip("LLM not configured")
-        except Exception:
-            pytest.skip("LLM not available")
+class MockMemory:
+    async def get_messages(self, session_id):
+        return []
 
-        graph = container.graph()
-        state = create_initial_state("안녕하세요!", "test-session")
+    async def add_message(self, session_id, message):
+        return None
 
-        result = await graph.ainvoke(state)
 
-        assert result.get("next_agent") == "chat"
+class MockSearchTool:
+    name = "web_search"
+
+    async def execute(self, query):
+        return "검색 결과"
+
+
+class MockRetrieverTool:
+    name = "retriever"
+
+    async def execute(self, query, top_k=3, session_id=None, device_id=None):
+        return [{"content": "문서 내용", "metadata": {"source": "doc.txt"}, "score": 0.9}]
+
+
+class MockRetriever:
+    async def retrieve(self, query, top_k=3, session_id=None, device_id=None):
+        return [{"content": "문서 내용", "metadata": {"source": "doc.txt"}, "score": 0.9}]
+
+
+class MockToolRegistry:
+    def __init__(self):
+        self.tools = {
+            "web_search": MockSearchTool(),
+            "retriever": MockRetrieverTool(),
+        }
+
+    def get(self, name):
+        return self.tools.get(name)
+
+    def list_tools(self):
+        return list(self.tools)
+
+
+class MockContainer:
+    def __init__(self, llm):
+        self._llm = llm
+        self._memory = MockMemory()
+        self._retriever = MockRetriever()
+        self._tool_registry = MockToolRegistry()
+
+    def llm(self):
+        return self._llm
+
+    def memory(self):
+        return self._memory
+
+    def retriever(self):
+        return self._retriever
+
+    def tool_registry(self):
+        return self._tool_registry
+
+    def long_term_memory(self):
+        return None
+
+    def user_profiler(self):
+        return None
+
+    def topic_memory(self):
+        return None
+
+    def summarizer(self):
+        return None
+
+
+def _config(name: str):
+    return {"configurable": {"thread_id": name}}
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_web_search_collect_then_chat_with_one_llm_call():
+    llm = CountingLLM()
+    graph = build_graph(MockContainer(llm))
+    state = create_initial_state(
+        "오늘 뉴스 검색해서 알려줘",
+        "test-session",
+        "device-1",
+        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+    )
+
+    result = await graph.ainvoke(state, config=_config("web-search"))
+
+    assert result["completed_steps"] == ["web_search_collect", "chat"]
+    assert result["next_agent"] is None
+    assert llm.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_retriever_collect_then_rag_with_one_llm_call():
+    llm = CountingLLM()
+    graph = build_graph(MockContainer(llm))
+    state = create_initial_state(
+        "업로드한 문서에서 찾아줘",
+        "test-session",
+        "device-1",
+        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+    )
+    state["has_documents"] = True
+
+    result = await graph.ainvoke(state, config=_config("rag"))
+
+    assert result["completed_steps"] == ["retriever_collect", "rag"]
+    assert result["next_agent"] is None
+    assert llm.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_report_context_collection_then_report_with_one_llm_call():
+    llm = CountingLLM()
+    graph = build_graph(MockContainer(llm))
+    state = create_initial_state(
+        "최신 자료와 문서를 종합해서 보고서 작성해줘",
+        "test-session",
+        "device-1",
+        ["chat", "code", "rag", "report", "web_search_collect", "retriever_collect"],
+    )
+    state["has_documents"] = True
+
+    result = await graph.ainvoke(state, config=_config("report"))
+
+    assert result["completed_steps"] == [
+        "web_search_collect",
+        "retriever_collect",
+        "report",
+    ]
+    assert result["next_agent"] is None
+    assert llm.calls == 1

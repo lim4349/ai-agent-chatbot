@@ -110,7 +110,7 @@ class TestReportAgent:
 
     @pytest.mark.asyncio
     async def test_direct_report_uses_web_search_context(self, mock_llm, mock_memory):
-        """Report route should work without the removed supervisor workflow loop."""
+        """Report route should work when called outside the task-queue graph."""
 
         class MockSearchTool:
             def __init__(self):

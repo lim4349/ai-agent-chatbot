@@ -61,19 +61,6 @@ class BaseAgent(ABC):
         Returns:
             Dict with updated completed_steps and workflow_context
         """
-        completed_steps = list(state.get("completed_steps", []))
-        workflow_context = state.get("workflow_context", "")
+        from src.graph.task_queue import complete_task
 
-        # Add this agent to completed steps
-        if self.name not in completed_steps:
-            completed_steps.append(self.name)
-
-        # Append result to workflow context (for next steps)
-        if result_content:
-            new_context = f"\n[{self.name}]: {result_content[:1000]}"
-            workflow_context = workflow_context + new_context
-
-        return {
-            "completed_steps": completed_steps,
-            "workflow_context": workflow_context,
-        }
+        return complete_task(state, self.name, result_content)

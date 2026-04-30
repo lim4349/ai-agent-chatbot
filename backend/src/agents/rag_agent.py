@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
-from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, Field
 
 from src.agents.base import BaseAgent
@@ -14,6 +13,7 @@ from src.core.logging import get_logger
 from src.core.protocols import DocumentRetriever, LLMProvider, MemoryStore
 from src.graph.state import AgentState
 from src.observability import record_agent_metrics
+from src.utils.message_utils import get_message_content
 
 logger = get_logger(__name__)
 
@@ -58,22 +58,6 @@ def _clean_source_name(metadata: dict, fallback: str) -> str:
     return Path(normalized).stem  # remove .pdf / .docx etc.
 
 
-def get_message_content(msg) -> str:
-    """Extract content from a message (dict or LangChain message)."""
-    if isinstance(msg, dict):
-        return msg.get("content", "")
-    if isinstance(msg, BaseMessage):
-        return msg.content
-    return str(msg)
-
-
-def message_to_dict(msg) -> dict:
-    """Convert LangChain message to dict format."""
-    if isinstance(msg, dict):
-        return msg
-    if isinstance(msg, BaseMessage):
-        return {"role": msg.type, "content": msg.content}
-    return {"role": "user", "content": str(msg)}
 
 
 class RAGAgent(BaseAgent):
@@ -163,14 +147,20 @@ Example output structure:
             self.llm.config.model,
             user_id,
         ) as metrics:
-            # Retrieve relevant documents (filtered by session and device)
-            try:
-                docs = await self.retriever.retrieve(
-                    query, top_k=3, session_id=session_id, device_id=device_id
-                )
-            except Exception as e:
-                logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
-                docs = []
+            precollected_docs = self._get_precollected_docs(state)
+            if precollected_docs is not None:
+                docs = precollected_docs
+                logger.info("rag_using_precollected_docs", session_id=session_id, docs_count=len(docs))
+            else:
+                # Fallback path for direct agent use outside the graph queue.
+                try:
+                    docs = await self.retriever.retrieve(
+                        query, top_k=3, session_id=session_id, device_id=device_id
+                    )
+                    tool_results = [{"tool": "retriever", "query": query, "results": docs}]
+                except Exception as e:
+                    logger.error("rag_retrieval_failed", error=str(e), session_id=session_id)
+                    docs = []
 
             if not docs:
                 # No documents found - use LLM to generate natural fallback response
@@ -201,7 +191,8 @@ Respond in the user's language (Korean for Korean queries)."""
                 )
 
                 response, usage = await self.llm.generate_with_usage(messages)
-                tool_results = [{"tool": "retriever", "query": query, "results": []}]
+                if not tool_results and precollected_docs is None:
+                    tool_results = [{"tool": "retriever", "query": query, "results": []}]
                 metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
             else:
                 # Check if all results are low confidence
@@ -248,7 +239,7 @@ Respond in the user's language (Korean for Korean queries)."""
                 )
 
                 # Use structured output for consistent formatting
-                usage = {}  # Initialize for structured output path
+                usage = {}
                 structured_response = await self.llm.generate_structured(
                     messages, output_schema=RAGResponse
                 )
@@ -256,6 +247,13 @@ Respond in the user's language (Korean for Korean queries)."""
                 if structured_response:
                     # Convert structured response to formatted text
                     response = self._format_structured_response(structured_response)
+                    # generate_structured doesn't return usage; estimate tokens
+                    usage = {
+                        "input_tokens": sum(
+                            len(m.get("content", "")) // 4 for m in messages
+                        ),
+                        "output_tokens": len(response) // 4,
+                    }
                 else:
                     # Fallback to regular generation if structured output fails
                     response, usage = await self.llm.generate_with_usage(messages)
@@ -267,7 +265,8 @@ Respond in the user's language (Korean for Korean queries)."""
                         # If response looks like JSON but parsing failed, strip the JSON and show as plain text
                         response = f"Unable to parse structured response. Raw response:\n{response}"
 
-                tool_results = [{"tool": "retriever", "query": query, "results": docs}]
+                if not tool_results and precollected_docs is None:
+                    tool_results = [{"tool": "retriever", "query": query, "results": docs}]
 
                 metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
@@ -283,6 +282,13 @@ Respond in the user's language (Korean for Korean queries)."""
             "tool_results": [*state.get("tool_results", []), *tool_results],
             **workflow_updates,
         }
+
+    def _get_precollected_docs(self, state: AgentState) -> list[dict] | None:
+        """Return retriever results collected by a deterministic graph node."""
+        for result in reversed(state.get("tool_results", [])):
+            if result.get("tool") == "retriever" and isinstance(result.get("results"), list):
+                return result["results"]
+        return None
 
     def _format_structured_response(self, data: dict) -> str:
         """Convert structured RAGResponse to formatted text."""

@@ -114,6 +114,20 @@ export function streamChat(
                     // Ignore parse errors
                   }
                   break;
+                case 'status':
+                  try {
+                    callbacks.onStatus(JSON.parse(eventData).message || eventData);
+                  } catch {
+                    callbacks.onStatus(eventData);
+                  }
+                  break;
+                case 'tool':
+                  try {
+                    callbacks.onTool(JSON.parse(eventData));
+                  } catch {
+                    // Ignore parse errors
+                  }
+                  break;
                 case 'agents_complete':
                   try {
                     callbacks.onAgentsComplete(JSON.parse(eventData).agents);

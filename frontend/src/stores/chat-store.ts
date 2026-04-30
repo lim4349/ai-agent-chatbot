@@ -337,6 +337,48 @@ export const useChatStore = create<ChatStore>()(
                 ),
               }));
             },
+            onStatus: (status) => {
+              set((state) => ({
+                sessions: state.sessions.map((s) =>
+                  s.id === sessionId
+                    ? {
+                        ...s,
+                        messages: s.messages.map((m, idx) =>
+                          idx === s.messages.length - 1 ? { ...m, status } : m
+                        ),
+                      }
+                    : s
+                ),
+              }));
+            },
+            onTool: (tool) => {
+              const toolName = tool.tool || tool.name || 'tool';
+              set((state) => ({
+                sessions: state.sessions.map((s) =>
+                  s.id === sessionId
+                    ? {
+                        ...s,
+                        messages: s.messages.map((m, idx) =>
+                          idx === s.messages.length - 1
+                            ? {
+                                ...m,
+                                tools: [
+                                  ...(m.tools || []),
+                                  {
+                                    name: toolName,
+                                    query: tool.query,
+                                    results: tool.results,
+                                    status: tool.error ? 'error' : 'success',
+                                  },
+                                ],
+                              }
+                            : m
+                        ),
+                      }
+                    : s
+                ),
+              }));
+            },
             onAgentsComplete: (agents) => {
               // Final update with all agents that participated
               set((state) => ({

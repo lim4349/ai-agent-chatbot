@@ -4,7 +4,6 @@ import re
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
-from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
@@ -12,17 +11,9 @@ from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Tool
 from src.graph.state import AgentState
 from src.observability import record_agent_metrics
+from src.utils.message_utils import message_to_dict
 
 logger = get_logger(__name__)
-
-
-def message_to_dict(msg) -> dict:
-    """Convert LangChain message to dict format."""
-    if isinstance(msg, dict):
-        return msg
-    if isinstance(msg, BaseMessage):
-        return {"role": msg.type, "content": msg.content}
-    return {"role": "user", "content": str(msg)}
 
 
 class CodeAgent(BaseAgent):
@@ -50,7 +41,17 @@ class CodeAgent(BaseAgent):
     @override
     def system_prompt(self) -> str:
         """System prompt for this agent."""
-        return """You are an expert programmer and code assistant.
+        execution_guidance = (
+            """- When you write Python code, the system can execute fenced python code blocks.
+- Include representative print() calls when execution would help verify the answer.
+- Do not invent execution output; the system will append actual execution results."""
+            if self.code_executor
+            else """- Code execution is disabled in this environment.
+- Provide code, explanation, and manual reasoning when useful.
+- Do not claim that code was executed."""
+        )
+
+        return f"""You are an expert programmer and code assistant.
 
 Guidelines:
 - Write clean, well-documented code
@@ -59,22 +60,19 @@ Guidelines:
 - When debugging, explain the issue and the fix
 - Suggest improvements when reviewing code
 - Be security-conscious and warn about potential vulnerabilities
-- ALWAYS execute the code you write and show the output clearly
-- NEVER say you cannot execute code - you have code_executor tool available
+{execution_guidance}
 
 When writing code:
 1. First understand the requirements
 2. Write the code with proper structure
 3. Add comments for clarity
-4. ALWAYS include example calls after defining functions or classes:
+4. Include example calls after defining functions or classes when useful:
    - Add print() calls with representative inputs so execution produces visible output
    - Bad:  def fibonacci(n): ...
    - Good: def fibonacci(n): ...
            print(fibonacci(0))   # 0
            print(fibonacci(10))  # 55
-5. Write the code only - DO NOT include execution results in your response
-   - The system will automatically execute your code and display results separately
-   - Including results in your response causes duplicate output
+5. If execution is enabled, write code only and let the system append actual results
 6. Test edge cases mentally
 
 Formatting Rules (IMPORTANT):
@@ -166,8 +164,13 @@ Formatting Rules (IMPORTANT):
         code_blocks = []
         for match in matches:
             code = match.strip()
-            if code and not code.startswith("#"):  # Skip empty or comment-only blocks
-                code_blocks.append(code)
+            if not code:
+                continue
+            # Skip comment-only blocks (all lines are comments or blank)
+            lines = code.split("\n")
+            if all(line.strip().startswith("#") or not line.strip() for line in lines):
+                continue
+            code_blocks.append(code)
 
         return code_blocks
 

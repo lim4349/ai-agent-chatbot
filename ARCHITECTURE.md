@@ -1,6 +1,6 @@
 # AI Agent Chatbot: 아키텍처 개요
 
-> LangGraph 기반 멀티 에이전트 챗봇 - 시스템 설계
+> LangGraph 기반 cost-aware 4-agent 챗봇 - 시스템 설계
 
 ---
 
@@ -39,11 +39,13 @@
 ┌─────────────────────────────▼───────────────────────────────────────┐
 │                        오케스트레이션 레이어                          │
 │   ┌─────────────────────────────────────────────────────────────┐   │
-│   │  LangGraph StateGraph                                       │   │
-│   │  ┌──────────┐  ┌──────┐  ┌─────────┐  ┌────────┐  ┌──────┐  │   │
-│   │  │Supervisor│─▶│ Chat │  │   RAG   │  │  Web   │  │ Code │  │Report│   │
-│   │  │ (Router) │  │      │  │ (Docs)  │  │ Search │  │      │  │      │   │
-│   │  └──────────┘  └──────┘  └─────────┘  └────────┘  └──────┘  │   │
+│   │  LangGraph StateGraph (Task Queue Pattern)                 │   │
+│   │  HeuristicRouter (no LLM)                                   │   │
+│   │    ├─▶ Chat                                                 │   │
+│   │    ├─▶ Code                                                 │   │
+│   │    ├─▶ WebSearchCollect ─▶ Chat                             │   │
+│   │    ├─▶ RetrieverCollect ─▶ RAG                              │   │
+│   │    └─▶ WebSearchCollect ─▶ RetrieverCollect ─▶ Report      │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -81,12 +83,12 @@
 ```
 backend/src/
 ├── agents/              # 멀티 에이전트 시스템
-│   ├── supervisor.py    # Supervisor (라우팅)
+│   ├── base.py          # BaseAgent ABC
+│   ├── factory.py       # AgentFactory
 │   ├── chat_agent.py    # 일반 대화 + 메모리 명령
 │   ├── code_agent.py    # 코드 생성/실행
 │   ├── rag_agent.py     # 문서 기반 Q&A
-│   ├── report_agent.py  # 연구 결과 종합 보고서 작성
-│   └── web_search_agent.py  # 웹 검색
+│   └── report_agent.py  # 연구 결과 종합 보고서 작성
 │
 ├── api/                 # REST API
 │   ├── routes.py        # 엔드포인트 정의
@@ -109,6 +111,9 @@ backend/src/
 ├── graph/               # LangGraph 상태 머신
 │   ├── builder.py       # 그래프 빌드
 │   ├── state.py         # AgentState TypedDict
+│   ├── router.py        # 휴리스틱 라우터 (LLM 없음)
+│   ├── task_queue.py    # task queue helper
+│   ├── tool_nodes.py    # LLM 없는 WebSearch/Retriever collect node
 │   └── edges.py         # 조건부 라우팅
 │
 ├── llm/                 # LLM 프로바이더
@@ -125,10 +130,13 @@ backend/src/
 │   ├── metrics_store.py # 메트릭 저장 (Supabase)
 │   └── agent_metrics.py # 에이전트 메트릭 기록
 │
-└── tools/               # 에이전트 도구
-    ├── web_search.py    # Tavily 웹 검색
-    ├── code_executor.py # Python 실행
-    └── retriever.py     # 문서 검색 도구
+├── tools/               # 에이전트 도구
+│   ├── web_search.py    # Tavily 웹 검색
+│   ├── code_executor.py # Python 실행
+│   └── retriever.py     # 문서 검색 도구
+│
+└── utils/               # 공통 유틸리티
+    └── message_utils.py # 메시지 변환 유틸
 ```
 
 ### Protocol 인터페이스
@@ -144,12 +152,18 @@ backend/src/
 
 | 에이전트 | 역할 | 주요 기능 |
 |----------|------|----------|
-| **Supervisor** | 라우팅 | 사용자 쿼리 분석 → 적절한 에이전트 선택 |
 | **ChatAgent** | 일반 대화 | 메모리 명령, 사용자 프로파일링 |
 | **CodeAgent** | 코드 | 코드 생성/설명/디버깅/실행 |
 | **RAGAgent** | 문서 Q&A | 문서 검색 + 컨텍스트 기반 답변 |
-| **WebSearchAgent** | 웹 검색 | Tavily API로 실시간 검색 |
 | **ReportAgent** | 보고서 | 다중 소스 연구 결과 종합 보고서 |
+
+### Tool Nodes
+
+| 노드 | 역할 | LLM 호출 |
+|------|------|----------|
+| **router** | 키워드 기반 task queue 생성 | 없음 |
+| **web_search_collect** | Tavily 검색 결과 수집 | 없음 |
+| **retriever_collect** | Pinecone 문서 검색 결과 수집 | 없음 |
 
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
@@ -272,11 +286,11 @@ create_initial_state(message, session_id)
     ▼
 graph.ainvoke(state, config)
     ▼
-supervisor.process(state)
+router creates task queue
     ▼
-route_by_next_agent(state)
+run queued graph nodes
     ▼
-{chat|code|rag|web_search|report}.process(state)
+{chat|code|rag|report}.process(state)
     ▼
 record_metrics(agent, duration, status)
     ▼

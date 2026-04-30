@@ -4,11 +4,30 @@ from typing import Literal
 
 from src.graph.state import AgentState
 
+GraphRoute = Literal[
+    "chat",
+    "code",
+    "rag",
+    "report",
+    "web_search_collect",
+    "retriever_collect",
+    "__end__",
+]
 
-def route_from_router(state: AgentState) -> Literal["chat", "code", "report", "__end__"]:
-    """Route based on heuristic router's decision (next_agent field)."""
+
+def route_to_next_task(state: AgentState) -> GraphRoute:
+    """Route to the next queued graph task."""
     next_agent = state.get("next_agent", "chat")
-    valid = {"chat", "code", "report"}
+    valid = {
+        "chat",
+        "code",
+        "rag",
+        "report",
+        "web_search_collect",
+        "retriever_collect",
+    }
+    if not next_agent:
+        return "__end__"
     if next_agent not in valid:
         return "chat"
     return next_agent

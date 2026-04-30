@@ -20,9 +20,9 @@ export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: 
   chat: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Chat' },
   code: { bg: 'bg-purple-500/20', text: 'text-purple-400', label: 'Code' },
   rag: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'RAG' },
-  web_search: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Web Search' },
-  supervisor: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Router' },
   report: { bg: 'bg-pink-500/20', text: 'text-pink-400', label: 'Report' },
+  web_search_collect: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Web Search' },
+  retriever_collect: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Document Search' },
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;

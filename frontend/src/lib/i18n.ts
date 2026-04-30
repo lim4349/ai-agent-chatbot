@@ -86,8 +86,8 @@ const translations = {
     'agent.chat': '대화',
     'agent.code': '코드',
     'agent.rag': 'RAG',
-    'agent.web_search': '웹 검색',
-    'agent.supervisor': '라우터',
+    'agent.web_search_collect': '웹 검색',
+    'agent.retriever_collect': '문서 검색',
     'agent.report': '보고서',
     'agent.additionalAgents': '추가 에이전트',
 
@@ -208,8 +208,8 @@ const translations = {
     'agent.chat': 'Chat',
     'agent.code': 'Code',
     'agent.rag': 'RAG',
-    'agent.web_search': 'Web Search',
-    'agent.supervisor': 'Router',
+    'agent.web_search_collect': 'Web Search',
+    'agent.retriever_collect': 'Document Search',
     'agent.report': 'Report',
     'agent.additionalAgents': 'Additional agents',
 

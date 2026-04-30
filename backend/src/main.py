@@ -62,11 +62,10 @@ async def lifespan(app: FastAPI):
     di_container.wire(
         modules=[
             "src.api.routes",
-            "src.agents.supervisor",
             "src.agents.chat_agent",
             "src.agents.code_agent",
             "src.agents.rag_agent",
-            "src.agents.web_search_agent",
+            "src.agents.report_agent",
         ]
     )
 

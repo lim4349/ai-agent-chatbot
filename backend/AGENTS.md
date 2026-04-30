@@ -35,7 +35,7 @@ async def chat(
 
 **Agent 클래스에서 사용:**
 ```python
-class SupervisorAgent:
+class ChatAgent:
     @inject
     def __init__(
         self,

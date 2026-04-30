@@ -5,7 +5,6 @@ import re
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
-from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
@@ -13,26 +12,11 @@ from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore
 from src.graph.state import AgentState
 from src.observability import record_agent_metrics
+from src.utils.message_utils import get_message_content, message_to_dict
 
 logger = get_logger(__name__)
 
 
-def get_message_content(msg) -> str:
-    """Extract content from a message (dict or LangChain message)."""
-    if isinstance(msg, dict):
-        return msg.get("content", "")
-    if isinstance(msg, BaseMessage):
-        return msg.content
-    return str(msg)
-
-
-def message_to_dict(msg) -> dict:
-    """Convert LangChain message to dict format."""
-    if isinstance(msg, dict):
-        return msg
-    if isinstance(msg, BaseMessage):
-        return {"role": msg.type, "content": msg.content}
-    return {"role": "user", "content": str(msg)}
 
 
 class ReportAgent(BaseAgent):
@@ -128,8 +112,8 @@ Guidelines:
         if not workflow_context:
             return results
 
-        # Pattern to match agent results: [agent_name]: content
-        pattern = r"\[([^\]]+)\]:\s*([^\[]+)(?=\[|$)"
+        # Pattern to match structured agent results: <<<STEP:name>>>\ncontent\n<<<END>>>
+        pattern = r"<<<STEP:([^>]+)>>>\n(.*?)\n<<<END>>>"
         matches = re.findall(pattern, workflow_context, re.DOTALL)
 
         for agent_name, content in matches:
@@ -146,7 +130,7 @@ Guidelines:
 
             if "web_search" in agent_name:
                 results["web_search"].append(entry)
-            elif "rag" in agent_name:
+            elif "rag" in agent_name or "retriever" in agent_name:
                 results["rag"].append(entry)
             elif "code" in agent_name:
                 results["code"].append(entry)
@@ -455,9 +439,8 @@ Guidelines:
 
         tool_results: list[dict] = []
 
-        # Direct report path for the current heuristic-router graph. The old
-        # supervisor loop populated workflow_context before report ran; that
-        # loop no longer exists.
+        # Direct report path for callers that invoke ReportAgent outside the
+        # task-queue graph, where workflow_context is normally pre-populated.
         if not workflow_context:
             context_parts, tool_results = await self._collect_direct_context(
                 state,
@@ -517,12 +500,14 @@ Guidelines:
                         "워크플로우 컨텍스트에서 연구 결과를 추출할 수 없습니다. "
                         "수집된 데이터의 형식을 확인해주세요."
                     )
+                    workflow_updates = self._update_workflow_state(state, response)
                     return {
                         **state,
                         "messages": [
                             *state["messages"],
                             {"role": "assistant", "content": response},
                         ],
+                        **workflow_updates,
                     }
 
                 # Step 3: Structure the report

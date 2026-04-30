@@ -2,8 +2,8 @@
 
 ## Executive Overview
 
-A production-ready **LangGraph-based multi-agent chatbot system** with advanced features including:
-- Supervisor-routed agent orchestration (5+ specialized agents)
+A production-ready **LangGraph-based cost-aware multi-agent chatbot system** with advanced features including:
+- Heuristic task-queue orchestration (4 LLM-backed specialist agents + deterministic tool nodes)
 - Retrieval-Augmented Generation (RAG) with Pinecone vector DB
 - Real-time SSE streaming responses
 - 3-tier memory architecture (session/topic/user)
@@ -74,16 +74,22 @@ A production-ready **LangGraph-based multi-agent chatbot system** with advanced 
 ## 2. KEY FEATURES & CAPABILITIES
 
 ### Multi-Agent Orchestration
-**6 Specialized Agents** routed by a Supervisor agent:
+**4 LLM-backed specialist agents** orchestrated by a deterministic LangGraph router:
 
 | Agent | Role | Capabilities |
 |-------|------|--------------|
-| **Supervisor** | Router & Planner | Analyzes user query → selects appropriate agent(s) |
 | **Chat Agent** | General conversation | Memory commands, user profiling, context awareness |
 | **Code Agent** | Programming | Code generation, execution (Python), debugging, explanation |
 | **RAG Agent** | Document Q&A | Vector search → context-aware answers from uploaded docs |
-| **Web Search Agent** | Research | Real-time web search (Tavily API) → synthesis |
 | **Report Agent** | Multi-source synthesis | Combines web search + RAG + code results into reports |
+
+Deterministic graph/tool nodes:
+
+| Node | Role | LLM Call |
+|------|------|----------|
+| **router** | Keyword-based task queue creation | No |
+| **web_search_collect** | Tavily result collection | No |
+| **retriever_collect** | Pinecone document retrieval | No |
 
 ### Memory System (3-Tier Architecture)
 ```
@@ -179,17 +185,13 @@ User Memory (Supabase, permanent)
 │                    Orchestration Layer                              │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │  LangGraph StateGraph (Agentic AI)                          │
-│   │  ┌──────────┐  ┌──────┐  ┌─────────┐  ┌────────┐  ┌──────┐ │   │
-│   │  │Supervisor│─▶│ Chat │  │   RAG   │  │  Web   │  │ Code │ │   │
-│   │  │ (Router) │  │      │  │ (Docs)  │  │ Search │  │      │ │   │
-│   │  └──────────┘  └──────┘  └─────────┘  └────────┘  └──────┘ │   │
-│   │        │                                              │      │   │
-│   │        └──────────────────────────────────────────────┘      │   │
-│   │                    ↓ (Report synthesis)                      │   │
-│   │                 ┌─────────┐                                  │   │
-│   │                 │  Report │                                  │   │
-│   │                 │ (Synthesis)                                │   │
-│   │                 └─────────┘                                  │   │
+│   │  ┌────────┐    ┌──────┐                                      │   │
+│   │  │ Router │───▶│ Chat │                                      │   │
+│   │  └───┬────┘    └──────┘                                      │   │
+│   │      ├────────▶ Code                                         │   │
+│   │      ├────────▶ RetrieverCollect ─▶ RAG                      │   │
+│   │      ├────────▶ WebSearchCollect ─▶ Chat                     │   │
+│   │      └────────▶ WebSearchCollect ─▶ RetrieverCollect ─▶ Report│   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -202,15 +204,13 @@ User Memory (Supabase, permanent)
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Backend Module Structure (82 Python files)
+### Backend Module Structure (83 Python files)
 ```
 backend/src/
 ├── agents/              # Multi-agent system
-│   ├── supervisor.py    # Routing & decision logic (~300 lines)
 │   ├── chat_agent.py    # General conversation (~250 lines)
 │   ├── code_agent.py    # Code generation/execution (~200 lines)
 │   ├── rag_agent.py     # Document Q&A (~350 lines)
-│   ├── web_search_agent.py  # Real-time search (~200 lines)
 │   ├── report_agent.py  # Report synthesis (~250 lines)
 │   ├── base.py          # Abstract base (~100 lines)
 │   └── factory.py       # Factory pattern (~80 lines)
@@ -224,6 +224,9 @@ backend/src/
 ├── graph/               # LangGraph state machine
 │   ├── state.py         # AgentState TypedDict
 │   ├── builder.py       # Graph construction
+│   ├── router.py        # Deterministic task queue routing
+│   ├── task_queue.py    # Task queue helper
+│   ├── tool_nodes.py    # LLM-free WebSearch/Retriever collection
 │   └── edges.py         # Conditional routing logic
 │
 ├── core/                # Core infrastructure
@@ -382,8 +385,9 @@ RootLayout (layout.tsx)
 
 **State Machine** (LangGraph):
 - AgentState as central state
-- Supervisor routes to agents
-- Conditional edges for workflows
+- Heuristic router creates task queues
+- Deterministic tool nodes collect context before final specialist agent generation
+- Conditional edges advance through queued graph tasks
 
 **Strategy Pattern** (Document Chunking):
 - `auto`: Format detection
@@ -394,8 +398,8 @@ RootLayout (layout.tsx)
 ### Advanced Features
 
 **Multi-Step Workflows**:
-- Supervisor queues multiple agents via `remaining_tasks`
-- Example: web_search → rag → report synthesis
+- Router queues graph tasks via `remaining_tasks`
+- Example: `web_search_collect` → `retriever_collect` → `report` synthesis
 
 **Auto-Summarization Trigger**:
 - Token count > 2000 OR
@@ -505,7 +509,7 @@ On: Push to main
 | Backend Files | 82 Python |
 | Frontend Files | 69 TypeScript |
 | REST Endpoints | 15+ |
-| Agents | 6 |
+| Agents | 4 LLM-backed + 3 deterministic graph/tool nodes |
 | Database Tables | 5+ |
 | Config Variables | 95+ |
 | Supported Formats | 6 (PDF, DOCX, TXT, MD, CSV, JSON) |

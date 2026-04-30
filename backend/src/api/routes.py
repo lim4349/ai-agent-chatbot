@@ -7,7 +7,6 @@ from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from langchain_core.messages import BaseMessage
 from sse_starlette.sse import EventSourceResponse
 
 from src.api.schemas import (
@@ -28,6 +27,7 @@ from src.api.schemas import (
     SessionResponse,
     UserMemoryDeleteResponse,
 )
+from src.api.sse_streamer import stream_graph_events
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger, log_request
@@ -50,19 +50,29 @@ from src.documents.pinecone_store import PineconeVectorStore
 from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
 from src.tools.registry import ToolRegistry
+from src.utils.message_utils import get_message_content
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
-def get_message_content(msg) -> str:
-    """Extract content from a message (dict or LangChain message)."""
-    if isinstance(msg, dict):
-        return msg.get("content", "")
-    if isinstance(msg, BaseMessage):
-        return msg.content
-    return str(msg)
+def get_graph_capabilities(
+    tool_registry: ToolRegistry | None,
+    retriever: DocumentRetriever | None = None,
+) -> tuple[list[str], list[str], list[str]]:
+    """Return available LLM agents, tool nodes, and all routable graph nodes."""
+    agent_nodes = ["chat", "code", "report"]
+    if retriever or (tool_registry and tool_registry.get("retriever")):
+        agent_nodes.insert(2, "rag")
+
+    tool_nodes = []
+    if tool_registry and tool_registry.get("web_search"):
+        tool_nodes.append("web_search_collect")
+    if retriever or (tool_registry and tool_registry.get("retriever")):
+        tool_nodes.append("retriever_collect")
+
+    return agent_nodes, tool_nodes, [*agent_nodes, *tool_nodes]
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -76,7 +86,7 @@ async def chat(
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
-    The supervisor will route to the appropriate specialist agent.
+    The router builds a deterministic task queue for the appropriate specialist agent.
     """
     start_time = time.perf_counter()
 
@@ -127,18 +137,12 @@ async def chat(
                 error=f"Session store error (continuing without session): {e}",
             )
 
-    # Determine available agents for capability awareness
-    available_agents = ["supervisor", "chat", "report"]
-    if tool_registry.get("code_executor"):
-        available_agents.append("code")
-    if tool_registry.get("web_search"):
-        available_agents.append("web_search")
-    if vector_store:
-        available_agents.append("rag")
+    # Determine available graph nodes for routing/capability awareness
+    _, _, available_nodes = get_graph_capabilities(tool_registry)
 
     # Create initial state with sanitized message and device_id
     initial_state = create_initial_state(
-        sanitized_message, request.session_id, device_id, available_agents
+        sanitized_message, request.session_id, device_id, available_nodes
     )
     initial_state["has_documents"] = has_docs
 
@@ -267,18 +271,12 @@ async def chat_stream(
                 error=f"Session store error (continuing without session): {e}",
             )
 
-    # Determine available agents for capability awareness
-    available_agents = ["supervisor", "chat", "report"]
-    if tool_registry.get("code_executor"):
-        available_agents.append("code")
-    if tool_registry.get("web_search"):
-        available_agents.append("web_search")
-    if vector_store:
-        available_agents.append("rag")
+    # Determine available graph nodes for routing/capability awareness
+    _, _, available_nodes = get_graph_capabilities(tool_registry)
 
     # Create initial state with device_id
     initial_state = create_initial_state(
-        sanitized_message, request.session_id, device_id, available_agents
+        sanitized_message, request.session_id, device_id, available_nodes
     )
     initial_state["has_documents"] = has_docs
 
@@ -289,121 +287,8 @@ async def chat_stream(
             # Yield metadata first
             yield {"event": "metadata", "data": json.dumps({"session_id": request.session_id})}
 
-            # Nodes that use non-streaming LLM calls (ainvoke) — handled via on_chain_end
-            # because ainvoke() does not emit on_chat_model_stream events
-            non_streaming_nodes = {"code", "report"}
-            # Track which nodes actually sent streaming tokens (for fallback detection)
-            streamed_nodes: set[str] = set()
-            # Track content sent to avoid duplicates
-            sent_content_hashes: set[int] = set()
-            # Track all agents that ran during this workflow
-            all_agents: list[str] = []
-
-            # Stream events from graph
-            async for event in graph.astream_events(
-                initial_state, config=graph_config, version="v2"
-            ):
-                kind = event.get("event")
-
-                # Check for error events
-                if kind == "on_chain_error" or kind == "on_tool_error":
-                    error_data = event.get("data", {})
-                    error_msg = error_data.get("error", str(error_data))
-                    logger.warning(f"Stream error event: {error_msg}")
-
-                if kind == "on_chat_model_stream":
-                    # Skip routing nodes that don't produce user-facing tokens
-                    metadata = event.get("metadata", {})
-                    langgraph_node = metadata.get("langgraph_node", "")
-                    if langgraph_node in {"supervisor", "router"}:
-                        continue
-                    # code/report use non-streaming LLM calls; their output is sent via on_chain_end
-                    if langgraph_node in non_streaming_nodes:
-                        continue
-
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content"):
-                        content = chunk.content
-                        if isinstance(content, list):
-                            # Anthropic/Gemini via OpenRouter returns content as list of blocks
-                            text = "".join(
-                                block.get("text", "")
-                                for block in content
-                                if isinstance(block, dict) and block.get("type") == "text"
-                            )
-                        else:
-                            text = content
-                        if text:
-                            streamed_nodes.add(langgraph_node)
-                            yield {"event": "token", "data": text}
-
-                elif kind == "on_tool_start":
-                    tool_name = event.get("name", "")
-                    if tool_name == "web_search":
-                        yield {"event": "status", "data": json.dumps({"message": "웹 검색 중..."})}
-                    elif tool_name == "retriever":
-                        yield {"event": "status", "data": json.dumps({"message": "문서 검색 중..."})}
-
-                elif kind == "on_chain_end":
-                    node_name = event.get("name", "")
-                    if node_name == "router":
-                        # Router node (no LLM) sets next_agent; emit agent event for UI
-                        output = event.get("data", {}).get("output", {})
-                        agent = output.get("next_agent", "chat")
-                        if agent and agent not in all_agents:
-                            all_agents.append(agent)
-                            yield {
-                                "event": "agent",
-                                "data": json.dumps({"agent": agent, "all_agents": all_agents}),
-                            }
-                    elif node_name in non_streaming_nodes:
-                        # code/report: always send full response (includes exec output) via on_chain_end
-                        output = event.get("data", {}).get("output", {})
-                        messages = output.get("messages", [])
-                        logger.info(
-                            "routes_on_chain_end", node_name=node_name, message_count=len(messages)
-                        )
-                        if messages:
-                            last_msg = messages[-1]
-                            content = (
-                                last_msg.get("content", "")
-                                if isinstance(last_msg, dict)
-                                else getattr(last_msg, "content", "")
-                            )
-                            if content:
-                                content_hash = hash(content[:100])
-                                logger.info(
-                                    "routes_content_hash",
-                                    node_name=node_name,
-                                    content_hash=content_hash,
-                                    already_sent=content_hash in sent_content_hashes,
-                                )
-                                if content_hash not in sent_content_hashes:
-                                    sent_content_hashes.add(content_hash)
-                                    yield {"event": "token", "data": content}
-                    elif (
-                        node_name in {"chat", "rag", "web_search"}
-                        and node_name not in streamed_nodes
-                    ):
-                        # Fallback: if a normally-streaming node didn't stream, send its output now
-                        output = event.get("data", {}).get("output", {})
-                        messages = output.get("messages", [])
-                        if messages:
-                            last_msg = messages[-1]
-                            content = (
-                                last_msg.get("content", "")
-                                if isinstance(last_msg, dict)
-                                else getattr(last_msg, "content", "")
-                            )
-                            if content:
-                                content_hash = hash(content[:100])
-                                if content_hash not in sent_content_hashes:
-                                    sent_content_hashes.add(content_hash)
-                                    yield {"event": "token", "data": content}
-
-            if all_agents:
-                yield {"event": "agents_complete", "data": json.dumps({"agents": all_agents})}
-            yield {"event": "done", "data": ""}
+            async for ev in stream_graph_events(graph, initial_state, graph_config):
+                yield ev
 
         except Exception as e:
             yield {"event": "error", "data": json.dumps({"error": str(e)})}
@@ -419,14 +304,7 @@ async def health(
     retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
 ) -> HealthResponse:
     """Check service health and configuration."""
-    # Determine available agents based on configuration
-    available_agents = ["supervisor", "chat", "report"]
-    if tool_registry.get("code_executor"):
-        available_agents.append("code")
-    if tool_registry.get("web_search"):
-        available_agents.append("web_search")
-    if retriever:
-        available_agents.append("rag")
+    available_agents, tool_nodes, _ = get_graph_capabilities(tool_registry, retriever)
 
     return HealthResponse(
         status="ok",
@@ -434,6 +312,7 @@ async def health(
         llm_model=config.llm.model,
         memory_backend=config.memory.backend,
         available_agents=available_agents,
+        tool_nodes=tool_nodes,
     )
 
 
@@ -446,34 +325,21 @@ async def list_agents(
     """List all available agents and their descriptions."""
     agents = [
         AgentInfo(
-            name="supervisor",
-            description="Routes user queries to the appropriate specialist agent",
-            tools=[],
-        ),
-        AgentInfo(
             name="chat",
-            description="General conversation and casual questions",
+            description="General conversation and answers over collected web context",
             tools=["memory"],
         ),
+        AgentInfo(
+            name="code",
+            description="Code generation, analysis, and debugging",
+            tools=["code_executor"] if tool_registry.get("code_executor") else [],
+        ),
+        AgentInfo(
+            name="report",
+            description="Synthesize collected web and document context into structured reports",
+            tools=[],
+        ),
     ]
-
-    if tool_registry.get("code_executor"):
-        agents.append(
-            AgentInfo(
-                name="code",
-                description="Code generation, analysis, and debugging",
-                tools=["code_executor"],
-            )
-        )
-
-    if tool_registry.get("web_search"):
-        agents.append(
-            AgentInfo(
-                name="web_search",
-                description="Search the web for current information",
-                tools=["web_search"],
-            )
-        )
 
     if retriever:
         agents.append(

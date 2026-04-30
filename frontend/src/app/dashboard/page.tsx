@@ -16,12 +16,13 @@ const AGENT_COLORS: Record<string, string> = {
   chat: '#3b82f6',       // Blue
   rag: '#10b981',        // Green
   code: '#8b5cf6',       // Purple
-  web_search: '#f59e0b', // Amber
+  web_search_collect: '#f59e0b', // Amber
+  retriever_collect: '#06b6d4',  // Cyan
   report: '#ec4899',     // Pink
 };
 
-// Agents to exclude from stats (internal routing agents)
-const EXCLUDED_AGENTS = ['supervisor'];
+// Nodes to exclude from legacy stats if older deployments recorded them.
+const EXCLUDED_AGENTS = ['supervisor', 'router'];
 
 // Get agent color with fallback
 function getAgentColor(agentName: string, index: number): string {
@@ -80,7 +81,7 @@ export default function DashboardPage() {
       : '0.0'
     : '0.0';
 
-  // Filter out internal agents (supervisor) from stats
+  // Filter out internal routing nodes from stats
   const filteredAgentStats = metrics?.agent_stats.filter(
     stat => !EXCLUDED_AGENTS.includes(stat.agent_name)
   ) || [];

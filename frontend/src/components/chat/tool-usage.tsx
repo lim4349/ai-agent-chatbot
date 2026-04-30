@@ -8,8 +8,9 @@ interface ToolUsageProps {
   tools: Array<{
     name: string;
     query?: string;
-    results?: unknown[];
+    results?: unknown[] | string;
     documentSources?: string[];
+    status?: string;
   }>;
 }
 
@@ -18,6 +19,9 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   web_search: Globe,
   document_search: FileText,
   rag: FileText,
+  retriever: FileText,
+  web_search_collect: Globe,
+  retriever_collect: FileText,
   default: Wrench,
 };
 
@@ -26,7 +30,11 @@ export function ToolUsage({ tools }: ToolUsageProps) {
 
   if (!tools || tools.length === 0) return null;
 
-  const totalResults = tools.reduce((acc, tool) => acc + (tool.results?.length || 0), 0);
+  const totalResults = tools.reduce((acc, tool) => {
+    if (Array.isArray(tool.results)) return acc + tool.results.length;
+    if (typeof tool.results === 'string' && tool.results.trim()) return acc + 1;
+    return acc;
+  }, 0);
 
   const toggleId = `tool-usage-${tools.map(t => t.name).join('-')}`;
 
@@ -71,7 +79,11 @@ export function ToolUsage({ tools }: ToolUsageProps) {
         <div className="px-3 pb-3 space-y-2">
           {tools.map((tool, index) => {
             const Icon = TOOL_ICONS[tool.name] || TOOL_ICONS.default;
-            const resultCount = tool.results?.length || 0;
+            const resultCount = Array.isArray(tool.results)
+              ? tool.results.length
+              : typeof tool.results === 'string' && tool.results.trim()
+                ? 1
+                : 0;
 
             return (
               <div
@@ -86,6 +98,9 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                       <span className="text-muted-foreground">
                         {resultCount} results
                       </span>
+                    )}
+                    {tool.status === 'error' && (
+                      <span className="text-destructive">error</span>
                     )}
                   </div>
 

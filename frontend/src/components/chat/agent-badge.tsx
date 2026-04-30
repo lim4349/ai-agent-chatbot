@@ -15,7 +15,6 @@ import {
   FileText,
   Globe,
   MessageCircle,
-  Route,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -28,8 +27,8 @@ const AGENT_I18N_KEYS: Record<string, TranslationKey> = {
   chat: 'agent.chat',
   code: 'agent.code',
   rag: 'agent.rag',
-  web_search: 'agent.web_search',
-  supervisor: 'agent.supervisor',
+  web_search_collect: 'agent.web_search_collect',
+  retriever_collect: 'agent.retriever_collect',
   report: 'agent.report',
 };
 
@@ -51,23 +50,23 @@ const AGENT_CONFIG: Record<string, {
     label: '코드',
     description: '코드 생성 및 분석'
   },
-  web_search: {
+  web_search_collect: {
     icon: Globe,
     color: 'bg-green-500',
     label: '웹 검색',
     description: '실시간 웹 정보 검색'
+  },
+  retriever_collect: {
+    icon: BookOpen,
+    color: 'bg-cyan-500',
+    label: '문서 검색',
+    description: '업로드된 문서 검색'
   },
   chat: {
     icon: MessageCircle,
     color: 'bg-gray-500',
     label: '대화',
     description: '일반 대화'
-  },
-  supervisor: {
-    icon: Route,
-    color: 'bg-orange-500',
-    label: '라우터',
-    description: '요청 분석 및 라우팅'
   },
   report: {
     icon: FileText,

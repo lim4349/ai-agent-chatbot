@@ -4,7 +4,6 @@ import asyncio
 from typing import override
 
 from dependency_injector.wiring import Provide, inject
-from langchain_core.messages import BaseMessage
 
 from src.agents.base import BaseAgent
 from src.core.di_container import DIContainer
@@ -13,17 +12,9 @@ from src.core.protocols import LLMProvider, MemoryStore, Summarizer, TopicMemory
 from src.graph.state import AgentState
 from src.memory.long_term_memory import LongTermMemory
 from src.observability import record_agent_metrics
+from src.utils.message_utils import message_to_dict
 
 logger = get_logger(__name__)
-
-
-def message_to_dict(msg) -> dict:
-    """Convert LangChain message to dict format."""
-    if isinstance(msg, dict):
-        return msg
-    if isinstance(msg, BaseMessage):
-        return {"role": msg.type, "content": msg.content}
-    return {"role": "user", "content": str(msg)}
 
 
 class ChatAgent(BaseAgent):
@@ -79,7 +70,7 @@ class ChatAgent(BaseAgent):
             return ""
 
         has_code = "code" in available_agents
-        has_web_search = "web_search" in available_agents
+        has_web_search = "web_search" in available_agents or "web_search_collect" in available_agents
 
         context_parts = []
 
@@ -379,16 +370,18 @@ Guidelines:
                     session_id, {"role": "assistant", "content": response}
                 )
 
+            workflow_updates = self._update_workflow_state(state, response or "")
             return {
                 **state,
                 "messages": [*state["messages"], {"role": "assistant", "content": response}],
+                **workflow_updates,
             }
 
         # Build messages with system prompt
         system_content = self.system_prompt
 
         # Add capability context based on available agents
-        available_agents = state.get("available_agents")
+        available_agents = state.get("available_nodes")
         capability_context = self._get_capability_context(available_agents)
         if capability_context:
             system_content += f"\n\n{capability_context}"
@@ -420,6 +413,19 @@ Guidelines:
         # Convert LangChain messages to dict format
         current_messages = [message_to_dict(msg) for msg in state["messages"]]
         messages.extend(current_messages)
+
+        workflow_context = state.get("workflow_context", "").strip()
+        if workflow_context:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "다음은 LangGraph tool node가 수집한 참고 컨텍스트입니다. "
+                        "관련 있는 경우에만 답변에 반영하세요.\n\n"
+                        f"{workflow_context}"
+                    ),
+                }
+            )
 
         # Tool pre-fetching based on tools_hint (parallel, before LLM call)
         tools_hint = state.get("tools_hint", [])

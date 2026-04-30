@@ -7,7 +7,6 @@ import {
   Code,
   Globe,
   MessageCircle,
-  Route,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,25 +19,28 @@ interface AgentSwitchAnimationProps {
 const AGENT_ICONS: Record<string, LucideIcon> = {
   rag: BookOpen,
   code: Code,
-  web_search: Globe,
+  web_search_collect: Globe,
+  retriever_collect: BookOpen,
   chat: MessageCircle,
-  supervisor: Route,
+  report: BookOpen,
 };
 
 const AGENT_COLORS: Record<string, string> = {
   rag: 'text-blue-500',
   code: 'text-purple-500',
-  web_search: 'text-green-500',
+  web_search_collect: 'text-green-500',
+  retriever_collect: 'text-cyan-500',
   chat: 'text-gray-500',
-  supervisor: 'text-orange-500',
+  report: 'text-pink-500',
 };
 
 const AGENT_LABELS: Record<string, string> = {
   rag: '문서 검색',
   code: '코드',
-  web_search: '웹 검색',
+  web_search_collect: '웹 검색',
+  retriever_collect: '문서 검색',
   chat: '대화',
-  supervisor: '라우터',
+  report: '보고서',
 };
 
 export function AgentSwitchAnimation({

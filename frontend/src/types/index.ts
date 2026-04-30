@@ -30,6 +30,7 @@ export interface HealthResponse {
   llm_model: string;
   memory_backend: string;
   available_agents: string[];
+  tool_nodes?: string[];
 }
 
 export interface AgentInfo {
@@ -107,9 +108,11 @@ export interface Message {
   tools?: Array<{
     name: string;
     query?: string;
-    results?: unknown[];
+    results?: unknown[] | string;
     documentSources?: string[];
+    status?: string;
   }>;
+  status?: string;
   hasMemoryReference?: boolean;
   referencedTopics?: string[];
 }
@@ -125,12 +128,26 @@ export interface Session {
   isLocalOnly?: boolean;
 }
 
-export type AgentType = 'chat' | 'code' | 'rag' | 'web_search' | 'supervisor' | 'report';
+export type AgentType =
+  | 'chat'
+  | 'code'
+  | 'rag'
+  | 'report'
+  | 'web_search_collect'
+  | 'retriever_collect';
 
 export interface SSECallbacks {
   onMetadata: (data: { session_id: string }) => void;
   onToken: (token: string) => void;
   onAgent: (agent: string, allAgents?: string[]) => void;
+  onStatus: (message: string) => void;
+  onTool: (tool: {
+    tool?: string;
+    name?: string;
+    query?: string;
+    results?: unknown[] | string;
+    error?: string;
+  }) => void;
   onAgentsComplete: (agents: string[]) => void;
   onDone: () => void;
   onError: (error: string) => void;
