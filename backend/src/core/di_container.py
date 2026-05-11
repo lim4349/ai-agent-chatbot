@@ -28,8 +28,11 @@ def _create_embedding_generator(config):
     provider = config.rag.embedding_provider
     model = config.rag.embedding_model
 
-    # Determine API key based on provider
+    # Determine API key based on provider. If Pinecone is not configured,
+    # leave RAG disabled instead of failing application startup.
     api_key = config.rag.pinecone_api_key if provider == "pinecone" else config.llm.openai_api_key
+    if provider == "pinecone" and not api_key:
+        return None
 
     return create_embedding_generator(
         provider=provider,
@@ -41,6 +44,9 @@ def _create_embedding_generator(config):
 def _create_vector_store(config, embedding_generator):
     """Create document vector store (Pinecone)."""
     from src.documents.pinecone_store import PineconeVectorStore
+
+    if not config.rag.pinecone_api_key or not embedding_generator:
+        return None
 
     return PineconeVectorStore(
         api_key=config.rag.pinecone_api_key,
@@ -54,6 +60,9 @@ def _create_retriever(vector_store, config):
     """Create document retriever (Pinecone)."""
     from src.documents.factory import DocumentProcessorFactory
     from src.documents.retriever_impl import PineconeDocumentRetriever
+
+    if not vector_store:
+        return None
 
     return PineconeDocumentRetriever(
         vector_store=vector_store,

@@ -111,6 +111,7 @@ class DocumentRetriever(Protocol):
         query: str,
         top_k: int = 3,
         session_id: str | None = None,
+        device_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve relevant document chunks.
 
@@ -118,6 +119,7 @@ class DocumentRetriever(Protocol):
             query: Search query text
             top_k: Number of results to return
             session_id: Optional session ID for filtering documents
+            device_id: Optional device ID for namespace isolation
 
         Returns: [{"content": str, "metadata": dict, "score": float}]
         """
@@ -222,6 +224,14 @@ class Summarizer(Protocol):
         Returns:
             Summary text or None if not triggered
         """
+        ...
+
+    async def check_and_summarize(
+        self,
+        session_id: str,
+        messages: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Check thresholds and generate a persisted summary if needed."""
         ...
 
 

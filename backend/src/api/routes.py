@@ -9,6 +9,14 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
+from src.api.chat_turn import (
+    PromptInjectionRejectedError,
+    extract_response_message,
+    get_graph_capabilities,
+    prepare_chat_turn,
+    resolve_agent_used,
+    validate_and_sanitize_message,
+)
 from src.api.schemas import (
     AgentInfo,
     AgentListResponse,
@@ -31,7 +39,6 @@ from src.api.sse_streamer import stream_graph_events
 from src.core.config import AppConfig
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger, log_request
-from src.core.prompt_security import detect_injection, filter_llm_output, sanitize_for_llm
 from src.core.protocols import (
     DocumentChunker,
     DocumentParser,
@@ -39,38 +46,19 @@ from src.core.protocols import (
     MemoryStore,
     SessionStore,
 )
-from src.core.validators import (
-    ValidationError,
-    sanitize_metadata,
-    validate_file_upload,
-    validate_json_size,
+from src.documents.lifecycle import (
+    DocumentLifecycle,
+    DocumentUploadValidationError,
+    parse_upload_metadata,
+    validate_upload_bytes,
 )
-from src.documents.models import Document
 from src.documents.pinecone_store import PineconeVectorStore
-from src.graph.state import create_initial_state
 from src.memory.long_term_memory import LongTermMemory
 from src.tools.registry import ToolRegistry
-from src.utils.message_utils import get_message_content
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def get_graph_capabilities(
-    tool_registry: ToolRegistry | None,
-    retriever: DocumentRetriever | None = None,
-) -> tuple[list[str], list[str], list[str]]:
-    """Return available agent nodes, tools, and routable graph nodes."""
-    agent_nodes = ["chat", "research"]
-
-    available_tools = []
-    if tool_registry and tool_registry.get("web_search"):
-        available_tools.append("web_search")
-    if retriever or (tool_registry and tool_registry.get("retriever")):
-        available_tools.append("retriever")
-
-    return agent_nodes, available_tools, agent_nodes
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -88,85 +76,29 @@ async def chat(
     """
     start_time = time.perf_counter()
 
-    # Security: Check for prompt injection attacks
-    injection = detect_injection(request.message)
-    if injection:
-        # Log the security event (with details for internal logging)
-        log_request(
-            method="POST",
-            path="/api/v1/chat",
-            session_id=request.session_id,
-            user_message=request.message,
-            duration_ms=0,
-            status="blocked",
-            error=f"Prompt injection detected: {injection['type']}",
+    try:
+        sanitized_message = validate_and_sanitize_message(
+            request.message,
+            request.session_id,
+            "/api/v1/chat",
         )
-        # Generic error message to avoid revealing security details
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid request. Please try again with different input.",
-        )
+    except PromptInjectionRejectedError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
-    # Security: Sanitize input for LLM
-    sanitized_message = sanitize_for_llm(request.message)
-
-    # Get device_id: prefer request parameter, then session store
-    device_id = request.device_id
-    has_docs = False
-    if session_store:
-        try:
-            session = await session_store.get(request.session_id)
-            if session:
-                # Use session's user_id if request doesn't have device_id
-                if not device_id:
-                    device_id = session.user_id  # In guest mode, user_id is device_id
-                if vector_store:
-                    has_docs = await vector_store.has_documents_for_session(
-                        device_id=device_id, session_id=request.session_id
-                    )
-        except Exception as e:
-            log_request(
-                method="POST",
-                path="/api/v1/chat",
-                session_id=request.session_id,
-                user_message="[session_store unavailable]",
-                duration_ms=0,
-                status="warning",
-                error=f"Session store error (continuing without session): {e}",
-            )
-
-    # Determine available graph nodes for routing/capability awareness
-    _, _, available_nodes = get_graph_capabilities(tool_registry)
-
-    # Create initial state with sanitized message and device_id
-    initial_state = create_initial_state(
-        sanitized_message, request.session_id, device_id, available_nodes
+    turn = await prepare_chat_turn(
+        sanitized_message=sanitized_message,
+        session_id=request.session_id,
+        request_device_id=request.device_id,
+        path="/api/v1/chat",
+        vector_store=vector_store,
+        session_store=session_store,
+        tool_registry=tool_registry,
     )
-    initial_state["has_documents"] = has_docs
-
-    # Configure with thread ID for state persistence
-    graph_config = {"configurable": {"thread_id": f"{request.session_id}:{uuid4()}"}}
 
     try:
-        # Execute graph
-        result = await graph.ainvoke(initial_state, config=graph_config)
-
-        # Extract response
-        messages = result.get("messages", [])
-        response_message = get_message_content(messages[-1]) if messages else ""
-
-        # Security: Filter potential prompt leaks from output
-        response_message = filter_llm_output(response_message)
-
-        # Determine which agent actually processed the request
-        # Use completed_steps (tracks actual processing agents) over next_agent (routing state)
-        completed_steps = result.get("completed_steps", [])
-        if completed_steps:
-            agent_used = completed_steps[-1]  # Last agent that actually processed
-        else:
-            agent_used = result.get("next_agent", "chat")
-            if agent_used == "done":
-                agent_used = "chat"  # Default for greetings/simple responses
+        result = await graph.ainvoke(turn.initial_state, config=turn.graph_config)
+        response_message = extract_response_message(result)
+        agent_used = resolve_agent_used(result)
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -217,75 +149,36 @@ async def chat_stream(
 
     Yields tokens as they are generated.
     """
-    # Security: Check for prompt injection attacks
-    injection = detect_injection(request.message)
-    if injection:
-        # Log the security event (with details for internal logging)
-        log_request(
-            method="POST",
-            path="/api/v1/chat/stream",
-            session_id=request.session_id,
-            user_message=request.message,
-            duration_ms=0,
-            status="blocked",
-            error=f"Prompt injection detected: {injection['type']}",
+    try:
+        sanitized_message = validate_and_sanitize_message(
+            request.message,
+            request.session_id,
+            "/api/v1/chat/stream",
         )
+    except PromptInjectionRejectedError as e:
+        error_message = str(e)
 
-        # Return error as SSE event with generic message
         async def error_generator():
-            yield {
-                "event": "error",
-                "data": json.dumps(
-                    {"error": "Invalid request. Please try again with different input."}
-                ),
-            }
+            yield {"event": "error", "data": json.dumps({"error": error_message})}
 
         return EventSourceResponse(error_generator())
 
-    # Security: Sanitize input for LLM
-    sanitized_message = sanitize_for_llm(request.message)
-
-    # Get session to retrieve device_id
-    device_id = request.device_id
-    has_docs = False
-    if session_store:
-        try:
-            session = await session_store.get(request.session_id)
-            if session:
-                if not device_id:
-                    device_id = session.user_id  # In guest mode, user_id is device_id
-                if vector_store:
-                    has_docs = await vector_store.has_documents_for_session(
-                        device_id=device_id, session_id=request.session_id
-                    )
-        except Exception as e:
-            log_request(
-                method="POST",
-                path="/api/v1/chat/stream",
-                session_id=request.session_id,
-                user_message="[session_store unavailable]",
-                duration_ms=0,
-                status="warning",
-                error=f"Session store error (continuing without session): {e}",
-            )
-
-    # Determine available graph nodes for routing/capability awareness
-    _, _, available_nodes = get_graph_capabilities(tool_registry)
-
-    # Create initial state with device_id
-    initial_state = create_initial_state(
-        sanitized_message, request.session_id, device_id, available_nodes
+    turn = await prepare_chat_turn(
+        sanitized_message=sanitized_message,
+        session_id=request.session_id,
+        request_device_id=request.device_id,
+        path="/api/v1/chat/stream",
+        vector_store=vector_store,
+        session_store=session_store,
+        tool_registry=tool_registry,
     )
-    initial_state["has_documents"] = has_docs
-
-    graph_config = {"configurable": {"thread_id": f"{request.session_id}:{uuid4()}"}}
 
     async def event_generator():
         try:
             # Yield metadata first
             yield {"event": "metadata", "data": json.dumps({"session_id": request.session_id})}
 
-            async for ev in stream_graph_events(graph, initial_state, graph_config):
+            async for ev in stream_graph_events(graph, turn.initial_state, turn.graph_config):
                 yield ev
 
         except Exception as e:
@@ -669,104 +562,44 @@ async def upload_file(
     elif session.user_id != device_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
-    # Validate metadata JSON size first (prevent DoS)
-    is_valid, error = validate_json_size(metadata, max_size_kb=10)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid metadata: {error}")
-
-    # Parse and sanitize metadata
     try:
-        meta_dict = json.loads(metadata)
-        meta_dict = sanitize_metadata(meta_dict)
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid metadata JSON: {e}") from e
-
-    # Validate filename
-    filename = file.filename or "unknown"
-    if not filename or filename in (".", "", ".."):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    # Read file content
-    try:
+        meta_dict = parse_upload_metadata(metadata)
         content = await file.read()
-
-        # Security: Validate file upload with comprehensive checks
-        is_valid, error, file_metadata = validate_file_upload(
-            filename=filename,
+        upload = validate_upload_bytes(
+            filename=file.filename,
             content=content,
             declared_mime_type=file.content_type,
+            metadata=meta_dict,
         )
-
-        if not is_valid:
-            log_request(
-                method="POST",
-                path="/api/v1/documents/upload",
-                session_id=None,
-                user_message=f"File upload rejected: {filename}",
-                duration_ms=0,
-                status="blocked",
-                error=error,
-            )
-            raise HTTPException(status_code=400, detail=error)
-
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail="잘못된 요청 형식입니다.") from e
-    except Exception as e:
+    except DocumentUploadValidationError as e:
         log_request(
             method="POST",
             path="/api/v1/documents/upload",
-            session_id=None,
-            user_message=f"File upload error: {filename}",
+            session_id=session_id,
+            user_message=f"File upload rejected: {file.filename or 'unknown'}",
             duration_ms=0,
-            status="error",
+            status="blocked",
             error=str(e),
         )
-        raise HTTPException(status_code=400, detail=f"Failed to process file: {e}") from e
-
-    # Get validated file type
-    file_type = file_metadata.get("detected_type") or file_metadata.get("extension")
-    if not file_type:
-        raise HTTPException(status_code=400, detail="Could not determine file type")
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     try:
-        # Parse document
-        sections = parser.parse_from_bytes(content, file_type)
-
-        if not sections:
-            raise HTTPException(status_code=400, detail="No content extracted from file")
-
-        # Chunk document
-        chunks = chunker.chunk(sections, source=filename)
-
-        # Create document model
-        import uuid
-
-        doc = Document(
-            id=str(uuid.uuid4()),
-            filename=filename,
-            file_type=file_type,
-            upload_time=datetime.now(tz=UTC),
-            chunks=chunks,
-            total_tokens=sum(c.metadata.token_count for c in chunks),
-            metadata=meta_dict,
-        )
-
-        # Store in vector database with device/session isolation
-        await doc_store.add_document(doc, device_id=device_id, session_id=session_id)
-
+        lifecycle = DocumentLifecycle(parser=parser, chunker=chunker, vector_store=doc_store)
+        doc = await lifecycle.ingest_upload(upload, device_id=device_id, session_id=session_id)
         return FileUploadResponse(
             document_id=doc.id,
-            filename=filename,
-            file_type=file_type,
-            chunks_created=len(chunks),
+            filename=doc.filename,
+            file_type=doc.file_type,
+            chunks_created=len(doc.chunks),
             total_tokens=doc.total_tokens,
             upload_time=doc.upload_time,
             status="success",
-            message=f"Successfully processed {filename} ({len(chunks)} chunks)",
+            message=f"Successfully processed {doc.filename} ({len(doc.chunks)} chunks)",
         )
-
     except ImportError as e:
         raise HTTPException(status_code=400, detail=f"Missing dependency: {e}") from e
+    except DocumentUploadValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing failed: {e}") from e
 

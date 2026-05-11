@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from src.core.logging import get_logger
 from src.core.protocols import DocumentRetriever
@@ -171,15 +172,21 @@ class PineconeDocumentRetriever(DocumentRetriever):
         file_type = doc_dict.get("file_type", "txt")
         metadata = doc_dict.get("metadata", {})
 
-        # If content is a file path, parse it
-        if not content and doc_dict.get("file_path"):
-            parsed_doc = await self.parser.parse_file(doc_dict["file_path"])
-            content = parsed_doc.content
-            file_type = parsed_doc.file_type
-            metadata.update(parsed_doc.metadata)
+        if doc_dict.get("file_path"):
+            file_path = Path(doc_dict["file_path"])
+            filename = doc_dict.get("filename") or file_path.name
+            file_type = doc_dict.get("file_type") or file_path.suffix.lstrip(".") or "txt"
+            sections = self.parser.parse(str(file_path), file_type)
+        else:
+            if not content:
+                logger.warning("empty_document_content", filename=filename)
+                return
+            raw_content = content if isinstance(content, bytes) else str(content).encode("utf-8")
+            sections = self.parser.parse_from_bytes(raw_content, file_type)
 
-        if not content:
-            logger.warning("empty_document_content", filename=filename)
+        chunks = self.chunker.chunk(sections, source=filename)
+        if not chunks:
+            logger.warning("no_chunks_generated", filename=filename)
             return
 
         # Generate document ID
@@ -188,37 +195,16 @@ class PineconeDocumentRetriever(DocumentRetriever):
 
         doc_id = hashlib.sha256(f"{filename}_{uuid.uuid4().hex}".encode()).hexdigest()[:16]
 
-        # Create Document object
         document = Document(
             id=doc_id,
             filename=filename,
             file_type=file_type,
             upload_time=datetime.now(tz=UTC),
-            chunks=[],
-            total_tokens=0,
+            chunks=chunks,
+            total_tokens=sum(c.metadata.token_count for c in chunks),
             metadata=metadata,
         )
 
-        # Parse content into structured document if needed
-        if file_type in ("md", "markdown", "html", "rst"):
-            parsed = self.parser.parse_markdown(content)
-            document.chunks = parsed.chunks
-            document.total_tokens = parsed.total_tokens
-        elif file_type == "json":
-            parsed = self.parser.parse_json(content)
-            document.chunks = parsed.chunks
-            document.total_tokens = parsed.total_tokens
-        else:
-            # Plain text - use chunker directly
-            chunks = self.chunker.chunk_text(content, source=filename)
-            document.chunks = chunks
-            document.total_tokens = sum(c.metadata.token_count for c in chunks)
-
-        if not document.chunks:
-            logger.warning("no_chunks_generated", filename=filename)
-            return
-
-        # Store in vector store
         await self.vector_store.add_document(document)
 
         logger.info(

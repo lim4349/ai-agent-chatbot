@@ -9,6 +9,8 @@ from langchain_ollama import ChatOllama
 from src.core.config import LLMConfig
 from src.core.logging import get_logger
 from src.llm.factory import LLMFactory
+from src.llm.invocation import extract_structured_result, normalize_content
+from src.observability.agent_metrics import extract_token_usage_from_response
 
 logger = get_logger(__name__)
 
@@ -30,21 +32,25 @@ class OllamaProvider:
 
     async def generate(self, messages: list[dict[str, str]], **kwargs) -> str:
         """Generate a single response."""
+        content, _ = await self.generate_with_usage(messages, **kwargs)
+        return content
+
+    async def generate_with_usage(
+        self, messages: list[dict[str, str]], **kwargs
+    ) -> tuple[str, dict[str, int]]:
+        """Generate a response with best-effort token usage info."""
         response = await self.client.ainvoke(messages, **kwargs)
-        content = response.content
-        if isinstance(content, list):
-            content = "".join(
-                block.get("text", "")
-                for block in content
-                if isinstance(block, dict) and block.get("type") == "text"
-            )
-        return str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
+        input_tokens, output_tokens = extract_token_usage_from_response(response)
+        return normalize_content(response.content), {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
         async for chunk in self.client.astream(messages, **kwargs):
             if chunk.content:
-                yield chunk.content
+                yield normalize_content(chunk.content, strip=False)
 
     async def generate_structured(
         self, messages: list[dict[str, str]], output_schema: type, **kwargs
@@ -63,7 +69,7 @@ class OllamaProvider:
                 warnings.filterwarnings("ignore", category=UserWarning)
                 result = await structured.ainvoke(messages, **kwargs)
 
-            return self._extract_structured_result(result)
+            return extract_structured_result(result)
         except Exception as e:
             logger.warning("ollama_structured_output_fallback", error=str(e))
             # Fallback: use JSON mode with explicit instructions
@@ -96,35 +102,3 @@ Respond ONLY with the JSON object, no additional text."""
                 raise ValueError(
                     f"Failed to parse structured output: {parse_error}"
                 ) from parse_error
-
-    def _extract_structured_result(self, result) -> dict | None:
-        """Extract structured result, handling LangChain wrapper objects."""
-        # Suppress Pydantic serialization warnings when accessing wrapper attributes
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning)
-
-            if hasattr(result, "parsed") and result.parsed is not None:
-                inner = result.parsed
-                if hasattr(inner, "model_dump"):
-                    return inner.model_dump()
-                elif isinstance(inner, dict):
-                    return inner
-                else:
-                    try:
-                        return dict(inner)
-                    except (TypeError, ValueError):
-                        return {"result": str(inner)}
-
-            if hasattr(result, "model_dump"):
-                return result.model_dump()
-
-            if isinstance(result, dict):
-                return result
-
-            try:
-                if hasattr(result, "__dict__"):
-                    return result.__dict__
-            except Exception:
-                pass
-
-        return None

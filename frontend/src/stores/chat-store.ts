@@ -1,10 +1,22 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { Session, Message, HealthResponse } from '@/types';
+import type { Session, HealthResponse } from '@/types';
 import { streamChat } from '@/lib/sse';
 import { api } from '@/lib/api';
 import { parseMemoryCommand, type ParsedMemoryCommand } from '@/lib/memory-commands';
+import {
+  addTurnToSession,
+  appendAssistantContent,
+  appendToolToLastAssistant,
+  createChatTurn,
+  removeEmptyAssistantTail,
+  removeLastTurn,
+  setLastAssistantAgent,
+  setLastAssistantAgents,
+  setLastAssistantContent,
+  setLastAssistantStatus,
+} from './chat-turn';
 import { useToastStore } from './toast-store';
 
 // Device ID for guest mode (no login required)
@@ -216,49 +228,15 @@ export const useChatStore = create<ChatStore>()(
               // Continue anyway - session works locally
             });
         }
-        const now = new Date().toISOString();
-        const userMessage: Message = {
-          id: uuidv4(),
-          role: 'user',
-          content,
-          createdAt: now as unknown as Date,
-        };
-
-        const assistantMessage: Message = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: '',
-          createdAt: now as unknown as Date,
-        };
-
-        // Generate title from first message with better truncation
-        const generateTitle = (text: string): string => {
-          // Remove code block markdown
-          const withoutCodeBlocks = text.replace(/```[\s\S]*?```/g, ' ');
-          // Remove inline code
-          const withoutInlineCode = withoutCodeBlocks.replace(/`[^`]+`/g, ' ');
-          // Remove other markdown
-          const withoutMarkdown = withoutInlineCode
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-            .replace(/[#*_~]/g, '');
-          // Clean up whitespace
-          const cleaned = withoutMarkdown.replace(/\s+/g, ' ').trim();
-          // Truncate at word boundary
-          if (cleaned.length <= 40) return cleaned;
-          const truncated = cleaned.slice(0, 40);
-          const lastSpace = truncated.lastIndexOf(' ');
-          return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
-        };
+        const { userMessage, assistantMessage } = createChatTurn(content);
 
         set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  title: s.messages.length === 0 ? generateTitle(content) : s.title,
-                  messages: [...s.messages, userMessage, assistantMessage],
-                }
-              : s
+          sessions: addTurnToSession(
+            state.sessions,
+            sessionId,
+            content,
+            userMessage,
+            assistantMessage
           ),
           isStreaming: true,
           error: null,
@@ -273,30 +251,13 @@ export const useChatStore = create<ChatStore>()(
         const BATCH_INTERVAL = 100; // Increased from 50ms to 100ms
         const CHECK_INTERVAL = 32; // ~30fps instead of 60fps
         const MAX_BUFFER_SIZE = 500; // Max characters to buffer before forced flush
-        const MAX_MESSAGE_SIZE = 10000; // 10KB - trim messages larger than this
-
         const flushTokens = () => {
           if (!tokenBuffer) return;
           const batch = tokenBuffer;
           tokenBuffer = '';
           lastFlushTime = Date.now();
           set((state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === sessionId
-                ? {
-                    ...s,
-                    messages: s.messages.map((m, idx) => {
-                      if (idx !== s.messages.length - 1) return m;
-                      const newContent = m.content + batch;
-                      // Trim message if it exceeds max size to prevent memory issues
-                      const trimmedContent = newContent.length > MAX_MESSAGE_SIZE
-                        ? newContent.slice(0, MAX_MESSAGE_SIZE) + '\n\n[Message truncated due to length]'
-                        : newContent;
-                      return { ...m, content: trimmedContent };
-                    }),
-                  }
-                : s
-            ),
+            sessions: appendAssistantContent(state.sessions, sessionId, batch),
           }));
         };
 
@@ -323,77 +284,29 @@ export const useChatStore = create<ChatStore>()(
             },
             onAgent: (agent, allAgents) => {
               set((state) => ({
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId
-                    ? {
-                        ...s,
-                        messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1
-                            ? { ...m, agent, agents: allAgents || [agent] }
-                            : m
-                        ),
-                      }
-                    : s
-                ),
+                sessions: setLastAssistantAgent(state.sessions, sessionId, agent, allAgents),
               }));
             },
             onStatus: (status) => {
               set((state) => ({
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId
-                    ? {
-                        ...s,
-                        messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1 ? { ...m, status } : m
-                        ),
-                      }
-                    : s
-                ),
+                sessions: setLastAssistantStatus(state.sessions, sessionId, status),
               }));
             },
             onTool: (tool) => {
               const toolName = tool.tool || tool.name || 'tool';
               set((state) => ({
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId
-                    ? {
-                        ...s,
-                        messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1
-                            ? {
-                                ...m,
-                                tools: [
-                                  ...(m.tools || []),
-                                  {
-                                    name: toolName,
-                                    query: tool.query,
-                                    results: tool.results,
-                                    status: tool.error ? 'error' : 'success',
-                                  },
-                                ],
-                              }
-                            : m
-                        ),
-                      }
-                    : s
-                ),
+                sessions: appendToolToLastAssistant(state.sessions, sessionId, {
+                  name: toolName,
+                  query: tool.query,
+                  results: tool.results,
+                  status: tool.error ? 'error' : 'success',
+                }),
               }));
             },
             onAgentsComplete: (agents) => {
               // Final update with all agents that participated
               set((state) => ({
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId
-                    ? {
-                        ...s,
-                        messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1
-                            ? { ...m, agents, agent: agents[agents.length - 1] || m.agent }
-                            : m
-                        ),
-                      }
-                    : s
-                ),
+                sessions: setLastAssistantAgents(state.sessions, sessionId, agents),
               }));
             },
             onDone: () => {
@@ -406,18 +319,7 @@ export const useChatStore = create<ChatStore>()(
                 const remaining = tokenBuffer;
                 tokenBuffer = '';
                 set((state) => ({
-                  sessions: state.sessions.map((s) =>
-                    s.id === sessionId
-                      ? {
-                          ...s,
-                          messages: s.messages.map((m, idx) =>
-                            idx === s.messages.length - 1
-                              ? { ...m, content: m.content + remaining }
-                              : m
-                          ),
-                        }
-                      : s
-                  ),
+                  sessions: appendAssistantContent(state.sessions, sessionId, remaining),
                   isStreaming: false,
                   _currentStreamAbort: null,
                 }));
@@ -436,18 +338,7 @@ export const useChatStore = create<ChatStore>()(
                 isStreaming: false,
                 _currentStreamAbort: null,
                 error: classifiedError,
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId
-                    ? {
-                        ...s,
-                        messages: s.messages.map((m, idx) =>
-                          idx === s.messages.length - 1
-                            ? { ...m, content: classifiedError.message }
-                            : m
-                        ),
-                      }
-                    : s
-                ),
+                sessions: setLastAssistantContent(state.sessions, sessionId, classifiedError.message),
               }));
             },
           }
@@ -470,14 +361,7 @@ export const useChatStore = create<ChatStore>()(
 
         // Remove the last assistant and user messages
         set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === activeSessionId
-              ? {
-                  ...s,
-                  messages: s.messages.slice(0, -2),
-                }
-              : s
-          ),
+          sessions: removeLastTurn(state.sessions, activeSessionId),
           error: null,
         }));
 
@@ -515,21 +399,7 @@ export const useChatStore = create<ChatStore>()(
         set((state) => ({
           isStreaming: false,
           _currentStreamAbort: null,
-          sessions: state.sessions.map((session) => {
-            if (session.id !== activeSessionId) {
-              return session;
-            }
-
-            const lastMessage = session.messages[session.messages.length - 1];
-            if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.content.trim()) {
-              return session;
-            }
-
-            return {
-              ...session,
-              messages: session.messages.slice(0, -1),
-            };
-          }),
+          sessions: removeEmptyAssistantTail(state.sessions, activeSessionId),
         }));
       },
 

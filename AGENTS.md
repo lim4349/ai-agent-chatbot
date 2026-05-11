@@ -110,6 +110,7 @@ RENDER_REDIS_SERVICE_ID=...
 
 ## Change Discipline
 
+- Use absolute paths in tool calls and final reports; avoid relative path references.
 - Keep edits surgical and tied to the user's request.
 - Do not reformat or refactor unrelated code.
 - Do not revert user changes unless explicitly asked.

@@ -4,6 +4,7 @@ from typing import override
 from dependency_injector.wiring import Provide, inject
 
 from src.agents.base import BaseAgent
+from src.agents.conversation_memory import ConversationMemoryCommands
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Summarizer, TopicMemory, UserProfiler
@@ -49,6 +50,11 @@ class ChatAgent(BaseAgent):
         self.topic_memory = topic_memory
         self.summarizer = summarizer
         self.metrics_store = metrics_store
+        self.memory_commands = ConversationMemoryCommands(
+            memory=memory,
+            long_term_memory=long_term_memory,
+            summarizer=summarizer,
+        )
         self._user_profiles: dict[str, dict] = {}
 
     def _get_capability_context(self, available_agents: list[str] | None) -> str:
@@ -339,11 +345,11 @@ Guidelines:
         last_content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
 
         # Check for memory commands
-        command_type, command_data = self._parse_memory_command(last_content)
+        command = self.memory_commands.parse(last_content)
 
-        if command_type != "none":
+        if command.type != "none":
             # Handle memory command
-            response = await self._handle_memory_command(session_id, command_type, command_data)
+            response = await self.memory_commands.handle(session_id, user_id, command)
 
             # Store the command and response
             if self.memory:

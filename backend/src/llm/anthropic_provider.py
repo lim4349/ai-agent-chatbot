@@ -1,7 +1,6 @@
 """Anthropic LLM Provider."""
 
 import json
-import warnings
 from collections.abc import AsyncIterator
 
 from langchain_anthropic import ChatAnthropic
@@ -10,7 +9,12 @@ from src.core.config import LLMConfig
 from src.core.di_container import container
 from src.core.logging import get_logger
 from src.llm.factory import LLMFactory
-from src.observability.agent_metrics import extract_token_usage_from_response
+from src.llm.invocation import (
+    extract_structured_result,
+    generate_with_cache,
+    normalize_content,
+    parse_json_response,
+)
 
 logger = get_logger(__name__)
 
@@ -49,48 +53,19 @@ class AnthropicProvider:
         Returns:
             Tuple of (content, {"input_tokens": int, "output_tokens": int})
         """
-        # Check cache first
-        cached = await self._cache.get(
+        return await generate_with_cache(
+            cache=self._cache,
+            client=self.client,
+            config=self.config,
             messages=messages,
-            model=self.config.model,
-            temperature=self.config.temperature,
+            **kwargs,
         )
-        if cached is not None:
-            return cached, {"input_tokens": 0, "output_tokens": 0}
-
-        response = await self.client.ainvoke(messages, **kwargs)
-
-        # Normalize content: Anthropic returns a list of content blocks
-        content = response.content
-        if isinstance(content, list):
-            content = "".join(
-                block.get("text", "")
-                for block in content
-                if isinstance(block, dict) and block.get("type") == "text"
-            )
-        result = str(content).strip() if content else "죄송합니다. 응답을 생성하지 못했습니다."
-
-        # Extract token usage
-        input_tokens, output_tokens = extract_token_usage_from_response(response)
-
-        # Cache the response
-        await self._cache.set(
-            messages=messages,
-            model=self.config.model,
-            temperature=self.config.temperature,
-            response=result,
-        )
-
-        return result, {
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-        }
 
     async def stream(self, messages: list[dict[str, str]], **kwargs) -> AsyncIterator[str]:
         """Generate a streaming response."""
         async for chunk in self.client.astream(messages, **kwargs):
             if chunk.content:
-                yield chunk.content
+                yield normalize_content(chunk.content, strip=False)
 
     async def generate_structured(
         self, messages: list[dict[str, str]], output_schema: type, **kwargs
@@ -110,18 +85,12 @@ class AnthropicProvider:
             response = await self.client.ainvoke(enhanced_messages, **kwargs)
 
             # Extract text content from response
-            content = response.content
-            if isinstance(content, list):
-                content = "".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict) and block.get("type") == "text"
-                )
+            content = normalize_content(response.content)
 
             logger.info("structured_output_raw", content_preview=content[:500] if content else None)
 
             # Parse JSON from response
-            result = self._parse_json_response(content)
+            result = parse_json_response(content)
             logger.debug("structured_output_parsed", result=result)
 
             return result
@@ -197,75 +166,6 @@ class AnthropicProvider:
 
         return example
 
-    def _parse_json_response(self, content: str) -> dict | None:
-        """Parse JSON from LLM response, handling various formats."""
-        if not content:
-            return None
-
-        content = content.strip()
-
-        # Try direct parse first
-        try:
-            result = json.loads(content)
-            if isinstance(result, dict):
-                return result
-        except json.JSONDecodeError:
-            pass
-
-        # Try to extract JSON from markdown code blocks
-        import re
-
-        # Look for ```json ... ``` blocks
-        code_block_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", content, re.DOTALL)
-        if code_block_match:
-            try:
-                result = json.loads(code_block_match.group(1).strip())
-                if isinstance(result, dict):
-                    return result
-            except json.JSONDecodeError:
-                pass
-
-        # Try to find JSON object in the response
-        object_match = re.search(r"\{[\s\S]*\}", content)
-        if object_match:
-            try:
-                result = json.loads(object_match.group(0))
-                if isinstance(result, dict):
-                    return result
-            except json.JSONDecodeError:
-                pass
-
-        logger.warning("json_parse_failed", content_preview=content[:200])
-        return None
-
     def _extract_structured_result(self, result) -> dict | None:
-        """Extract structured result, handling LangChain wrapper objects."""
-        # Suppress Pydantic serialization warnings when accessing wrapper attributes
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning)
-
-            if hasattr(result, "parsed") and result.parsed is not None:
-                inner = result.parsed
-                if hasattr(inner, "model_dump"):
-                    return inner.model_dump()
-                elif isinstance(inner, dict):
-                    return inner
-                else:
-                    try:
-                        return dict(inner)
-                    except (TypeError, ValueError):
-                        return {"result": str(inner)}
-
-            if hasattr(result, "model_dump"):
-                return result.model_dump()
-
-            if isinstance(result, dict):
-                return result
-
-            try:
-                if hasattr(result, "__dict__"):
-                    return result.__dict__
-            except Exception:
-                pass
-
-        return None
+        """Backward-compatible wrapper around shared structured extraction."""
+        return extract_structured_result(result)
