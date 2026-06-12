@@ -10,6 +10,7 @@ import {
 import type { AgentType } from '@/types';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import {
+  Bot,
   MessageCircle,
   Search,
   type LucideIcon,
@@ -21,6 +22,7 @@ interface AgentBadgeProps {
 }
 
 const AGENT_I18N_KEYS: Record<string, TranslationKey> = {
+  assistant: 'agent.assistant',
   chat: 'agent.chat',
   research: 'agent.research',
 };
@@ -31,6 +33,12 @@ const AGENT_CONFIG: Record<string, {
   label: string;
   description: string;
 }> = {
+  assistant: {
+    icon: Bot,
+    color: 'bg-emerald-500',
+    label: '어시스턴트',
+    description: '대화와 근거 수집을 통합 처리'
+  },
   chat: {
     icon: MessageCircle,
     color: 'bg-gray-500',
@@ -47,7 +55,7 @@ const AGENT_CONFIG: Record<string, {
 
 export function AgentBadge({ agent, agents }: AgentBadgeProps) {
   const { t } = useTranslation();
-  const config = AGENT_CONFIG[agent] || AGENT_CONFIG.chat;
+  const config = AGENT_CONFIG[agent] || AGENT_CONFIG.assistant;
   const Icon = config.icon;
 
   const i18nKey = AGENT_I18N_KEYS[agent];

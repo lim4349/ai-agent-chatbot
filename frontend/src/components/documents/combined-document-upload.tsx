@@ -49,6 +49,7 @@ export function CombinedDocumentUpload() {
       .then(() => {
         const { uploadStatus, uploadError } = useDocumentStore.getState();
         if (uploadStatus === 'completed') {
+          useChatStore.getState().markSessionSynced(sessionId);
           addToast(`${file.name} uploaded successfully`, 'success');
         } else if (uploadStatus === 'error') {
           addToast(uploadError || 'Upload failed', 'error');

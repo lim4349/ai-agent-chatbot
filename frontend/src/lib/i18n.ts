@@ -83,6 +83,7 @@ const translations = {
     'health.unlimited': '무제한',
 
     // Agent labels
+    'agent.assistant': '어시스턴트',
     'agent.chat': '대화',
     'agent.research': '리서치',
     'agent.additionalAgents': '추가 에이전트',
@@ -201,6 +202,7 @@ const translations = {
     },
     'health.unlimited': 'Unlimited',
 
+    'agent.assistant': 'Assistant',
     'agent.chat': 'Chat',
     'agent.research': 'Research',
     'agent.additionalAgents': 'Additional agents',

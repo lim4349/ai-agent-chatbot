@@ -4,10 +4,10 @@
 
 LangGraph 기반 챗봇입니다. FastAPI 백엔드와 Next.js 프론트엔드가 분리되어 있습니다.
 
-**그래프 구조**: `LLMRouterNode` → `[chat | research]` → END
-- 일반 대화: 라우팅 1회 + ChatAgent 응답 1회
-- 리서치/RAG/보고서: 라우팅 1회 + ResearchAgent 도구 선택 1회 + 최종 응답 1회
-- `research` 에이전트가 `web_search`/`retriever` 도구 사용 여부를 직접 결정
+**그래프 구조**: `assistant` → END
+- 일반 대화: AssistantAgent 최종 응답 1회
+- 리서치/RAG/보고서: ResearchEvidenceCollector 도구 선택 1회 + 필요한 도구 호출 + AssistantAgent 최종 응답 1회
+- `assistant` 에이전트가 대화/메모리를 담당하고, `ResearchEvidenceCollector`가 `web_search`/`retriever` 사용 여부를 결정
 
 ## 현재 기술 스택
 
@@ -62,8 +62,8 @@ npm run build
 - Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
 - LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
-- 라우팅 수정은 `src/graph/router.py`의 LLM router/fallback 패턴 조정
-- 도구 선택 수정은 `src/agents/research_agent.py`의 `ResearchToolDecision` 및 guardrail 로직 조정
+- 대화/메모리 흐름 수정은 `src/agents/assistant_agent.py` 조정
+- 도구 선택 수정은 `src/agents/research_evidence.py`의 `ResearchToolDecision` 및 guardrail 로직 조정
 
 ## 커밋 전 최소 확인
 

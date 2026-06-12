@@ -249,10 +249,8 @@ class SupabaseSessionStore:
             "updated_at": now.isoformat(),
         }
 
-        response = (
-            self._client.table(self._table_name)  # type: ignore[union-attr]
-            .insert(data)
-            .execute()
+        response = await asyncio.to_thread(
+            self._client.table(self._table_name).insert(data).execute  # type: ignore[union-attr]
         )
 
         if response.data:
@@ -273,12 +271,12 @@ class SupabaseSessionStore:
         if not self.is_available:
             raise RuntimeError("Supabase client not available")
 
-        response = (
+        response = await asyncio.to_thread(
             self._client.table(self._table_name)  # type: ignore[union-attr]
             .select("*")
             .eq("id", session_id)
             .limit(1)
-            .execute()
+            .execute
         )
 
         if response.data:
@@ -299,12 +297,12 @@ class SupabaseSessionStore:
         if not self.is_available:
             raise RuntimeError("Supabase client not available")
 
-        response = (
+        response = await asyncio.to_thread(
             self._client.table(self._table_name)  # type: ignore[union-attr]
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
-            .execute()
+            .execute
         )
 
         sessions = []
@@ -327,11 +325,11 @@ class SupabaseSessionStore:
         if not self.is_available:
             raise RuntimeError("Supabase client not available")
 
-        response = (
+        response = await asyncio.to_thread(
             self._client.table(self._table_name)  # type: ignore[union-attr]
             .delete()
             .eq("id", session_id)
-            .execute()
+            .execute
         )
 
         return len(response.data) > 0

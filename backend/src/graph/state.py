@@ -10,13 +10,13 @@ class AgentState(TypedDict, total=False):
 
     Attributes:
         messages: Conversation messages (uses add_messages reducer)
-        next_agent: Next graph task selected by the LLM router
+        next_agent: Legacy compatibility field; the single assistant graph keeps this None
         tool_results: Accumulated tool execution results
         metadata: Session metadata (session_id, user_id, routing info)
         has_documents: Whether documents are available for RAG
         completed_steps: List of completed agent names in current workflow
         workflow_context: Accumulated context from previous steps
-        available_nodes: Available graph agent names for capability awareness
+        available_nodes: Available graph node names for capability awareness
     """
 
     messages: Annotated[list, add_messages]
@@ -41,7 +41,7 @@ def create_initial_state(
         message: User's message
         session_id: Session identifier
         device_id: Device identifier (guest mode) - also used as user_id for cross-session continuity
-        available_nodes: List of available graph agent names
+        available_nodes: List of available graph node names
 
     Returns:
         Initial AgentState
@@ -59,5 +59,5 @@ def create_initial_state(
         "has_documents": False,
         "completed_steps": [],
         "workflow_context": "",
-        "available_nodes": available_nodes or ["chat", "research"],
+        "available_nodes": available_nodes or ["assistant"],
     }

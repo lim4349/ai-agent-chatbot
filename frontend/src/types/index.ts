@@ -110,6 +110,8 @@ export interface Message {
     query?: string;
     results?: unknown[] | string;
     documentSources?: string[];
+    sources?: string[];
+    confidence?: string;
     status?: string;
   }>;
   status?: string;
@@ -128,7 +130,7 @@ export interface Session {
   isLocalOnly?: boolean;
 }
 
-export type AgentType = 'chat' | 'research';
+export type AgentType = 'assistant' | 'chat' | 'research';
 
 export interface SSECallbacks {
   onMetadata: (data: { session_id: string }) => void;
@@ -140,6 +142,8 @@ export interface SSECallbacks {
     name?: string;
     query?: string;
     results?: unknown[] | string;
+    sources?: string[];
+    confidence?: string;
     error?: string;
   }) => void;
   onAgentsComplete: (agents: string[]) => void;

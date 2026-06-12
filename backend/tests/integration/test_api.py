@@ -52,7 +52,7 @@ class TestChatAPI:
         data = response.json()
         assert "agents" in data
         agent_names = [a["name"] for a in data["agents"]]
-        assert agent_names == ["chat", "research"]
+        assert agent_names == ["assistant"]
 
     def test_create_session(self, client):
         """Test session creation endpoint."""

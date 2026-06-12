@@ -100,6 +100,7 @@ interface ChatStore {
 
   setHasHydrated: (state: boolean) => void;
   createSession: () => Promise<string>;
+  markSessionSynced: (id: string) => void;
   switchSession: (id: string) => void;
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => void;
@@ -169,6 +170,14 @@ export const useChatStore = create<ChatStore>()(
         return id;
       },
 
+      markSessionSynced: (id) => {
+        set((state) => ({
+          sessions: state.sessions.map((session) =>
+            session.id === id ? { ...session, isLocalOnly: false } : session
+          ),
+        }));
+      },
+
       switchSession: (id) => {
         set({ activeSessionId: id });
       },
@@ -216,12 +225,7 @@ export const useChatStore = create<ChatStore>()(
           api
             .createSession(currentSession.title || 'New Chat', deviceId, sessionId)
             .then(() => {
-              // Mark as synced
-              set((state) => ({
-                sessions: state.sessions.map((s) =>
-                  s.id === sessionId ? { ...s, isLocalOnly: false } : s
-                ),
-              }));
+              get().markSessionSynced(sessionId);
             })
             .catch((error) => {
               console.error('Failed to sync session to backend:', error);
@@ -299,6 +303,8 @@ export const useChatStore = create<ChatStore>()(
                   name: toolName,
                   query: tool.query,
                   results: tool.results,
+                  sources: tool.sources,
+                  confidence: tool.confidence,
                   status: tool.error ? 'error' : 'success',
                 }),
               }));

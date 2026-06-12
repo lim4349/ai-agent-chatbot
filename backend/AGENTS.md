@@ -35,7 +35,7 @@ async def chat(
 
 **Agent 클래스에서 사용:**
 ```python
-class ChatAgent:
+class AssistantAgent:
     @inject
     def __init__(
         self,
@@ -67,7 +67,7 @@ class OpenAIProvider:
         return response
 ```
 
-**주의:** Protocol 반환 타입을 변경하면 모든 구현첼도 함께 수정해야 합니다.
+**주의:** Protocol 반환 타입을 변경하면 모든 구현체도 함께 수정해야 합니다.
 
 ---
 
@@ -148,12 +148,7 @@ type = metadata.get("detected_type")
 ### 테스트 전략
 
 ```bash
-# CI에서는 unit 테스트만 (timeout 주의)
-pytest tests/unit -v --timeout=60
-
-# Integration 테스트는 로컬에서만
-export OPENAI_API_KEY=xxx
-pytest tests/integration -v
+uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
 ```
 
 ---
@@ -216,7 +211,7 @@ git merge origin/main  # dev가 main보다 뒤처진 경우 필수
 5. ⚠️ Supabase user_profiles: **유지** (사용자 레벨)
 6. ⚠️ Supabase user_facts: **유지** (사용자 레벨)
 
-### 메모리 명령어 (Chat Agent)
+### 메모리 명령어 (Assistant Agent)
 
 사용자가 대화 중 사용할 수 있는 명령어:
 
@@ -242,5 +237,3 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ---
 
 *Backend AGENTS.md - 실전 개발 가이드*
-</content>
-</invoke>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import warnings
@@ -10,6 +11,8 @@ from typing import Any
 from src.observability.agent_metrics import extract_token_usage_from_response
 
 DEFAULT_EMPTY_RESPONSE = "죄송합니다. 응답을 생성하지 못했습니다."
+MAX_LLM_RETRIES = 2
+LLM_RETRY_DELAY_SECONDS = 0.5
 
 
 def normalize_content(content: Any, *, strip: bool = True) -> str:
@@ -43,7 +46,7 @@ async def generate_with_cache(
     if cached is not None:
         return cached, {"input_tokens": 0, "output_tokens": 0}
 
-    response = await client.ainvoke(messages, **kwargs)
+    response = await invoke_with_retry(client, messages, **kwargs)
     result = normalize_content(response.content)
     input_tokens, output_tokens = extract_token_usage_from_response(response)
 
@@ -55,6 +58,38 @@ async def generate_with_cache(
     )
 
     return result, {"input_tokens": input_tokens, "output_tokens": output_tokens}
+
+
+async def invoke_with_retry(client, messages: list[dict[str, str]], **kwargs):
+    """Invoke an LLM client with a small retry policy for transient failures."""
+    last_error: Exception | None = None
+    for attempt in range(MAX_LLM_RETRIES + 1):
+        try:
+            return await client.ainvoke(messages, **kwargs)
+        except Exception as e:
+            last_error = e
+            if not is_retryable_llm_error(e) or attempt >= MAX_LLM_RETRIES:
+                raise
+            await asyncio.sleep(LLM_RETRY_DELAY_SECONDS * (2**attempt))
+    raise last_error or RuntimeError("LLM invocation failed")
+
+
+def is_retryable_llm_error(error: Exception) -> bool:
+    """Return whether an LLM failure is likely transient."""
+    text = str(error).lower()
+    return any(
+        marker in text
+        for marker in (
+            "429",
+            "rate limit",
+            "timeout",
+            "temporarily unavailable",
+            "502",
+            "503",
+            "504",
+            "connection",
+        )
+    )
 
 
 def extract_structured_result(result) -> dict | None:

@@ -49,11 +49,11 @@ jobs:
       # - name: Type Check (mypy)
       #   run: mypy src/ --ignore-missing-imports
 
-      - name: Test (pytest - unit only)
-        timeout-minutes: 2
+      - name: Test (pytest)
+        timeout-minutes: 4
         run: |
-          if [ -d "tests/unit" ]; then
-            pytest tests/unit -v --timeout=60
+          if [ -d "tests" ]; then
+            pytest -q --timeout=60
           else
             echo "No unit tests found, skipping pytest"
           fi

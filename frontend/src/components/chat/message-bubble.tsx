@@ -99,7 +99,7 @@ function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightC
             {message.agent && <AgentBadge agent={message.agent} agents={message.agents} />}
             <AgentSwitchAnimation
               fromAgent={previousAgent}
-              toAgent={message.agent || 'chat'}
+              toAgent={message.agent || 'assistant'}
               isVisible={!!previousAgent && previousAgent !== message.agent}
             />
           </div>

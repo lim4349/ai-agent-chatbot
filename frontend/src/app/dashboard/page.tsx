@@ -13,6 +13,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 // Agent color mapping for consistent theming
 const AGENT_COLORS: Record<string, string> = {
+  assistant: '#10b981',
   chat: '#3b82f6',       // Blue
   research: '#10b981',   // Green
 };
@@ -152,6 +153,12 @@ export default function DashboardPage() {
     name: stat.agent_name,
     duration: Math.round(stat.avg_duration_ms),
   }));
+  const evidenceRate = metrics?.quality_stats
+    ? `${Math.round((metrics.quality_stats.evidence_rate || 0) * 100)}%`
+    : '0%';
+  const toolUsage = metrics?.quality_stats?.tool_counts
+    ? Object.entries(metrics.quality_stats.tool_counts)
+    : [];
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -363,6 +370,49 @@ export default function DashboardPage() {
               </div>
 
               {/* Agent Stats Table */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <SummaryCard
+                  title="Evidence Rate"
+                  value={evidenceRate}
+                  description="Turns with collected research evidence"
+                  color="text-emerald-500"
+                />
+                <SummaryCard
+                  title="Evidence Turns"
+                  value={metrics.quality_stats?.evidence_turns ?? 0}
+                  description="Responses grounded by tools or documents"
+                  color="text-blue-500"
+                />
+                <SummaryCard
+                  title="No Evidence Turns"
+                  value={metrics.quality_stats?.no_evidence_turns ?? 0}
+                  description="Responses answered without external evidence"
+                  color="text-amber-500"
+                />
+              </div>
+
+              {toolUsage.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Evidence Tool Usage</CardTitle>
+                    <CardDescription>Tool calls recorded from assistant turns</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {toolUsage.map(([tool, count]) => (
+                        <div
+                          key={tool}
+                          className="rounded-md border border-border px-3 py-2 text-sm"
+                        >
+                          <span className="font-medium">{tool}</span>
+                          <span className="ml-2 text-muted-foreground">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.agentStatistics')}</CardTitle>

@@ -5,8 +5,12 @@ This context names the core product concepts in the LangGraph-based chatbot so a
 ## Language
 
 **Chat Turn**:
-One user message and the assistant response produced from it, including routing, session context, and streaming metadata.
+One user message and the assistant response produced from it, including session context, optional evidence collection, and streaming metadata.
 _Avoid_: request handler, route logic
+
+**Assistant Agent**:
+The single user-facing agent that owns a **Chat Turn**, handles **Conversation Memory**, decides whether **Research Evidence** is needed, and produces the final answer.
+_Avoid_: chat agent, research agent
 
 **Research Evidence**:
 External or uploaded material collected before a research answer is generated.
@@ -35,11 +39,12 @@ _Avoid_: thread, room
 ## Relationships
 
 - A **Session** contains many **Chat Turns**.
+- An **Assistant Agent** handles each **Chat Turn**.
 - A **Chat Turn** may use **Conversation Memory**.
-- A **Chat Turn** may route to research and collect **Research Evidence**.
+- A **Chat Turn** may collect **Research Evidence**.
 - **Research Evidence** may include chunks from **RAG Documents**.
 - A **RAG Document Lifecycle** stores and removes **RAG Documents** within a **Session**.
-- An **LLM Invocation** supports router, chat, research, summarization, and profiling behavior.
+- An **LLM Invocation** supports assistant response generation, evidence planning, summarization, and profiling behavior.
 
 ## Example dialogue
 

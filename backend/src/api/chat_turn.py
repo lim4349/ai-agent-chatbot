@@ -35,7 +35,7 @@ def get_graph_capabilities(
     retriever: DocumentRetriever | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     """Return available agent nodes, tools, and routable graph nodes."""
-    agent_nodes = ["chat", "research"]
+    agent_nodes = ["assistant"]
 
     available_tools = []
     if tool_registry and tool_registry.get("web_search"):
@@ -132,7 +132,7 @@ def resolve_agent_used(result: dict[str, Any]) -> str:
     if completed_steps:
         return completed_steps[-1]
 
-    agent_used = result.get("next_agent", "chat")
+    agent_used = result.get("next_agent", "assistant")
     if agent_used == "done":
-        return "chat"
-    return agent_used or "chat"
+        return "assistant"
+    return agent_used or "assistant"

@@ -73,6 +73,7 @@ class EmbeddingGenerator(BaseEmbeddingGenerator):
             api_key: Optional OpenAI API key (uses env var if not provided)
         """
         self.model = model
+        self.dimension = 1536
         self._api_key = api_key
         self._async_client: AsyncOpenAI | None = None
         self._sync_client: OpenAI | None = None
@@ -251,6 +252,7 @@ class PineconeInferenceEmbedding(BaseEmbeddingGenerator):
         """
         self._api_key = api_key
         self.model = model
+        self.dimension = 1024
         self._pinecone_client = None
 
     def _get_client(self):

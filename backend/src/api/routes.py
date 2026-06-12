@@ -72,7 +72,7 @@ async def chat(
 ) -> ChatResponse:
     """Send a message and get a response (synchronous).
 
-    The LLM router selects the appropriate specialist agent.
+    The single assistant graph handles memory, optional evidence collection, and final response.
     """
     start_time = time.perf_counter()
 
@@ -222,14 +222,12 @@ async def list_agents(
 
     agents = [
         AgentInfo(
-            name="chat",
-            description="General conversation, memory commands, and ordinary Q&A",
-            tools=["memory"],
-        ),
-        AgentInfo(
-            name="research",
-            description="Agentic web search, uploaded-document retrieval, and report synthesis",
-            tools=research_tools,
+            name="assistant",
+            description=(
+                "General conversation, memory commands, uploaded-document retrieval, "
+                "web search, and report synthesis"
+            ),
+            tools=["memory", *research_tools],
         ),
     ]
 
@@ -623,22 +621,18 @@ async def list_documents(
         return DocumentListResponse(documents=[])
 
     try:
-        doc_ids = await doc_store.list_documents(device_id=device_id)
-
-        documents = []
-        for doc_id in doc_ids:
-            stats = await doc_store.get_document_stats(doc_id, device_id=device_id)
-            if stats:
-                documents.append(
-                    DocumentInfo(
-                        id=stats.document_id,
-                        filename=stats.filename or "unknown",
-                        file_type=stats.file_type or "unknown",
-                        upload_time=stats.upload_time or datetime.now(tz=UTC),
-                        chunk_count=stats.chunk_count,
-                        total_tokens=stats.total_tokens,
-                    )
-                )
+        lifecycle = DocumentLifecycle(parser=None, chunker=None, vector_store=doc_store)
+        documents = [
+            DocumentInfo(
+                id=stats.document_id,
+                filename=stats.filename or "unknown",
+                file_type=stats.file_type or "unknown",
+                upload_time=stats.upload_time or datetime.now(tz=UTC),
+                chunk_count=stats.chunk_count,
+                total_tokens=stats.total_tokens,
+            )
+            for stats in await lifecycle.list_documents(device_id=device_id)
+        ]
 
         return DocumentListResponse(documents=documents)
     except Exception as e:
@@ -663,13 +657,9 @@ async def delete_document(
         )
 
     try:
-        # Check if document exists and belongs to device
-        stats = await doc_store.get_document_stats(document_id, device_id=device_id)
-        if not stats:
+        lifecycle = DocumentLifecycle(parser=None, chunker=None, vector_store=doc_store)
+        if not await lifecycle.delete_document(document_id=document_id, device_id=device_id):
             raise HTTPException(status_code=404, detail="Document not found")
-
-        # Delete with device isolation
-        await doc_store.delete_document(document_id, device_id=device_id)
 
         return DocumentDeleteResponse(
             document_id=document_id,
@@ -740,6 +730,7 @@ async def get_metrics_summary(
             avg_duration_ms=summary["avg_duration_ms"],
             total_tokens=summary["total_input_tokens"] + summary["total_output_tokens"],
             agent_stats=agent_stats_items,
+            quality_stats=summary.get("quality_stats", {}),
             start_time=summary["start_time"],
             end_time=summary["end_time"],
         )

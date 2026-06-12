@@ -62,8 +62,7 @@ async def lifespan(app: FastAPI):
     di_container.wire(
         modules=[
             "src.api.routes",
-            "src.agents.chat_agent",
-            "src.agents.research_agent",
+            "src.agents.assistant_agent",
         ]
     )
 
@@ -103,7 +102,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=config.app_name,
-        description="LangGraph-based Multi-Agent Chatbot with extensible architecture",
+        description="LangGraph-based assistant chatbot with agentic RAG tools",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",

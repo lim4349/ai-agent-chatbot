@@ -2,9 +2,9 @@
 
 ## Executive Overview
 
-A production-ready **LangGraph-based LLM-routed multi-agent chatbot system** with advanced features including:
-- LLM agent routing (2 LLM-backed specialist agents)
-- Agentic tool calling inside ResearchAgent (`web_search`, `retriever`)
+A production-ready **LangGraph-based single-assistant Agentic RAG chatbot system** with advanced features including:
+- A unified `AssistantAgent` for chat turns, memory, evidence orchestration, and final answers
+- Agentic Research Evidence collection through `web_search` and `retriever`
 - Retrieval-Augmented Generation (RAG) with Pinecone vector DB
 - Real-time SSE streaming responses
 - 3-tier memory architecture (session/topic/user)
@@ -74,13 +74,13 @@ A production-ready **LangGraph-based LLM-routed multi-agent chatbot system** wit
 
 ## 2. KEY FEATURES & CAPABILITIES
 
-### Multi-Agent Orchestration
-**2 LLM-backed specialist agents** orchestrated by a LangGraph LLM router:
+### Assistant Agent Orchestration
+**1 user-facing assistant agent** orchestrated by a minimal LangGraph state graph:
 
-| Agent | Role | Capabilities |
-|-------|------|--------------|
-| **Chat Agent** | General conversation | Memory commands, user profiling, context awareness |
-| **Research Agent** | Web/RAG/reports | Chooses `web_search` and/or `retriever`, then produces evidence-grounded answers |
+| Component | Role | Capabilities |
+|-----------|------|--------------|
+| **AssistantAgent** | Chat turn owner | Memory commands, context awareness, evidence-aware final response |
+| **ResearchEvidenceCollector** | Evidence planner/executor | Chooses `web_search`, `retriever`, both, or neither; normalizes confidence and sources |
 
 Research tools:
 
@@ -91,8 +91,8 @@ Research tools:
 
 LLM call count by path:
 
-- Chat: router decision + final ChatAgent response = 2 calls
-- Research: router decision + tool decision + final ResearchAgent response = 3 calls
+- Ordinary chat: final AssistantAgent response = 1 call
+- Web/RAG/report: tool decision + final AssistantAgent response = 2 calls, plus external tool calls
 
 ### Memory System (3-Tier Architecture)
 ```
@@ -188,12 +188,11 @@ User Memory (Supabase, permanent)
 │                    Orchestration Layer                              │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │  LangGraph StateGraph (Agentic AI)                          │
-│   │  ┌────────┐    ┌──────┐                                      │   │
-│   │  │ Router │───▶│ Chat │                                      │   │
-│   │  └───┬────┘    └──────┘                                      │   │
-│   │      └────────▶ Research                                     │   │
-│   │                   ├─ web_search                              │   │
-│   │                   └─ retriever                               │   │
+│   │  AssistantAgent                                              │   │
+│   │    ├─ Conversation Memory                                    │   │
+│   │    └─ ResearchEvidenceCollector                              │   │
+│   │         ├─ web_search                                        │   │
+│   │         └─ retriever                                         │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬───────────────────────────────────────┘
                               │
@@ -209,11 +208,12 @@ User Memory (Supabase, permanent)
 ### Backend Module Structure
 ```
 backend/src/
-├── agents/              # Multi-agent system
-│   ├── chat_agent.py    # General conversation
-│   ├── research_agent.py # Web/RAG/report research
-│   ├── base.py          # Abstract base
-│   └── factory.py       # Factory pattern
+├── agents/              # Single assistant + evidence collection
+│   ├── assistant_agent.py      # Chat turn owner and final response
+│   ├── research_evidence.py    # Tool planning, execution, normalization
+│   ├── conversation_memory.py  # Memory command handling
+│   ├── base.py                # Abstract base
+│   └── factory.py             # Factory pattern
 │
 ├── api/                 # REST API layer
 │   ├── routes.py        # 15+ endpoints
@@ -223,9 +223,7 @@ backend/src/
 │
 ├── graph/               # LangGraph state machine
 │   ├── state.py         # AgentState TypedDict
-│   ├── builder.py       # Graph construction
-│   ├── router.py        # LLM agent routing + fallback
-│   └── edges.py         # Conditional routing logic
+│   └── builder.py       # assistant → END graph construction
 │
 ├── core/                # Core infrastructure
 │   ├── config.py        # Settings management
@@ -261,7 +259,7 @@ backend/src/
     └── agent_metrics.py
 ```
 
-### Frontend Component Architecture (69 TypeScript files)
+### Frontend Component Architecture (60 TypeScript files)
 ```
 RootLayout (layout.tsx)
 └── AuthProvider (initialization + token refresh)
@@ -304,9 +302,9 @@ RootLayout (layout.tsx)
 ## 4. FILE STRUCTURE OVERVIEW
 
 ### Total Codebase Size
-- **Backend**: 82 Python files (~3,500 total lines)
-- **Frontend**: 69 TypeScript files (~2,800 total lines)
-- **Documentation**: 5+ markdown files
+- **Backend**: 95 Python files
+- **Frontend**: 60 TypeScript files
+- **Documentation**: 12 markdown files
 - **Configuration**: docker-compose.yml, render.yaml, pyproject.toml, package.json, etc.
 
 ### Key Config Files
@@ -381,9 +379,9 @@ RootLayout (layout.tsx)
 
 **State Machine** (LangGraph):
 - AgentState as central state
-- LLM router selects `chat` or `research`
-- ResearchAgent makes the tool-use decision internally
-- Conditional edges route once from router to the selected agent
+- `assistant` is the only active graph node
+- ResearchEvidenceCollector makes the tool-use decision inside the assistant turn
+- Ordinary chat bypasses evidence planning and uses a single final LLM call
 
 **Strategy Pattern** (Document Chunking):
 - `auto`: Format detection
@@ -394,9 +392,9 @@ RootLayout (layout.tsx)
 ### Advanced Features
 
 **Agentic Research Workflow**:
-- Router selects ResearchAgent for web/RAG/report requests
-- ResearchAgent chooses `web_search`, `retriever`, both, or neither
-- Final answer is generated from the collected context
+- AssistantAgent receives every chat turn
+- ResearchEvidenceCollector chooses `web_search`, `retriever`, both, or neither for explicit evidence requests
+- Final answer is generated by AssistantAgent using normalized evidence context, confidence, and sources
 
 **Auto-Summarization Trigger**:
 - Token count > 2000 OR
@@ -489,7 +487,7 @@ On: Push to main
 1. **GLM-5 Integration**: Anthropic-compatible API at `https://api.z.ai/api/anthropic`
 2. **Supabase Keys**: Always use `service_role` (not `anon`) in backend
 3. **3-Tier Memory**: Session (fast) → Topic (preserved) → User (permanent)
-4. **Research Agent**: Keeps web/RAG/report behavior in one tool-using specialist
+4. **Research Evidence**: Keeps web/RAG/report evidence planning inside the single assistant flow
 5. **Token Accounting**: Use tiktoken for accuracy, log separately (input/output)
 
 ---
@@ -499,9 +497,9 @@ On: Push to main
 | Metric | Value |
 |--------|-------|
 | Backend Files | Python FastAPI/LangGraph modules |
-| Frontend Files | 69 TypeScript |
+| Frontend Files | 60 TypeScript |
 | REST Endpoints | 15+ |
-| Agents | 2 LLM-backed |
+| Agents | 1 active (`assistant`) |
 | Active Tools | 2 (`web_search`, `retriever`) |
 | Database Tables | 5+ |
 | Config Variables | Environment-driven |
@@ -520,10 +518,8 @@ On: Push to main
 ```bash
 # Backend
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn src.main:app --reload
+uv sync --group dev
+uv run uvicorn src.main:app --reload
 
 # Frontend
 cd ../frontend
@@ -541,6 +537,6 @@ docker-compose up -d
 
 ---
 
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-06-12
 **Created for**: Portfolio PDF Presentation
 **Ready for**: Deployment, Scaling, Feature Extensions

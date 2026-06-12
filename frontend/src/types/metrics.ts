@@ -9,8 +9,17 @@ export interface MetricsSummary {
   avg_duration_ms: number;
   total_tokens: number;
   agent_stats: AgentMetricItem[];
+  quality_stats?: QualityStats;
   start_time: string;
   end_time: string;
+}
+
+export interface QualityStats {
+  evidence_turns: number;
+  no_evidence_turns: number;
+  evidence_rate: number;
+  confidence_counts: Record<string, number>;
+  tool_counts: Record<string, number>;
 }
 
 export interface AgentMetricItem {

@@ -41,8 +41,6 @@ class MockLLM:
 
     async def generate_structured(self, messages, output_schema, **kwargs) -> dict:
         schema_name = getattr(output_schema, "__name__", "")
-        if schema_name == "RouterDecision":
-            return {"agent": "chat", "reasoning": "Mock routing decision"}
         if schema_name == "ResearchToolDecision":
             return {"tools": [], "response_mode": "answer", "reasoning": "Mock tool decision"}
         return {}

@@ -47,4 +47,4 @@ async def test_prepare_chat_turn_resolves_device_and_document_availability():
 
 
 def test_resolve_agent_used_prefers_completed_steps():
-    assert resolve_agent_used({"completed_steps": ["chat", "research"], "next_agent": "chat"}) == "research"
+    assert resolve_agent_used({"completed_steps": ["assistant"], "next_agent": None}) == "assistant"

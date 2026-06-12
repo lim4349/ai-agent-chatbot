@@ -10,6 +10,8 @@ interface ToolUsageProps {
     query?: string;
     results?: unknown[] | string;
     documentSources?: string[];
+    sources?: string[];
+    confidence?: string;
     status?: string;
   }>;
 }
@@ -81,6 +83,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
               : typeof tool.results === 'string' && tool.results.trim()
                 ? 1
                 : 0;
+            const sources = tool.sources || tool.documentSources || [];
 
             return (
               <div
@@ -101,11 +104,17 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                     )}
                   </div>
 
-                  {tool.documentSources && tool.documentSources.length > 0 && (
+                  {tool.confidence && (
+                    <div className="text-muted-foreground">
+                      Confidence: <span className="font-medium">{tool.confidence}</span>
+                    </div>
+                  )}
+
+                  {sources.length > 0 && (
                     <div className="space-y-0.5">
                       <span className="text-muted-foreground">Sources:</span>
                       <ul className="list-disc list-inside text-muted-foreground truncate">
-                        {tool.documentSources.map((source, idx) => (
+                        {sources.map((source, idx) => (
                           <li key={idx} className="truncate">{source}</li>
                         ))}
                       </ul>

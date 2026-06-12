@@ -1,5 +1,6 @@
 """Metrics store for recording and querying observability data."""
 
+import asyncio
 from collections import deque
 from datetime import UTC, datetime, timedelta
 
@@ -109,20 +110,24 @@ class MetricsStore:
         # Store in Supabase if available
         if self._use_supabase and self._client:
             try:
-                self._client.table("request_metrics").insert(
-                    {
-                        "session_id": session_id,
-                        "user_id": user_id,
-                        "agent_name": agent_name,
-                        "model_name": model_name,
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
-                        "duration_ms": round(duration_ms),  # DB expects integer
-                        "status": status,
-                        "error_message": error_message,
-                        "metadata": metadata or {},
-                    }
-                ).execute()
+                await asyncio.to_thread(
+                    self._client.table("request_metrics")
+                    .insert(
+                        {
+                            "session_id": session_id,
+                            "user_id": user_id,
+                            "agent_name": agent_name,
+                            "model_name": model_name,
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "duration_ms": round(duration_ms),  # DB expects integer
+                            "status": status,
+                            "error_message": error_message,
+                            "metadata": metadata or {},
+                        }
+                    )
+                    .execute
+                )
             except Exception as e:
                 logger.error("failed_to_record_metric", error=str(e))
 
@@ -167,11 +172,11 @@ class MetricsStore:
         # Get from Supabase if available
         if self._use_supabase and self._client:
             try:
-                result = (
+                result = await asyncio.to_thread(
                     self._client.table("request_metrics")
                     .select("*")
                     .gte("created_at", start_time.isoformat())
-                    .execute()
+                    .execute
                 )
                 logger.info(
                     "metrics_summary_supabase_query",
@@ -194,6 +199,7 @@ class MetricsStore:
                                 "output_tokens": row.get("output_tokens", 0),
                                 "status": row.get("status"),
                                 "timestamp": row.get("created_at"),
+                                "metadata": row.get("metadata") or {},
                             }
                         )
                         seen.add(key)
@@ -213,6 +219,7 @@ class MetricsStore:
 
         total_input_tokens = sum(m.get("input_tokens", 0) for m in metrics)
         total_output_tokens = sum(m.get("output_tokens", 0) for m in metrics)
+        quality_stats = self._quality_stats(metrics)
 
         # Group by agent for agent_stats
         agent_stats_map: dict[str, dict] = {}
@@ -272,8 +279,46 @@ class MetricsStore:
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
             "agent_stats": agent_stats,
+            "quality_stats": quality_stats,
             "start_time": start_time,
             "end_time": now,
+        }
+
+    def _quality_stats(self, metrics: list[dict]) -> dict:
+        """Aggregate lightweight LLMOps quality signals from metric metadata."""
+        confidence_counts: dict[str, int] = {}
+        tool_counts: dict[str, int] = {}
+        evidence_turns = 0
+        no_evidence_turns = 0
+
+        for metric in metrics:
+            metadata = metric.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                continue
+
+            evidence_count = int(metadata.get("evidence_count") or 0)
+            if evidence_count > 0:
+                evidence_turns += 1
+            else:
+                no_evidence_turns += 1
+
+            confidence = str(metadata.get("evidence_confidence") or "none")
+            confidence_counts[confidence] = confidence_counts.get(confidence, 0) + 1
+
+            tools = metadata.get("evidence_tools") or []
+            if isinstance(tools, list):
+                for tool in tools:
+                    if tool:
+                        key = str(tool)
+                        tool_counts[key] = tool_counts.get(key, 0) + 1
+
+        total = len(metrics)
+        return {
+            "evidence_turns": evidence_turns,
+            "no_evidence_turns": no_evidence_turns,
+            "evidence_rate": evidence_turns / total if total else 0,
+            "confidence_counts": confidence_counts,
+            "tool_counts": tool_counts,
         }
 
     async def get_agent_stats(self, agent_name: str, period: str = "24h") -> dict | None:

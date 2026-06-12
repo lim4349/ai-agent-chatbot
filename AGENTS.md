@@ -19,17 +19,18 @@ Active LangGraph flow:
 ```text
 FastAPI
 → LangGraph
-   → LLMRouterNode
-      ├─ ChatAgent
-      └─ ResearchAgent
+   → AssistantAgent
+      ├─ Conversation Memory
+      └─ ResearchEvidenceCollector
             ├─ web_search
             └─ retriever
 ```
 
-- Active agents: `chat`, `research`
+- Active agents: `assistant`
 - Active tools: `web_search`, `retriever`
-- `ResearchAgent` decides when to call tools. Explicit RAG/document questions must use `retriever`; current/news/search questions use `web_search`.
-- Do not reintroduce separate `code`, `rag`, `report`, collect-node, MCP, or code-execution surfaces unless the user explicitly requests a new architecture.
+- `AssistantAgent` owns the chat turn and delegates optional evidence collection to `ResearchEvidenceCollector`.
+- Explicit RAG/document questions must use `retriever`; current/news/search questions use `web_search`.
+- Do not reintroduce separate `chat`, `research`, `code`, `rag`, `report`, router, collect-node, MCP, or code-execution surfaces unless the user explicitly requests a new architecture.
 
 ## Current LLM Policy
 

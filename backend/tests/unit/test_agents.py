@@ -2,44 +2,41 @@
 
 import pytest
 
-from src.agents.chat_agent import ChatAgent
-from src.agents.research_agent import ResearchAgent
+from src.agents.assistant_agent import AssistantAgent
 from src.graph.state import create_initial_state
 
 
-class TestChatAgent:
-    """Test cases for Chat Agent."""
+class TestAssistantAgent:
+    """Test cases for the unified assistant agent."""
 
     @pytest.mark.asyncio
     async def test_generates_response(self, mock_llm, mock_memory):
-        """Test that chat agent generates a response."""
-        agent = ChatAgent(llm=mock_llm, memory=mock_memory)
+        """Assistant should generate a response for ordinary chat."""
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory)
         state = create_initial_state("Hello!", "test-session")
         result = await agent.process(state)
 
         assert len(result["messages"]) == 2
         assert result["messages"][-1]["role"] == "assistant"
+        assert result["completed_steps"] == ["assistant"]
+        assert result["tool_results"] == []
 
     @pytest.mark.asyncio
     async def test_uses_memory(self, mock_llm):
-        """Test that chat agent uses memory when available."""
+        """Assistant should store user and assistant messages."""
         from src.memory.in_memory_store import InMemoryStore
 
         memory = InMemoryStore()
-        agent = ChatAgent(llm=mock_llm, memory=memory)
+        agent = AssistantAgent(llm=mock_llm, memory=memory)
         state = create_initial_state("Hello!", "test-session")
         await agent.process(state)
 
-        # Check memory was updated
         messages = await memory.get_messages("test-session")
-        assert len(messages) == 2  # user + assistant
-
-class TestResearchAgent:
-    """Test cases for Research Agent."""
+        assert len(messages) == 2
 
     @pytest.mark.asyncio
     async def test_retriever_uses_session_and_device_scope(self, mock_llm, mock_memory):
-        """Document retrieval should search the user's uploaded-document namespace."""
+        """Assistant should search the user's uploaded-document namespace."""
 
         class MockRetrieverTool:
             def __init__(self):
@@ -70,7 +67,7 @@ class TestResearchAgent:
 
         mock_llm.generate_structured = mock_generate_structured
         retriever = MockRetrieverTool()
-        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, retriever=retriever)
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory, retriever=retriever)
         state = create_initial_state("문서에서 찾아줘", "test-session", "device-1")
         state["has_documents"] = True
 
@@ -86,10 +83,11 @@ class TestResearchAgent:
         ]
         assert result["messages"][-1]["role"] == "assistant"
         assert result["tool_results"][0]["tool"] == "retriever"
+        assert result["tool_results"][0]["confidence"] == "none"
 
     @pytest.mark.asyncio
     async def test_web_search_tool_decision_executes_search(self, mock_llm, mock_memory):
-        """Research agent should execute selected web search tool."""
+        """Assistant should execute selected web search evidence tool."""
 
         class MockSearchTool:
             def __init__(self):
@@ -108,7 +106,7 @@ class TestResearchAgent:
 
         mock_llm.generate_structured = mock_generate_structured
         search_tool = MockSearchTool()
-        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, search_tool=search_tool)
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory, search_tool=search_tool)
         state = create_initial_state("오늘 AI 뉴스 검색해줘", "test-session")
 
         result = await agent.process(state)
@@ -119,7 +117,7 @@ class TestResearchAgent:
 
     @pytest.mark.asyncio
     async def test_fallback_prefers_retriever_for_explicit_rag_query(self, mock_llm, mock_memory):
-        """Fallback tool routing should not web-search explicit uploaded-document questions."""
+        """Fallback tool choice should not web-search explicit uploaded-document questions."""
 
         class MockSearchTool:
             def __init__(self):
@@ -138,7 +136,7 @@ class TestResearchAgent:
 
         mock_llm.generate_structured = mock_generate_structured
         search_tool = MockSearchTool()
-        agent = ResearchAgent(
+        agent = AssistantAgent(
             llm=mock_llm,
             memory=mock_memory,
             search_tool=search_tool,
@@ -157,6 +155,57 @@ class TestResearchAgent:
         assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]
 
     @pytest.mark.asyncio
+    async def test_assistant_uses_retriever_for_document_evidence(self, mock_llm, mock_memory):
+        """Assistant should collect uploaded-document evidence without a router."""
+
+        class MockRetrieverTool:
+            def __init__(self):
+                self.calls = []
+
+            async def execute(self, query, top_k=3, session_id=None, device_id=None):
+                self.calls.append(
+                    {
+                        "query": query,
+                        "top_k": top_k,
+                        "session_id": session_id,
+                        "device_id": device_id,
+                    }
+                )
+                return [
+                    {
+                        "content": "문서 내용",
+                        "metadata": {"source": "doc.txt"},
+                        "score": 0.9,
+                    }
+                ]
+
+        async def mock_generate_structured(messages, output_schema, **kwargs):
+            return {
+                "tools": ["retriever"],
+                "response_mode": "answer",
+                "reasoning": "document query",
+            }
+
+        mock_llm.generate_structured = mock_generate_structured
+        retriever = MockRetrieverTool()
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory, retriever=retriever)
+        state = create_initial_state("문서에서 찾아줘", "test-session", "device-1")
+        state["has_documents"] = True
+
+        result = await agent.process(state)
+
+        assert retriever.calls == [
+            {
+                "query": "문서에서 찾아줘",
+                "top_k": 3,
+                "session_id": "test-session",
+                "device_id": "device-1",
+            }
+        ]
+        assert result["completed_steps"] == ["assistant"]
+        assert result["tool_results"][0]["confidence"] == "high"
+
+    @pytest.mark.asyncio
     async def test_llm_under_selection_still_uses_retriever_for_rag_query(
         self, mock_llm, mock_memory
     ):
@@ -170,7 +219,7 @@ class TestResearchAgent:
             return {"tools": [], "response_mode": "answer", "reasoning": "under-selected"}
 
         mock_llm.generate_structured = mock_generate_structured
-        agent = ResearchAgent(llm=mock_llm, memory=mock_memory, retriever=MockRetrieverTool())
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory, retriever=MockRetrieverTool())
         state = create_initial_state(
             "지금 rag 문서에 있는 모든 리스트 알려줘",
             "test-session",

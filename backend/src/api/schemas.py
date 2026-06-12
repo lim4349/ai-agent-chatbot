@@ -201,6 +201,9 @@ class MetricsSummaryResponse(BaseModel):
     agent_stats: list[AgentMetricItem] = Field(
         default_factory=list, description="Per-agent statistics"
     )
+    quality_stats: dict[str, Any] = Field(
+        default_factory=dict, description="LLMOps quality and evidence statistics"
+    )
     start_time: datetime = Field(..., description="Start of period")
     end_time: datetime = Field(..., description="End of period")
 

@@ -67,7 +67,7 @@ async function fetchApi<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new ApiError(
-      error.error || error.message || `HTTP ${response.status}`,
+      error.detail || error.error || error.message || `HTTP ${response.status}`,
       response.status,
       error.detail
     );
@@ -108,7 +108,7 @@ async function fetchApiUpload<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new ApiError(
-      error.error || `HTTP ${response.status}`,
+      error.detail || error.error || `HTTP ${response.status}`,
       response.status,
       error.detail
     );

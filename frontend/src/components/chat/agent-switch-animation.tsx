@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
+  Bot,
   MessageCircle,
   Search,
   type LucideIcon,
@@ -15,16 +16,19 @@ interface AgentSwitchAnimationProps {
 }
 
 const AGENT_ICONS: Record<string, LucideIcon> = {
+  assistant: Bot,
   chat: MessageCircle,
   research: Search,
 };
 
 const AGENT_COLORS: Record<string, string> = {
+  assistant: 'text-emerald-500',
   chat: 'text-gray-500',
   research: 'text-blue-500',
 };
 
 const AGENT_LABELS: Record<string, string> = {
+  assistant: '어시스턴트',
   chat: '대화',
   research: '리서치',
 };

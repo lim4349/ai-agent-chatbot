@@ -1,6 +1,6 @@
 # AI Agent Chatbot: 아키텍처 개요
 
-> LangGraph 기반 LLM-routed 2-agent 챗봇 - 시스템 설계
+> LangGraph 기반 단일 AssistantAgent + Research Evidence 챗봇 - 시스템 설계
 
 ---
 
@@ -39,10 +39,10 @@
 ┌─────────────────────────────▼───────────────────────────────────────┐
 │                        오케스트레이션 레이어                          │
 │   ┌─────────────────────────────────────────────────────────────┐   │
-│   │  LangGraph StateGraph (Agent Routing Pattern)              │   │
-│   │  LLMRouter                                                  │   │
-│   │    ├─▶ Chat                                                 │   │
-│   │    └─▶ Research                                             │   │
+│   │  LangGraph StateGraph                                      │   │
+│   │  AssistantAgent                                             │   │
+│   │    ├─ Conversation Memory                                   │   │
+│   │    └─ ResearchEvidenceCollector                             │   │
 │   │          ├─ web_search                                      │   │
 │   │          └─ retriever                                       │   │
 │   └─────────────────────────────────────────────────────────────┘   │
@@ -81,11 +81,12 @@
 
 ```
 backend/src/
-├── agents/              # 멀티 에이전트 시스템
-│   ├── base.py          # BaseAgent ABC
-│   ├── factory.py       # AgentFactory
-│   ├── chat_agent.py    # 일반 대화 + 메모리 명령
-│   └── research_agent.py # 웹/RAG/보고서 리서치
+├── agents/              # 단일 assistant agent와 evidence 수집
+│   ├── assistant_agent.py      # 대화, 메모리, 최종 응답
+│   ├── research_evidence.py    # 도구 선택, 실행, 근거 정규화
+│   ├── conversation_memory.py  # 메모리 명령 처리
+│   ├── base.py                # BaseAgent ABC
+│   └── factory.py             # AgentFactory
 │
 ├── api/                 # REST API
 │   ├── routes.py        # 엔드포인트 정의
@@ -106,10 +107,8 @@ backend/src/
 │   └── retriever_impl.py   # 문서 검색
 │
 ├── graph/               # LangGraph 상태 머신
-│   ├── builder.py       # 그래프 빌드
-│   ├── state.py         # AgentState TypedDict
-│   ├── router.py        # LLM 라우터 + 휴리스틱 fallback
-│   └── edges.py         # 조건부 라우팅
+│   ├── builder.py       # assistant → END 그래프 빌드
+│   └── state.py         # AgentState TypedDict
 │
 ├── llm/                 # LLM 프로바이더
 │   ├── factory.py       # LLMFactory
@@ -146,17 +145,18 @@ backend/src/
 
 | 에이전트 | 역할 | 주요 기능 |
 |----------|------|----------|
-| **ChatAgent** | 일반 대화 | 메모리 명령, 사용자 프로파일링 |
-| **ResearchAgent** | 리서치/RAG/보고서 | 도구 선택, 웹 검색, 문서 검색, 근거 기반 답변 |
+| **AssistantAgent** | 사용자 대화의 단일 진입점 | 메모리 명령, Research Evidence 수집, 최종 답변 생성 |
 
-### 라우팅 및 도구
+### Assistant 및 Evidence 도구
 
 | 구성요소 | 역할 | LLM 호출 |
 |----------|------|----------|
-| **router** | `chat` 또는 `research` 선택 | 1회 |
-| **ResearchAgent tool decision** | `web_search`/`retriever` 필요 여부 선택 | 1회 |
+| **AssistantAgent** | 메모리 처리, evidence 반영, 최종 답변 | 1회 |
+| **ResearchEvidenceCollector** | `web_search`/`retriever` 필요 여부 선택 | 명시적 리서치 의도일 때 1회 |
 | **web_search** | Tavily 검색 결과 수집 | 없음 |
 | **retriever** | Pinecone 문서 검색 결과 수집 | 없음 |
+
+일반 대화는 도구 선택 LLM 호출 없이 AssistantAgent 응답 1회로 끝납니다. 최신 정보, 업로드 문서, 보고서 요청처럼 근거가 필요한 경우에만 ResearchEvidenceCollector가 도구 계획을 세웁니다.
 
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
@@ -279,11 +279,11 @@ create_initial_state(message, session_id)
     ▼
 graph.ainvoke(state, config)
     ▼
-router selects chat or research
+assistant.process(state)
     ▼
-selected agent processes the state
+ResearchEvidenceCollector.collect()  # 필요한 경우
     ▼
-chat.process(state) or research.process(state)
+AssistantAgent final response
     ▼
 record_metrics(agent, duration, status)
     ▼
@@ -379,6 +379,7 @@ MetricsStore.record_request()
 - **Health Indicator**: 백엔드 상태, LLM 모델, 메모리 백엔드
 - **요청 차트**: 24시간 요청 수, 성공/실패율
 - **파이 차트**: 에이전트별 요청 분포
+- **Evidence 품질**: tool confidence, source count, evidence count 요약
 
 ---
 
@@ -465,4 +466,4 @@ async def chat(
 
 ---
 
-*최종 업데이트: 2026-03-04*
+*최종 업데이트: 2026-06-12*

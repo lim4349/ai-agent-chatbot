@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from dataclasses import dataclass
 from datetime import datetime
@@ -186,7 +187,8 @@ class PineconeVectorStore:
         try:
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i : i + batch_size]
-                self._index.upsert(
+                await asyncio.to_thread(
+                    self._index.upsert,
                     vectors=batch,
                     namespace=namespace,
                 )
@@ -244,7 +246,8 @@ class PineconeVectorStore:
 
         # Query Pinecone
         try:
-            results = self._index.query(
+            results = await asyncio.to_thread(
+                self._index.query,
                 vector=query_embedding,
                 top_k=top_k,
                 namespace=namespace,
@@ -315,7 +318,8 @@ class PineconeVectorStore:
         namespace = f"device_{device_id}" if device_id else self.namespace
 
         # Delete by filter
-        self._index.delete(
+        await asyncio.to_thread(
+            self._index.delete,
             filter={"document_id": {"$eq": doc_id}},
             namespace=namespace,
         )
@@ -337,8 +341,9 @@ class PineconeVectorStore:
 
         namespace = f"device_{device_id}"
         try:
-            results = self._index.query(
-                vector=[0.0] * 1024,
+            results = await asyncio.to_thread(
+                self._index.query,
+                vector=self._empty_query_vector(),
                 top_k=1,
                 filter={"session_id": {"$eq": session_id}},
                 namespace=namespace,
@@ -367,8 +372,9 @@ class PineconeVectorStore:
 
         try:
             # First, query to get document count
-            results = self._index.query(
-                vector=[0.0] * 1024,
+            results = await asyncio.to_thread(
+                self._index.query,
+                vector=self._empty_query_vector(),
                 top_k=1000,
                 namespace=namespace,
                 filter={"session_id": {"$eq": session_id}},
@@ -381,7 +387,8 @@ class PineconeVectorStore:
                     doc_ids.add(match.metadata["document_id"])
 
             # Delete by session_id filter
-            self._index.delete(
+            await asyncio.to_thread(
+                self._index.delete,
                 filter={"session_id": {"$eq": session_id}},
                 namespace=namespace,
             )
@@ -423,8 +430,9 @@ class PineconeVectorStore:
         try:
             # Query with filter to get all chunks
             # Use dummy vector to query
-            results = self._index.query(
-                vector=[0.0] * 1024,  # Dummy vector
+            results = await asyncio.to_thread(
+                self._index.query,
+                vector=self._empty_query_vector(),
                 top_k=1000,
                 namespace=namespace,
                 filter={"document_id": {"$eq": doc_id}},
@@ -486,8 +494,9 @@ class PineconeVectorStore:
         try:
             # List all vectors with metadata
             # Note: Pinecone doesn't have a direct list_all, we need to query
-            results = self._index.query(
-                vector=[0.0] * 1024,
+            results = await asyncio.to_thread(
+                self._index.query,
+                vector=self._empty_query_vector(),
                 top_k=1000,
                 namespace=namespace,
                 include_metadata=True,
@@ -515,7 +524,8 @@ class PineconeVectorStore:
 
         try:
             # Delete all in namespace
-            self._index.delete(
+            await asyncio.to_thread(
+                self._index.delete,
                 delete_all=True,
                 namespace=self.namespace,
             )
@@ -524,3 +534,10 @@ class PineconeVectorStore:
         except Exception as e:
             logger.error("failed_to_clear_store", error=str(e))
             return False
+
+    def _empty_query_vector(self) -> list[float]:
+        """Return a metadata-query vector matching the configured embedding dimension."""
+        dimension = getattr(self.embedding_generator, "dimension", None)
+        if isinstance(dimension, int) and dimension > 0:
+            return [0.0] * dimension
+        return [0.0] * 1024

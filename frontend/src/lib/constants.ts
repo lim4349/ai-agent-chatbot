@@ -17,6 +17,7 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: string }> = {
+  assistant: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'Assistant' },
   chat: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Chat' },
   research: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Research' },
 };

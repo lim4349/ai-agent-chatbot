@@ -35,6 +35,8 @@ class ResearchEvidence:
     decision: ResearchToolDecision
     tool_results: list[dict]
     context: str
+    confidence: str = "none"
+    evidence_count: int = 0
 
 
 class ResearchEvidenceCollector:
@@ -62,15 +64,25 @@ class ResearchEvidenceCollector:
             device_id,
             state,
         )
+        normalized = self.normalize_tool_results(tool_results)
         return ResearchEvidence(
             decision=decision,
-            tool_results=tool_results,
-            context=self.format_tool_context(tool_results),
+            tool_results=normalized,
+            context=self.format_tool_context(normalized),
+            confidence=self.estimate_confidence(normalized),
+            evidence_count=self.count_evidence(normalized),
         )
 
     async def decide_tools(self, query: str, state: AgentState) -> ResearchToolDecision:
         """Ask the LLM which research tools are needed."""
         available_tools = self.available_tools()
+        document_requested, web_requested, report_requested = self.intent_flags(query)
+        if not document_requested and not web_requested and not report_requested:
+            return ResearchToolDecision(
+                tools=[],
+                response_mode="answer",
+                reasoning="No explicit research evidence intent detected.",
+            )
         messages = [
             {
                 "role": "system",
@@ -304,6 +316,90 @@ Rules:
         )
         return {"tool": "retriever", "query": query, "results": docs}
 
+    def normalize_tool_results(self, tool_results: list[dict]) -> list[dict]:
+        """Add common evidence metadata to tool results."""
+        normalized = []
+        for result in tool_results:
+            item = dict(result)
+            tool = item.get("tool")
+            if item.get("error"):
+                item["evidence_count"] = 0
+                item["confidence"] = "error"
+                normalized.append(item)
+                continue
+
+            if tool == "retriever":
+                docs = item.get("results") or []
+                scores = [
+                    float(doc.get("score", 0))
+                    for doc in docs
+                    if isinstance(doc, dict) and doc.get("score") is not None
+                ]
+                item["evidence_count"] = len(docs) if isinstance(docs, list) else 0
+                item["sources"] = self.extract_document_sources(docs)
+                item["confidence"] = self.score_confidence(max(scores) if scores else 0)
+            elif tool == "web_search":
+                text = str(item.get("results") or "")
+                item["evidence_count"] = 1 if text.strip() else 0
+                item["sources"] = self.extract_markdown_links(text)
+                item["confidence"] = "medium" if text.strip() else "none"
+            else:
+                item["evidence_count"] = 0
+                item["confidence"] = "none"
+
+            normalized.append(item)
+        return normalized
+
+    def score_confidence(self, score: float) -> str:
+        """Map retriever score to a coarse confidence level."""
+        if score >= 0.8:
+            return "high"
+        if score >= 0.5:
+            return "medium"
+        if score > 0:
+            return "low"
+        return "none"
+
+    def extract_document_sources(self, docs: list[dict]) -> list[str]:
+        """Extract displayable document sources from retrieved chunks."""
+        sources = []
+        for doc in docs:
+            if not isinstance(doc, dict):
+                continue
+            metadata = doc.get("metadata", {})
+            source = metadata.get("source") or metadata.get("filename")
+            if source and source not in sources:
+                sources.append(str(source))
+        return sources
+
+    def extract_markdown_links(self, text: str) -> list[str]:
+        """Extract markdown URLs from formatted web search output."""
+        import re
+
+        urls = []
+        for match in re.finditer(r"\[[^\]]+\]\(([^)]+)\)", text):
+            url = match.group(1)
+            if url not in urls:
+                urls.append(url)
+        return urls
+
+    def count_evidence(self, tool_results: list[dict]) -> int:
+        """Count evidence items across normalized tool results."""
+        return sum(int(result.get("evidence_count", 0)) for result in tool_results)
+
+    def estimate_confidence(self, tool_results: list[dict]) -> str:
+        """Estimate overall evidence confidence."""
+        levels = [result.get("confidence", "none") for result in tool_results]
+        if "high" in levels:
+            return "high"
+        if "medium" in levels:
+            return "medium"
+        if "low" in levels:
+            return "low"
+        if "error" in levels:
+            return "error"
+        return "none"
+
     def format_tool_context(self, tool_results: list[dict]) -> str:
         """Format tool outputs for the final LLM call."""
         parts = []
@@ -313,10 +409,18 @@ Rules:
                 parts.append(f"[{tool} error]\n{result['error']}")
                 continue
             if tool == "web_search":
-                parts.append(f"[web_search]\n{result.get('results', '')}")
+                sources = ", ".join(result.get("sources", [])) or "No parsed sources"
+                parts.append(
+                    f"[web_search | confidence={result.get('confidence', 'none')} | sources={sources}]\n"
+                    f"{result.get('results', '')}"
+                )
             elif tool == "retriever":
                 docs = result.get("results", [])
-                parts.append("[retriever]\n" + self.format_docs(docs))
+                sources = ", ".join(result.get("sources", [])) or "No sources"
+                parts.append(
+                    f"[retriever | confidence={result.get('confidence', 'none')} | sources={sources}]\n"
+                    + self.format_docs(docs)
+                )
         return "\n\n---\n\n".join(part for part in parts if part.strip())
 
     def format_docs(self, docs: list[dict]) -> str:

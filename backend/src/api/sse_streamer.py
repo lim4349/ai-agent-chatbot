@@ -8,17 +8,14 @@ from src.core.logging import get_logger
 logger = get_logger(__name__)
 
 # Nodes that use non-streaming LLM calls.
-NON_STREAMING_NODES = frozenset({"research"})
+NON_STREAMING_NODES = frozenset({"assistant"})
 
 # All graph nodes that produce traceable events
-GRAPH_TRACE_NODES = frozenset({
-    "chat",
-    "research",
-})
+GRAPH_TRACE_NODES = frozenset({"assistant"})
 
 # Status messages per node
 NODE_STATUS_MESSAGES: dict[str, str] = {
-    "research": "리서치 중...",
+    "assistant": "답변 준비 중...",
 }
 
 # Status messages per tool
@@ -88,8 +85,9 @@ class SSEStreamer:
         """Handle on_chat_model_stream event."""
         langgraph_node = metadata.get("langgraph_node", "")
 
-        # Skip routing and non-streaming nodes
-        if langgraph_node == "router" or langgraph_node in NON_STREAMING_NODES:
+        # Assistant responses are emitted from the node end event because the LLM
+        # provider call is wrapped by the application, not LangChain streaming.
+        if langgraph_node in NON_STREAMING_NODES:
             return []
 
         text = self._extract_content(chunk)
@@ -112,15 +110,7 @@ class SSEStreamer:
         """Handle on_chain_end event."""
         events: list[dict] = []
 
-        if node_name == "router":
-            agent = output.get("next_agent", "chat")
-            if self._add_agent(agent):
-                events.append({
-                    "event": "agent",
-                    "data": json.dumps({"agent": agent, "all_agents": self.all_agents}),
-                })
-
-        elif node_name in NON_STREAMING_NODES:
+        if node_name in NON_STREAMING_NODES:
             for tool_result in output.get("tool_results", []):
                 events.append({
                     "event": "tool",
@@ -136,14 +126,6 @@ class SSEStreamer:
                     content_hash=content_hash,
                     already_sent=content_hash in self.sent_content_hashes,
                 )
-                if content_hash not in self.sent_content_hashes:
-                    self.sent_content_hashes.add(content_hash)
-                    events.append({"event": "token", "data": content})
-
-        elif node_name == "chat" and node_name not in self.streamed_nodes:
-            content = self._extract_last_message(output)
-            if content:
-                content_hash = hash(content[:100])
                 if content_hash not in self.sent_content_hashes:
                     self.sent_content_hashes.add(content_hash)
                     events.append({"event": "token", "data": content})

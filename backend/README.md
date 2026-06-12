@@ -2,8 +2,8 @@
 
 FastAPI 기반 AI 챗봇 백엔드 서버
 
-현재 LangGraph 구성은 `LLMRouterNode → ChatAgent | ResearchAgent`입니다.
-`ResearchAgent`는 필요할 때 `web_search`와 `retriever` 도구를 선택해 사용합니다.
+현재 LangGraph 구성은 `AssistantAgent → END`입니다.
+`AssistantAgent`는 대화와 메모리를 처리하고, 필요할 때 `ResearchEvidenceCollector`를 통해 `web_search`와 `retriever` 도구를 선택해 사용합니다.
 
 ## 문서
 

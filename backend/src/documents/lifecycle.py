@@ -69,6 +69,32 @@ class DocumentLifecycle:
         )
         return document
 
+    async def has_documents(self, *, device_id: str, session_id: str) -> bool:
+        """Return whether the session has any stored RAG Documents."""
+        return await self.vector_store.has_documents_for_session(device_id, session_id)
+
+    async def list_documents(self, *, device_id: str) -> list[Any]:
+        """List stored RAG Document stats for a device."""
+        doc_ids = await self.vector_store.list_documents(device_id=device_id)
+        documents = []
+        for doc_id in doc_ids:
+            stats = await self.vector_store.get_document_stats(doc_id, device_id=device_id)
+            if stats:
+                documents.append(stats)
+        return documents
+
+    async def delete_document(self, *, document_id: str, device_id: str) -> bool:
+        """Delete one RAG Document after verifying device ownership."""
+        stats = await self.vector_store.get_document_stats(document_id, device_id=device_id)
+        if not stats:
+            return False
+        await self.vector_store.delete_document(document_id, device_id=device_id)
+        return True
+
+    async def delete_session_documents(self, *, device_id: str, session_id: str) -> int:
+        """Delete all RAG Documents for a session."""
+        return await self.vector_store.delete_session_documents(device_id, session_id)
+
 
 def parse_upload_metadata(metadata_json: str) -> dict[str, Any]:
     """Validate, parse, and sanitize upload metadata JSON."""

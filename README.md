@@ -1,6 +1,6 @@
 # AI Agent Chatbot
 
-LangGraph 기반 멀티 에이전트 챗봇 시스템입니다. LLM Router가 `chat` 또는 `research` 전문 에이전트를 선택하고, `research` 에이전트가 필요할 때 `web_search`와 `retriever` 도구를 agentic tool calling 방식으로 선택해 사용합니다.
+LangGraph 기반 Agentic RAG 챗봇 시스템입니다. 단일 `assistant` 에이전트가 대화와 메모리를 처리하고, 필요할 때 `web_search`와 `retriever` 도구로 Research Evidence를 수집해 답변합니다.
 
 ## 현재 상태
 
@@ -15,24 +15,22 @@ LangGraph 기반 멀티 에이전트 챗봇 시스템입니다. LLM Router가 `c
 
 ```
 사용자 입력
-  → router (LLM 기반 agent routing)
-      → chat
-      → research
-          ├─ web_search
-          └─ retriever
+  → assistant
+      ├─ conversation memory
+      ├─ web_search
+      └─ retriever
   → END
 ```
 
 기본 LLM 호출:
 
-- 일반 대화: 라우팅 1회 + ChatAgent 응답 1회
-- 리서치/RAG/보고서: 라우팅 1회 + ResearchAgent 도구 선택 1회 + 최종 응답 1회
+- 일반 대화: AssistantAgent 응답 1회
+- 리서치/RAG/보고서: AssistantAgent 도구 선택 1회 + 필요한 도구 호출 + 최종 응답 1회
 
 ## 주요 기능
 
-- LLM 기반 멀티 에이전트 라우팅
-- 2개 LLM-backed specialist agent: Chat, Research
-- ResearchAgent 내부 agentic tool calling
+- 단일 AssistantAgent 기반 Agentic RAG 흐름
+- Research Evidence 기반 agentic tool calling
 - 문서 업로드 후 질의응답 (`retriever`)
 - 웹 검색 도구 연동 (`web_search`, Tavily)
 - 세션 메모리 저장 및 요약
@@ -117,11 +115,13 @@ docker compose up -d --build
 ```bash
 # backend
 cd backend
-uv run pytest -v
+uv run --with ruff ruff check .
+uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
 
 # frontend
 cd frontend
 npm run lint
+npm test
 npm run build
 ```
 
