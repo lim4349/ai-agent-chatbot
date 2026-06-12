@@ -9,6 +9,7 @@ const translations = {
   ko: {
     // Header
     'header.title': 'AI 에이전트 챗봇',
+    'header.shortTitle': 'AI 챗봇',
     'header.dashboard': '대시보드',
 
     // Sidebar
@@ -71,6 +72,12 @@ const translations = {
     'health.perHour': '시간당 호출',
     'health.dailyRequests': '일일 호출',
     'health.used': '사용',
+    'health.provider': '제공자',
+    'health.model': '모델',
+    'health.memory': '메모리',
+    'health.agents': '에이전트',
+    'health.tools': '도구',
+    'health.backendUnavailable': '백엔드를 사용할 수 없습니다',
     'health.resetsIn': (s: number) => {
       if (s <= 0) return '곧 초기화';
       const h = Math.floor(s / 3600);
@@ -87,6 +94,10 @@ const translations = {
     'agent.chat': '대화',
     'agent.research': '리서치',
     'agent.additionalAgents': '추가 에이전트',
+
+    // Tool labels
+    'tool.web_search': '웹 검색',
+    'tool.retriever': '문서 검색',
 
     // Security
     'security.critical': '보안 위험 감지',
@@ -112,7 +123,7 @@ const translations = {
     'dashboard.tokensByAgent': '에이전트별 토큰',
     'dashboard.tokensByAgentDescription': '에이전트별 처리된 총 토큰',
     'dashboard.avgDurationByAgent': '에이전트별 평균 응답시간',
-    'dashboard.avgDurationByAgentDescription': '에이전트별 평균 응답 시간 (ms)',
+    'dashboard.avgDurationByAgentDescription': '에이전트별 평균 응답 시간',
     'dashboard.agentStatistics': '에이전트 통계',
     'dashboard.agentStatisticsDescription': '각 에이전트의 상세 메트릭',
     'dashboard.period': '기간',
@@ -128,11 +139,24 @@ const translations = {
     'dashboard.tokens': '토큰',
     'dashboard.tokensProcessed': '처리된 토큰',
     'dashboard.avgResponseTime': '평균 응답 시간',
+    'dashboard.evidenceRate': '근거 사용률',
+    'dashboard.evidenceRateDescription': '리서치 근거를 수집한 응답 비율',
+    'dashboard.evidenceTurns': '근거 사용 응답',
+    'dashboard.evidenceTurnsDescription': '도구 또는 문서 근거를 사용한 응답',
+    'dashboard.noEvidenceTurns': '근거 미사용 응답',
+    'dashboard.noEvidenceTurnsDescription': '외부 근거 없이 답변한 응답',
+    'dashboard.evidenceToolUsage': '근거 도구 사용량',
+    'dashboard.evidenceToolUsageDescription': '어시스턴트 응답에서 기록된 도구 호출',
+    'dashboard.requests': '요청',
+    'dashboard.results': '결과',
+    'dashboard.value': '값',
+    'dashboard.duration': '응답시간',
     'dashboard.retry': '재시도',
     'dashboard.error': '오류',
   },
   en: {
     'header.title': 'AI Agent Chatbot',
+    'header.shortTitle': 'AI Chat',
     'header.dashboard': 'Dashboard',
 
     'sidebar.title': 'Chats',
@@ -191,6 +215,12 @@ const translations = {
     'health.perHour': 'Per Hour',
     'health.dailyRequests': 'Daily Calls',
     'health.used': 'Used',
+    'health.provider': 'Provider',
+    'health.model': 'Model',
+    'health.memory': 'Memory',
+    'health.agents': 'Agents',
+    'health.tools': 'Tools',
+    'health.backendUnavailable': 'Backend unavailable',
     'health.resetsIn': (s: number) => {
       if (s <= 0) return 'resetting soon';
       const h = Math.floor(s / 3600);
@@ -206,6 +236,10 @@ const translations = {
     'agent.chat': 'Chat',
     'agent.research': 'Research',
     'agent.additionalAgents': 'Additional agents',
+
+    // Tool labels
+    'tool.web_search': 'Web search',
+    'tool.retriever': 'Document retrieval',
 
     // Security
     'security.critical': 'Security Risk Detected',
@@ -231,7 +265,7 @@ const translations = {
     'dashboard.tokensByAgent': 'Tokens by Agent',
     'dashboard.tokensByAgentDescription': 'Total tokens processed per agent',
     'dashboard.avgDurationByAgent': 'Avg Duration by Agent',
-    'dashboard.avgDurationByAgentDescription': 'Average response time per agent (ms)',
+    'dashboard.avgDurationByAgentDescription': 'Average response time per agent',
     'dashboard.agentStatistics': 'Agent Statistics',
     'dashboard.agentStatisticsDescription': 'Detailed metrics for each agent',
     'dashboard.period': 'Period',
@@ -247,6 +281,18 @@ const translations = {
     'dashboard.tokens': 'Tokens',
     'dashboard.tokensProcessed': 'Tokens processed',
     'dashboard.avgResponseTime': 'Average response time',
+    'dashboard.evidenceRate': 'Evidence Rate',
+    'dashboard.evidenceRateDescription': 'Share of turns with collected research evidence',
+    'dashboard.evidenceTurns': 'Evidence Turns',
+    'dashboard.evidenceTurnsDescription': 'Responses grounded by tools or documents',
+    'dashboard.noEvidenceTurns': 'No Evidence Turns',
+    'dashboard.noEvidenceTurnsDescription': 'Responses answered without external evidence',
+    'dashboard.evidenceToolUsage': 'Evidence Tool Usage',
+    'dashboard.evidenceToolUsageDescription': 'Tool calls recorded from assistant turns',
+    'dashboard.requests': 'Requests',
+    'dashboard.results': 'Results',
+    'dashboard.value': 'Value',
+    'dashboard.duration': 'Duration',
     'dashboard.retry': 'Retry',
     'dashboard.error': 'Error',
   },

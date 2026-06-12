@@ -6,7 +6,7 @@ import { Header } from '@/components/header/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { useTranslation } from '@/lib/i18n';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 import type { MetricsSummary, MetricsPeriod } from '@/types';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -29,9 +29,36 @@ const EXCLUDED_AGENTS = [
   'retriever_collect',
 ];
 
+const AGENT_LABEL_KEYS: Record<string, TranslationKey> = {
+  assistant: 'agent.assistant',
+  chat: 'agent.chat',
+  research: 'agent.research',
+};
+
+const TOOL_LABEL_KEYS: Record<string, TranslationKey> = {
+  web_search: 'tool.web_search',
+  retriever: 'tool.retriever',
+};
+
 // Get agent color with fallback
 function getAgentColor(agentName: string, index: number): string {
   return AGENT_COLORS[agentName] || COLORS[index % COLORS.length];
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs >= 1000) {
+    return `${(durationMs / 1000).toFixed(durationMs >= 10000 ? 1 : 2)}s`;
+  }
+  return `${Math.round(durationMs)}ms`;
+}
+
+function translatedLabel(
+  name: string,
+  labels: Record<string, TranslationKey>,
+  t: (key: TranslationKey, ...args: unknown[]) => string
+): string {
+  const key = labels[name];
+  return key ? t(key) : name;
 }
 
 interface SummaryCardProps {
@@ -103,7 +130,8 @@ export default function DashboardPage() {
 
     // Calculate raw percentages
     const rawPercentages = filteredAgentStats.map(stat => ({
-      name: stat.agent_name,
+      name: translatedLabel(stat.agent_name, AGENT_LABEL_KEYS, t),
+      agentName: stat.agent_name,
       value: stat.total_requests,
       rawPercent: (stat.total_requests / totalFilteredRequests) * 100,
     }));
@@ -125,14 +153,19 @@ export default function DashboardPage() {
 
     // Distribute remainder (1% each) to items with highest decimal parts
     for (let i = 0; i < sortedByDecimal.length && remainder > 0; i++) {
-      const idx = rounded.findIndex(item => item.name === sortedByDecimal[i].name);
+      const idx = rounded.findIndex(item => item.agentName === sortedByDecimal[i].agentName);
       if (idx !== -1) {
         rounded[idx].percent += 1;
         remainder -= 1;
       }
     }
 
-    return rounded.map(({ name, value, percent }) => ({ name, value, percent }));
+    return rounded.map(({ name, agentName, value, percent }) => ({
+      name,
+      agentName,
+      value,
+      percent,
+    }));
   })();
 
   // Prepare data for bar chart (requests by status)
@@ -144,13 +177,15 @@ export default function DashboardPage() {
 
   // Prepare data for line chart (tokens by agent)
   const tokenData = filteredAgentStats.map(stat => ({
-    name: stat.agent_name,
+    name: translatedLabel(stat.agent_name, AGENT_LABEL_KEYS, t),
+    agentName: stat.agent_name,
     tokens: stat.total_tokens,
   }));
 
   // Prepare data for duration chart
   const durationData = filteredAgentStats.map(stat => ({
-    name: stat.agent_name,
+    name: translatedLabel(stat.agent_name, AGENT_LABEL_KEYS, t),
+    agentName: stat.agent_name,
     duration: Math.round(stat.avg_duration_ms),
   }));
   const evidenceRate = metrics?.quality_stats
@@ -167,7 +202,7 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-auto p-6 bg-background">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
               <p className="text-muted-foreground mt-1">
@@ -234,12 +269,12 @@ export default function DashboardPage() {
                 <SummaryCard
                   title={t('dashboard.successRate')}
                   value={`${successRate}%`}
-                  description={`${metrics.successful_requests} ${t('dashboard.of')} ${metrics.total_requests}`}
+                  description={`${metrics.successful_requests.toLocaleString()} / ${metrics.total_requests.toLocaleString()}`}
                   color="text-green-500"
                 />
                 <SummaryCard
                   title={t('dashboard.avgDuration')}
-                  value={`${Math.round(metrics.avg_duration_ms)}ms`}
+                  value={formatDuration(metrics.avg_duration_ms)}
                   description={t('dashboard.avgResponseTime')}
                   color="text-amber-500"
                 />
@@ -261,25 +296,43 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent>
                     {pieData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={(entry) => `${entry.name}: ${entry.percent}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <>
+                        <ResponsiveContainer width="100%" height={260}>
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {pieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={getAgentColor(entry.agentName, index)} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(value) => [
+                                Number(value).toLocaleString(),
+                                t('dashboard.requests'),
+                              ]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex flex-wrap justify-center gap-3 text-xs text-muted-foreground">
+                          {pieData.map((entry, index) => (
+                            <div key={entry.agentName} className="flex items-center gap-1.5">
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: getAgentColor(entry.agentName, index) }}
+                              />
+                              <span>{entry.name}</span>
+                              <span className="font-medium text-foreground">{entry.percent}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
                         {t('dashboard.noData')}
@@ -300,8 +353,17 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#3b82f6" />
+                        <Tooltip
+                          formatter={(value) => [
+                            Number(value).toLocaleString(),
+                            t('dashboard.requests'),
+                          ]}
+                        />
+                        <Bar dataKey="value" fill="#3b82f6">
+                          {statusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -323,10 +385,15 @@ export default function DashboardPage() {
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
                           <YAxis />
-                          <Tooltip />
+                          <Tooltip
+                            formatter={(value) => [
+                              Number(value).toLocaleString(),
+                              t('dashboard.tokens'),
+                            ]}
+                          />
                           <Bar dataKey="tokens">
                             {tokenData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
+                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.agentName, index)} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -351,11 +418,16 @@ export default function DashboardPage() {
                         <BarChart data={durationData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
+                          <YAxis tickFormatter={(value) => formatDuration(Number(value))} />
+                          <Tooltip
+                            formatter={(value) => [
+                              formatDuration(Number(value)),
+                              t('dashboard.duration'),
+                            ]}
+                          />
                           <Bar dataKey="duration">
                             {durationData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.name, index)} />
+                              <Cell key={`cell-${index}`} fill={getAgentColor(entry.agentName, index)} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -372,21 +444,21 @@ export default function DashboardPage() {
               {/* Agent Stats Table */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <SummaryCard
-                  title="Evidence Rate"
+                  title={t('dashboard.evidenceRate')}
                   value={evidenceRate}
-                  description="Turns with collected research evidence"
+                  description={t('dashboard.evidenceRateDescription')}
                   color="text-emerald-500"
                 />
                 <SummaryCard
-                  title="Evidence Turns"
+                  title={t('dashboard.evidenceTurns')}
                   value={metrics.quality_stats?.evidence_turns ?? 0}
-                  description="Responses grounded by tools or documents"
+                  description={t('dashboard.evidenceTurnsDescription')}
                   color="text-blue-500"
                 />
                 <SummaryCard
-                  title="No Evidence Turns"
+                  title={t('dashboard.noEvidenceTurns')}
                   value={metrics.quality_stats?.no_evidence_turns ?? 0}
-                  description="Responses answered without external evidence"
+                  description={t('dashboard.noEvidenceTurnsDescription')}
                   color="text-amber-500"
                 />
               </div>
@@ -394,8 +466,8 @@ export default function DashboardPage() {
               {toolUsage.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Evidence Tool Usage</CardTitle>
-                    <CardDescription>Tool calls recorded from assistant turns</CardDescription>
+                    <CardTitle>{t('dashboard.evidenceToolUsage')}</CardTitle>
+                    <CardDescription>{t('dashboard.evidenceToolUsageDescription')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
@@ -404,7 +476,9 @@ export default function DashboardPage() {
                           key={tool}
                           className="rounded-md border border-border px-3 py-2 text-sm"
                         >
-                          <span className="font-medium">{tool}</span>
+                          <span className="font-medium">
+                            {translatedLabel(tool, TOOL_LABEL_KEYS, t)}
+                          </span>
                           <span className="ml-2 text-muted-foreground">{count}</span>
                         </div>
                       ))}
@@ -454,13 +528,13 @@ export default function DashboardPage() {
                                 className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: agentColor }}
                               />
-                              {stat.agent_name}
+                              {translatedLabel(stat.agent_name, AGENT_LABEL_KEYS, t)}
                             </td>
                             <td className="text-right p-2">{stat.total_requests.toLocaleString()}</td>
                             <td className="text-right p-2 text-green-600">{stat.successful_requests.toLocaleString()}</td>
                             <td className="text-right p-2 text-red-600">{stat.failed_requests.toLocaleString()}</td>
                             <td className="text-right p-2 text-amber-600">{stat.blocked_requests.toLocaleString()}</td>
-                            <td className="text-right p-2">{Math.round(stat.avg_duration_ms)}ms</td>
+                            <td className="text-right p-2">{formatDuration(stat.avg_duration_ms)}</td>
                             <td className="text-right p-2">{stat.total_tokens.toLocaleString()}</td>
                           </tr>
                           );

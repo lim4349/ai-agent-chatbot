@@ -20,7 +20,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
       {/* Left section */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -30,9 +30,12 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="w-5 h-5" />
         </Button>
 
-        <Link href="/" className="flex items-center gap-2">
-          <Bot className="w-6 h-6 text-primary" />
-          <h1 className="text-lg font-semibold">{t('header.title')}</h1>
+        <Link href="/" className="flex min-w-0 items-center gap-2">
+          <Bot className="w-6 h-6 shrink-0 text-primary" />
+          <h1 className="truncate whitespace-nowrap text-lg font-semibold">
+            <span className="hidden sm:inline">{t('header.title')}</span>
+            <span className="sm:hidden">{t('header.shortTitle')}</span>
+          </h1>
         </Link>
       </div>
 

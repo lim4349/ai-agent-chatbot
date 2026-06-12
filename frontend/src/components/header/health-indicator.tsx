@@ -84,25 +84,25 @@ export function HealthIndicator() {
         {health ? (
           <div className="space-y-1 text-xs">
             <p>
-              <strong>Provider:</strong> {health.llm_provider}
+              <strong>{t('health.provider')}:</strong> {health.llm_provider}
             </p>
             <p>
-              <strong>Model:</strong> {health.llm_model}
+              <strong>{t('health.model')}:</strong> {health.llm_model}
             </p>
             <p>
-              <strong>Memory:</strong> {health.memory_backend}
+              <strong>{t('health.memory')}:</strong> {health.memory_backend}
             </p>
             <p>
-              <strong>Agents:</strong> {health.available_agents.join(', ')}
+              <strong>{t('health.agents')}:</strong> {health.available_agents.join(', ')}
             </p>
             {health.available_tools && health.available_tools.length > 0 && (
               <p>
-                <strong>Tools:</strong> {health.available_tools.join(', ')}
+                <strong>{t('health.tools')}:</strong> {health.available_tools.join(', ')}
               </p>
             )}
           </div>
         ) : (
-          <p className="text-xs">Backend unavailable</p>
+          <p className="text-xs">{t('health.backendUnavailable')}</p>
         )}
       </TooltipContent>
     </Tooltip>
