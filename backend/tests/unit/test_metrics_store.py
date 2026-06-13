@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import get_metrics_summary
+from src.core.config import DEFAULT_LLM_MODEL
 from src.observability.metrics_store import MetricsStore
 
 
@@ -15,7 +16,7 @@ async def test_metrics_store_summary_aggregates_quality_stats():
         session_id="session-1",
         agent_name="assistant",
         duration_ms=1200,
-        model_name="openrouter/free",
+        model_name=DEFAULT_LLM_MODEL,
         input_tokens=10,
         output_tokens=20,
         status="success",
@@ -29,7 +30,7 @@ async def test_metrics_store_summary_aggregates_quality_stats():
         session_id="session-2",
         agent_name="assistant",
         duration_ms=300,
-        model_name="openrouter/free",
+        model_name=DEFAULT_LLM_MODEL,
         input_tokens=5,
         output_tokens=7,
         status="error",
@@ -43,7 +44,7 @@ async def test_metrics_store_summary_aggregates_quality_stats():
         session_id="session-3",
         agent_name="assistant",
         duration_ms=900,
-        model_name="openrouter/free",
+        model_name=DEFAULT_LLM_MODEL,
         input_tokens=3,
         output_tokens=4,
         status="blocked",
@@ -88,7 +89,7 @@ async def test_metrics_summary_route_returns_dashboard_contract():
         session_id="session-1",
         agent_name="assistant",
         duration_ms=100,
-        model_name="openrouter/free",
+        model_name=DEFAULT_LLM_MODEL,
         input_tokens=1,
         output_tokens=2,
         status="success",

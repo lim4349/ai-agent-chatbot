@@ -6,6 +6,12 @@
 
 ## 핵심 패턴
 
+### 0. LLM 기본 정책
+
+- 기본 운영 모델은 `nvidia/nemotron-3-super-120b-a12b:free`입니다.
+- OpenRouter OpenAI-compatible API를 사용하며, 유료 라우팅 방지를 위해 `max_price` guard를 유지합니다.
+- 앱 코드에 무료 모델 fallback chain을 추가하지 말고, 모델 교체는 `LLM_MODEL` 환경변수로 처리합니다.
+
 ### 1. DI 컨테이너와 @inject 사용
 
 **의존성 주입은 `dependency-injector` 라이브러리를 사용합니다.**
@@ -220,7 +226,7 @@ git merge origin/main  # dev가 main보다 뒤처진 경우 필수
 | `기억해:`, `기억해줘:` | 사용자 정보 저장 | user_facts (영구) |
 | `알고 있니?` | 저장된 정보 검색 | user_facts |
 | `잊어줘:` | 특정 정보 삭제 | user_facts |
-| `요약해줘` | 대화 요약 생성 | Redis (TTL 적용) |
+| `대화 요약해줘` | 대화 요약 생성 | Redis (TTL 적용) |
 
 ---
 

@@ -67,8 +67,8 @@ class OpenAIProvider:
         if base_url:
             client_kwargs["base_url"] = base_url
 
-        # Keep OpenRouter on free routes only. Model routing is handled by
-        # openrouter/free when that model is configured.
+        # Keep OpenRouter on free routes only. Model changes are explicit env
+        # changes, not runtime fallback chains.
         if base_url and "openrouter" in base_url:
             extra_body: dict = {
                 "max_price": {"input": 0, "output": 0},

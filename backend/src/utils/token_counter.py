@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import tiktoken
 
+from src.core.config import DEFAULT_LLM_MODEL
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Token limits per model (context window sizes)
-DEFAULT_TOKEN_MODEL = "openrouter/free"
+DEFAULT_TOKEN_MODEL = DEFAULT_LLM_MODEL
 
 MODEL_TOKEN_LIMITS = {
     "gpt-4": 8192,

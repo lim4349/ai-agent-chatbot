@@ -66,12 +66,21 @@
 | **프론트엔드** | Next.js + TypeScript | 16.x |
 | **백엔드** | FastAPI + Python | 3.12 |
 | **AI 오케스트레이션** | LangGraph + LangChain | 0.2.x |
-| **LLM** | OpenRouter (OpenAI-compatible hosted model) | - |
+| **LLM** | OpenRouter `nvidia/nemotron-3-super-120b-a12b:free` | OpenAI-compatible |
 | **Vector DB** | Pinecone | - |
 | **임베딩** | multilingual-e5-large | - |
 | **세션 메모리** | Upstash Redis / In-Memory | TTL: 1시간 |
 | **인증** | Supabase | - |
 | **배포** | Render + Vercel | - |
+
+---
+
+## 모델 및 비용 정책
+
+- 기준 모델은 OpenRouter의 `nvidia/nemotron-3-super-120b-a12b:free`입니다.
+- `LLM_MODEL` 환경변수로만 모델을 교체하며, 앱 코드에는 자동 fallback chain을 두지 않습니다.
+- OpenRouter 호출에는 `max_price: {input: 0, output: 0}` guard를 적용해 유료 라우팅을 차단합니다.
+- 무료 모델의 rate limit 또는 provider 장애는 운영 리스크로 취급하고, 모델 교체는 배포 환경변수 변경으로 수행합니다.
 
 ---
 
@@ -158,11 +167,13 @@ backend/src/
 
 일반 대화는 도구 선택 LLM 호출 없이 AssistantAgent 응답 1회로 끝납니다. 최신 정보, 업로드 문서, 보고서 요청처럼 근거가 필요한 경우에만 ResearchEvidenceCollector가 도구 계획을 세웁니다.
 
+도구 선택은 LLM structured decision을 보조 신호로 사용하고, deterministic guardrail이 최종 안전장치가 됩니다. 명시적 문서/RAG 질문은 `retriever`, 최신/뉴스/검색 질문은 `web_search`, 문서가 있는 애매한 요약 요청은 `retriever`를 강제합니다. structured output이 실패하거나 모델이 빈 도구 목록을 반환해도 fallback decision이 같은 정책을 적용합니다.
+
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
 - `알고 있니?` - 저장된 메모리 검색
 - `잊어줘:` - 메모리 삭제
-- `요약해줘` - 대화 요약
+- `대화 요약해줘` - 대화 요약
 
 ### API 엔드포인트
 
@@ -170,14 +181,13 @@ backend/src/
 |--------|------|------|------|
 | POST | `/api/v1/chat` | ❌ | 동기 채팅 |
 | POST | `/api/v1/chat/stream` | ❌ | SSE 스트리밍 채팅 |
-| POST | `/api/v1/documents/upload` | ✅ | 파일 업로드 |
-| GET | `/api/v1/documents` | ✅ | 문서 목록 |
-| GET | `/api/v1/sessions` | ✅ | 세션 목록 |
+| POST | `/api/v1/documents/upload` | ❌ | 파일 업로드 (`device_id` + `session_id` scoped) |
+| GET | `/api/v1/documents` | ❌ | 문서 목록 (`device_id` + `session_id` scoped) |
+| GET | `/api/v1/sessions` | ❌ | 세션 목록 (`device_id` scoped) |
 | DELETE | `/api/v1/sessions/{id}` | ❌ | 세션 삭제 |
 | DELETE | `/api/v1/sessions/{id}/full` | ❌ | 세션 + 토픽 완전 삭제 |
 | GET | `/api/v1/health` | ❌ | 헬스 체크 |
 | GET | `/api/v1/metrics/summary` | ❌ | 메트릭 요약 (대시보드) |
-| GET | `/api/v1/metrics/agents` | ❌ | 에이전트별 메트릭 |
 
 ---
 
@@ -198,18 +208,14 @@ frontend/src/
 │   │   ├── chat-input.tsx
 │   │   ├── message-list.tsx
 │   │   └── markdown-renderer.tsx
-│   ├── dashboard/       # 대시보드 UI
-│   │   ├── health-indicator.tsx
-│   │   ├── request-chart.tsx
-│   │   └── pie-chart.tsx
 │   ├── documents/       # 문서 업로드 UI
 │   ├── sidebar/         # 세션 사이드바
 │   └── ui/              # shadcn/ui 컴포넌트
 │
 ├── stores/              # Zustand 스토어
 │   ├── chat-store.ts    # 채팅 상태
-│   ├── auth-store.ts    # 인증 상태
-│   └── document-store.ts  # 문서 상태
+│   ├── document-store.ts  # 문서 상태
+│   └── toast-store.ts   # 토스트 알림
 │
 └── lib/                 # 유틸리티
     ├── api.ts           # API 클라이언트
@@ -222,8 +228,8 @@ frontend/src/
 | 스토어 | 상태 | 설명 |
 |--------|------|------|
 | **ChatStore** | sessions, messages, streaming | 채팅 상태, localStorage 영속화 |
-| **AuthStore** | user, isAuthenticated, tokens | 인증 상태, 자동 토큰 갱신 |
 | **DocumentStore** | documents, uploadStatus | 문서 업로드 상태 |
+| **ToastStore** | toasts | 알림 상태 |
 
 ### SSE 스트리밍 파이프라인
 
@@ -378,7 +384,7 @@ MetricsStore.record_request()
 
 - **Health Indicator**: 백엔드 상태, LLM 모델, 메모리 백엔드
 - **요청 차트**: 24시간 요청 수, 성공/실패율
-- **파이 차트**: 에이전트별 요청 분포
+- **Evidence 도구 사용량**: `web_search`, `retriever` 호출 수
 - **Evidence 품질**: tool confidence, source count, evidence count 요약
 
 ---
@@ -466,4 +472,4 @@ async def chat(
 
 ---
 
-*최종 업데이트: 2026-06-12*
+*최종 업데이트: 2026-06-14*

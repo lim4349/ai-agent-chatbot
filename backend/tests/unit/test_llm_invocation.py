@@ -3,7 +3,7 @@
 import pytest
 from pydantic import BaseModel
 
-from src.core.config import LLMConfig
+from src.core.config import DEFAULT_LLM_MODEL, LLMConfig
 from src.llm import invocation
 from src.llm.invocation import (
     generate_with_cache,
@@ -147,7 +147,7 @@ def test_openrouter_provider_sets_zero_max_price_guard(monkeypatch):
     provider = OpenAIProvider(
         LLMConfig(
             provider="openai",
-            model="openrouter/free",
+            model=DEFAULT_LLM_MODEL,
             base_url="https://openrouter.ai/api/v1",
             openai_api_key="test-key",
         )

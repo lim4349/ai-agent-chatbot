@@ -72,7 +72,7 @@ npm run build
 - 새 기능은 DI 컨테이너와 기존 agent/tool registry 구조를 따라야 함
 - Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
-- LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
+- LLM 모델: `nvidia/nemotron-3-super-120b-a12b:free` (OpenRouter 무료 NVIDIA 모델, 유료 fallback 없음)
 - 문서 업로드는 `POST /api/v1/documents/upload` 경로만 사용하며 `device_id`와 `session_id`로 격리
 - 문서 파싱은 heading path, page/table metadata, parse warning을 보존하고 parent-child retrieval record로 Pinecone에 저장
 - 프론트는 guest-first이며 로그인 화면, auth provider, route guard를 다시 추가하지 않음

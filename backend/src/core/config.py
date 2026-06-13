@@ -14,12 +14,14 @@ _env_file = _project_root / ".env"
 if _env_file.exists():
     load_dotenv(_env_file)
 
+DEFAULT_LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+
 
 class LLMConfig(BaseSettings):
     """LLM provider configuration."""
 
     provider: str = "openai"
-    model: str = "openrouter/free"
+    model: str = DEFAULT_LLM_MODEL
     temperature: float = 0.7
     max_tokens: int = 2048  # Reduced from 4096 for Render Free Tier memory constraints
     base_url: str | None = None

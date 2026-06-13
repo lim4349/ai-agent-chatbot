@@ -7,7 +7,7 @@ Project-wide guidance for AI coding agents working in this repository.
 - Frontend: Next.js 16, React 19, Zustand, shadcn/ui-style components
 - Backend: FastAPI, LangGraph, dependency-injector
 - LLM provider: OpenRouter via OpenAI-compatible API
-- Production model: `openrouter/free`
+- Production model: `nvidia/nemotron-3-super-120b-a12b:free`
 - Vector/RAG: Pinecone
 - RAG processing: layout-aware local parser, Markdown table preservation,
   hierarchy-aware parent-child chunking
@@ -36,20 +36,21 @@ FastAPI
 
 ## Current LLM Policy
 
-Use OpenRouter's free router as the single production model.
+Use OpenRouter's free NVIDIA model as the single production model.
 
 Required backend environment:
 
 ```env
 LLM_PROVIDER=openai
-LLM_MODEL=openrouter/free
+LLM_MODEL=nvidia/nemotron-3-super-120b-a12b:free
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_OPENAI_API_KEY=sk-or-v1-...
 ```
 
-Do not add hardcoded free-model fallback chains in application code. `openrouter/free`
-already routes to available free models. Keep the OpenRouter `max_price` guard at zero
-so paid routing is not used accidentally.
+Do not add hardcoded free-model fallback chains in application code. The NVIDIA
+free model is the reproducible portfolio baseline, and model changes should be
+explicit environment changes. Keep the OpenRouter `max_price` guard at zero so
+paid routing is not used accidentally.
 
 ## Security Defaults
 
@@ -211,12 +212,12 @@ S246 RAG 시스템 요구사항 정의 및 기술 스택 확정 (Mar 11, 10:02 A
 4689 11:23a 🔵 OpenRouter free model endpoint validated
 4690 11:25a 🔵 Free-model-only LLM configuration with enforced cost protection
 4691 " 🔵 Multi-provider free-tier fallback chain mitigates rate limits
-4692 11:26a 🔄 Simplified LLM configuration to use openrouter/free alias exclusively
+4692 11:26a 🔄 Simplified LLM configuration to use the legacy OpenRouter free-router alias
 4693 11:27a ✅ Refactor validated with full test suite and production build
 4694 " 🔵 Git ignore rule blocks staging frontend/src/lib directory
-4695 11:28a ✅ Committed openrouter/free refactor to version control
+4695 11:28a ✅ Committed legacy free-router refactor to version control
 4696 " 🟣 Added root AGENTS.md with project-wide AI agent guidance
-4697 " ✅ Deployed openrouter/free refactor to production
+4697 " ✅ Deployed legacy free-router refactor to production
 
 Access 181k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
