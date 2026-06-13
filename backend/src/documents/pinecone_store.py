@@ -287,7 +287,7 @@ class PineconeVectorStore:
             results = await asyncio.to_thread(
                 self._index.query,
                 vector=query_embedding,
-                top_k=top_k,
+                top_k=max(top_k * 4, top_k),
                 namespace=namespace,
                 filter=pinecone_filter,
                 include_metadata=True,
@@ -301,6 +301,8 @@ class PineconeVectorStore:
 
         for match in results.matches:
             metadata = match.metadata or {}
+            if metadata.get("record_type") == "parent":
+                continue
 
             result = SearchResult(
                 chunk_content=metadata.get("text", ""),
@@ -309,6 +311,8 @@ class PineconeVectorStore:
                 metadata=dict(metadata),
             )
             search_results.append(result)
+            if len(search_results) >= top_k:
+                break
 
         logger.info(
             "search_completed",
@@ -664,8 +668,7 @@ class PineconeVectorStore:
             return False
 
     def _empty_query_vector(self) -> list[float]:
-        """Return a metadata-query vector matching the configured embedding dimension."""
+        """Return a non-zero metadata-query vector matching the embedding dimension."""
         dimension = getattr(self.embedding_generator, "dimension", None)
-        if isinstance(dimension, int) and dimension > 0:
-            return [0.0] * dimension
-        return [0.0] * 1024
+        vector_dimension = dimension if isinstance(dimension, int) and dimension > 0 else 1024
+        return [1.0] + [0.0] * (vector_dimension - 1)

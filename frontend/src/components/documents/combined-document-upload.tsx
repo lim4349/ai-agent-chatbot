@@ -57,10 +57,7 @@ export function CombinedDocumentUpload() {
       return;
     }
 
-    // Close modal immediately and upload in background
-    setOpen(false);
-
-    // Start background upload
+    // Keep the dialog open so users can see progress and the new document row.
     uploadFile(file, sessionId, deviceId)
       .then(() => {
         const { uploadStatus, uploadError } = useDocumentStore.getState();
@@ -84,7 +81,7 @@ export function CombinedDocumentUpload() {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) {
+    if (!newOpen && !isUploading) {
       resetUploadStatus();
     }
   };

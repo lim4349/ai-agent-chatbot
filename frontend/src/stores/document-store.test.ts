@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { validateFile } from '@/lib/file-validation';
 import type { DocumentInfo } from '@/types';
 import { useDocumentStore } from './document-store';
 
@@ -8,6 +9,10 @@ vi.mock('@/lib/api', () => ({
     deleteDocument: vi.fn(),
     uploadFile: vi.fn(),
   },
+}));
+
+vi.mock('@/lib/file-validation', () => ({
+  validateFile: vi.fn(),
 }));
 
 function resetDocumentStore() {
@@ -50,12 +55,70 @@ describe('document-store', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
+    vi.mocked(validateFile).mockResolvedValue({
+      isValid: true,
+      errors: [],
+      warnings: [],
+    });
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     resetDocumentStore();
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+  });
+
+  it('adds an uploaded document to the visible list with parse metadata', async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.uploadFile).mockResolvedValue({
+      document_id: 'doc-uploaded',
+      filename: 'policy.txt',
+      file_type: 'txt',
+      chunks_created: 4,
+      total_tokens: 120,
+      upload_time: '2026-06-13T00:00:00.000Z',
+      status: 'success',
+      message: 'ok',
+      parse_summary: {
+        page_count: 2,
+        table_count: 1,
+        element_count: 5,
+        parent_chunk_count: 2,
+        child_chunk_count: 2,
+        warnings: ['Page 2 has little extractable text'],
+      },
+      warnings: ['Page 2 has little extractable text'],
+    });
+    const file = new File(['hello'], 'policy.txt', { type: 'text/plain' });
+
+    await useDocumentStore.getState().uploadFile(file, 'session-1', 'device-1');
+
+    expect(api.uploadFile).toHaveBeenCalledWith(file, 'session-1', 'device-1', {
+      originalName: 'policy.txt',
+      size: '5',
+      type: 'text/plain',
+    });
+    expect(useDocumentStore.getState().documents).toEqual([
+      {
+        id: 'doc-uploaded',
+        filename: 'policy.txt',
+        file_type: 'txt',
+        upload_time: '2026-06-13T00:00:00.000Z',
+        chunk_count: 4,
+        total_tokens: 120,
+        parent_chunk_count: 2,
+        child_chunk_count: 2,
+        page_count: 2,
+        table_count: 1,
+        warnings: ['Page 2 has little extractable text'],
+      },
+    ]);
+    expect(useDocumentStore.getState().uploadStatus).toBe('completed');
+    expect(useDocumentStore.getState().isUploading).toBe(false);
+
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches documents with device and session scope', async () => {
