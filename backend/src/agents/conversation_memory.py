@@ -30,6 +30,19 @@ class ConversationMemoryCommands:
     COMMAND_RECALL = "알고 있니?"
     COMMAND_FORGET = "잊어줘:"
     COMMAND_SUMMARIZE = "요약해줘"
+    DOCUMENT_SUMMARY_TERMS = (
+        "문서",
+        "자료",
+        "파일",
+        "업로드",
+        "첨부",
+        "pdf",
+        "document",
+        "논문",
+        "paper",
+        "ieee",
+    )
+    CONVERSATION_SUMMARY_TERMS = ("대화", "채팅", "지금까지", "conversation", "chat")
 
     def __init__(
         self,
@@ -62,8 +75,14 @@ class ConversationMemoryCommands:
             data = content_stripped[len(self.COMMAND_FORGET) :].strip()
             return MemoryCommand("forget", data)
 
-        if self.COMMAND_SUMMARIZE in content_stripped:
-            return MemoryCommand("summarize")
+        if "요약" in content_stripped:
+            lowered = content_stripped.lower()
+            if any(term in lowered for term in self.DOCUMENT_SUMMARY_TERMS):
+                return MemoryCommand("none")
+            if any(term in lowered for term in self.CONVERSATION_SUMMARY_TERMS):
+                return MemoryCommand("summarize", "conversation")
+            if content_stripped in {self.COMMAND_SUMMARIZE, "요약해 주세요", "요약해줘."}:
+                return MemoryCommand("summarize", "ambiguous")
 
         return MemoryCommand("none")
 

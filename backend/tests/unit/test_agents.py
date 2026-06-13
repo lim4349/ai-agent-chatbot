@@ -230,3 +230,47 @@ class TestAssistantAgent:
         result = await agent.process(state)
 
         assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]
+
+    @pytest.mark.asyncio
+    async def test_document_summary_request_uses_retriever_not_memory_summary(
+        self, mock_llm, mock_memory
+    ):
+        """A bare summary request should summarize uploaded documents when they exist."""
+
+        class MockRetrieverTool:
+            def __init__(self):
+                self.calls = []
+
+            async def execute(self, query, top_k=3, session_id=None, device_id=None):
+                self.calls.append(
+                    {
+                        "query": query,
+                        "top_k": top_k,
+                        "session_id": session_id,
+                        "device_id": device_id,
+                    }
+                )
+                return [
+                    {
+                        "content": "IEEE 문서 요약 근거",
+                        "metadata": {"source": "ieee.pdf"},
+                        "score": 0.9,
+                    }
+                ]
+
+        retriever = MockRetrieverTool()
+        agent = AssistantAgent(llm=mock_llm, memory=mock_memory, retriever=retriever)
+        state = create_initial_state("요약해줘", "test-session", "device-1")
+        state["has_documents"] = True
+
+        result = await agent.process(state)
+
+        assert retriever.calls == [
+            {
+                "query": "요약해줘",
+                "top_k": 3,
+                "session_id": "test-session",
+                "device_id": "device-1",
+            }
+        ]
+        assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]

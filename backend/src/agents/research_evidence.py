@@ -14,6 +14,7 @@ from src.graph.state import AgentState
 logger = get_logger(__name__)
 
 DOCUMENT_INTENT_TERMS = ("rag", "문서", "자료", "파일", "업로드", "pdf", "document")
+SUMMARY_INTENT_TERMS = ("요약", "summary", "summarize")
 WEB_INTENT_TERMS = (
     "최신",
     "현재",
@@ -37,6 +38,7 @@ class ResearchIntent:
     document: bool
     web: bool
     report: bool
+    summary: bool
 
 
 class ResearchToolDecision(BaseModel):
@@ -102,7 +104,7 @@ class ResearchEvidenceCollector:
         """Ask the LLM which research tools are needed."""
         available_tools = self.available_tools()
         intent = self.detect_intent(query)
-        if not intent.document and not intent.web and not intent.report:
+        if not intent.document and not intent.web and not intent.report and not intent.summary:
             return ResearchToolDecision(
                 tools=[],
                 response_mode="answer",
@@ -119,6 +121,7 @@ Allowed tools:
 
 Rules:
 - Use retriever for explicit RAG/document/file/uploaded-material questions.
+- Use retriever for summarization requests when uploaded documents are available.
 - Use web_search for latest/current/news/weather/stock/price/public web questions.
 - Use both tools for synthesis/report requests that need current web and uploaded document context.
 - Use no tools only when the answer can be produced without external evidence.
@@ -198,6 +201,13 @@ Rules:
         ):
             tools.append("retriever")
         if (
+            "retriever" in available_tools
+            and intent.summary
+            and has_documents
+            and "retriever" not in tools
+        ):
+            tools.append("retriever")
+        if (
             "web_search" in available_tools
             and intent.web
             and (not intent.document or intent.report)
@@ -218,6 +228,7 @@ Rules:
             document=any(term in lowered for term in DOCUMENT_INTENT_TERMS),
             web=any(term in lowered for term in WEB_INTENT_TERMS),
             report=any(term in lowered for term in REPORT_INTENT_TERMS),
+            summary=any(term in lowered for term in SUMMARY_INTENT_TERMS),
         )
 
     def fallback_decision(
@@ -235,6 +246,13 @@ Rules:
         if (
             "retriever" in available_tools
             and intent.report
+            and has_documents
+            and "retriever" not in tools
+        ):
+            tools.append("retriever")
+        if (
+            "retriever" in available_tools
+            and intent.summary
             and has_documents
             and "retriever" not in tools
         ):

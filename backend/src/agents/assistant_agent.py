@@ -5,7 +5,7 @@ from typing import override
 from dependency_injector.wiring import Provide, inject
 
 from src.agents.base import BaseAgent
-from src.agents.conversation_memory import ConversationMemoryCommands
+from src.agents.conversation_memory import ConversationMemoryCommands, MemoryCommand
 from src.agents.research_evidence import ResearchEvidenceCollector
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger
@@ -86,6 +86,12 @@ Guidelines:
         query = get_message_content(state["messages"][-1])
 
         command = self.memory_commands.parse(query)
+        if (
+            command.type == "summarize"
+            and command.data == "ambiguous"
+            and state.get("has_documents", False)
+        ):
+            command = MemoryCommand("none")
         if command.type != "none":
             response = await self.memory_commands.handle(session_id, user_id, command)
             if self.memory:

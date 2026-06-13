@@ -24,6 +24,25 @@ class FakeLongTermMemory:
         return [fact for fact in self.facts if fact["user_id"] == user_id and query in fact["fact"]]
 
 
+def test_summary_parser_does_not_capture_document_summary_requests():
+    commands = ConversationMemoryCommands(memory=None)
+
+    assert commands.parse("업로드 문서 요약해줘").type == "none"
+    assert commands.parse("IEEE 논문 요약해줘").type == "none"
+
+
+def test_summary_parser_keeps_explicit_conversation_summary_command():
+    commands = ConversationMemoryCommands(memory=None)
+
+    ambiguous = commands.parse("요약해줘")
+    conversation = commands.parse("지금까지 대화 요약해줘")
+
+    assert ambiguous.type == "summarize"
+    assert ambiguous.data == "ambiguous"
+    assert conversation.type == "summarize"
+    assert conversation.data == "conversation"
+
+
 @pytest.mark.asyncio
 async def test_remember_stores_session_and_long_term_fact():
     memory = InMemoryStore()

@@ -15,6 +15,7 @@ def test_detect_intent_identifies_document_web_and_report_requests():
     assert intent.document is True
     assert intent.web is True
     assert intent.report is True
+    assert intent.summary is False
 
 
 def test_fallback_decision_uses_retriever_for_document_request():
@@ -23,6 +24,19 @@ def test_fallback_decision_uses_retriever_for_document_request():
     decision = collector.fallback_decision(
         "업로드한 문서에서 찾아줘",
         available_tools=["web_search", "retriever"],
+        has_documents=True,
+    )
+
+    assert decision.tools == ["retriever"]
+    assert decision.response_mode == "answer"
+
+
+def test_fallback_decision_uses_retriever_for_summary_when_documents_exist():
+    collector = ResearchEvidenceCollector(llm=FakeLLM())
+
+    decision = collector.fallback_decision(
+        "요약해줘",
+        available_tools=["retriever"],
         has_documents=True,
     )
 
