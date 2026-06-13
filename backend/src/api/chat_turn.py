@@ -127,12 +127,9 @@ def extract_response_message(result: dict[str, Any]) -> str:
 
 
 def resolve_agent_used(result: dict[str, Any]) -> str:
-    """Determine which specialist agent actually processed the request."""
+    """Determine which assistant node processed the request."""
     completed_steps = result.get("completed_steps", [])
     if completed_steps:
         return completed_steps[-1]
 
-    agent_used = result.get("next_agent", "assistant")
-    if agent_used == "done":
-        return "assistant"
-    return agent_used or "assistant"
+    return "assistant"

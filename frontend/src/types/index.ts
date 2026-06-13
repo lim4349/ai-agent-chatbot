@@ -11,7 +11,6 @@ export interface ChatResponse {
   message: string;
   session_id: string;
   agent_used: string;
-  route_reasoning: string | null;
   tool_results: Record<string, unknown>[];
   created_at: string;
   tools_used?: Array<{
@@ -41,21 +40,6 @@ export interface AgentInfo {
 
 export interface AgentListResponse {
   agents: AgentInfo[];
-}
-
-export interface DocumentUploadRequest {
-  content: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface DocumentUploadResponse {
-  status: string;
-  message: string;
-}
-
-export interface FileUploadRequest {
-  file: File;
-  metadata?: Record<string, string>;
 }
 
 export interface FileUploadResponse {
@@ -103,7 +87,6 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   agent?: string;
-  agents?: string[];  // All agents involved in this response
   createdAt: Date;
   tools?: Array<{
     name: string;
@@ -130,12 +113,12 @@ export interface Session {
   isLocalOnly?: boolean;
 }
 
-export type AgentType = 'assistant' | 'chat' | 'research';
+export type AgentType = 'assistant';
 
 export interface SSECallbacks {
   onMetadata: (data: { session_id: string }) => void;
   onToken: (token: string) => void;
-  onAgent: (agent: string, allAgents?: string[]) => void;
+  onAgent: (agent: string) => void;
   onStatus: (message: string) => void;
   onTool: (tool: {
     tool?: string;
@@ -146,7 +129,6 @@ export interface SSECallbacks {
     confidence?: string;
     error?: string;
   }) => void;
-  onAgentsComplete: (agents: string[]) => void;
   onDone: () => void;
   onError: (error: string) => void;
 }
@@ -221,8 +203,6 @@ export interface AuthTokens {
 // Re-export metrics types
 export type {
   MetricsSummary,
-  AgentMetricItem,
-  AgentMetricsResponse,
   RequestMetricResponse,
   MetricsPeriod,
 } from './metrics';

@@ -221,54 +221,6 @@ class MetricsStore:
         total_output_tokens = sum(m.get("output_tokens", 0) for m in metrics)
         quality_stats = self._quality_stats(metrics)
 
-        # Group by agent for agent_stats
-        agent_stats_map: dict[str, dict] = {}
-        for m in metrics:
-            agent = m.get("agent_name", "unknown")
-            if agent not in agent_stats_map:
-                agent_stats_map[agent] = {
-                    "total_requests": 0,
-                    "successful_requests": 0,
-                    "failed_requests": 0,
-                    "timeout_requests": 0,
-                    "total_duration_ms": 0,
-                    "total_input_tokens": 0,
-                    "total_output_tokens": 0,
-                }
-
-            agent_stats_map[agent]["total_requests"] += 1
-            if m.get("status") == "success":
-                agent_stats_map[agent]["successful_requests"] += 1
-            elif m.get("status") == "error":
-                agent_stats_map[agent]["failed_requests"] += 1
-            elif m.get("status") in ("timeout", "blocked"):
-                agent_stats_map[agent]["timeout_requests"] += 1
-
-            agent_stats_map[agent]["total_duration_ms"] += m.get("duration_ms", 0)
-            agent_stats_map[agent]["total_input_tokens"] += m.get("input_tokens", 0)
-            agent_stats_map[agent]["total_output_tokens"] += m.get("output_tokens", 0)
-
-        agent_stats = []
-        for agent_name, stats in agent_stats_map.items():
-            avg = (
-                stats["total_duration_ms"] / stats["total_requests"]
-                if stats["total_requests"] > 0
-                else 0
-            )
-            agent_stats.append(
-                {
-                    "agent_name": agent_name,
-                    "date": start_time.strftime("%Y-%m-%d"),
-                    "total_requests": stats["total_requests"],
-                    "success_count": stats["successful_requests"],
-                    "error_count": stats["failed_requests"],
-                    "timeout_count": stats["timeout_requests"],
-                    "avg_duration_ms": avg,
-                    "total_input_tokens": stats["total_input_tokens"],
-                    "total_output_tokens": stats["total_output_tokens"],
-                }
-            )
-
         return {
             "period": period,
             "total_requests": total_requests,
@@ -278,7 +230,6 @@ class MetricsStore:
             "avg_duration_ms": avg_duration_ms,
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
-            "agent_stats": agent_stats,
             "quality_stats": quality_stats,
             "start_time": start_time,
             "end_time": now,
@@ -320,22 +271,3 @@ class MetricsStore:
             "confidence_counts": confidence_counts,
             "tool_counts": tool_counts,
         }
-
-    async def get_agent_stats(self, agent_name: str, period: str = "24h") -> dict | None:
-        """Get statistics for a specific agent.
-
-        Args:
-            agent_name: Agent name to filter by
-            period: Time period - "24h", "7d", "30d"
-
-        Returns:
-            Dictionary with agent statistics or None if not found
-        """
-        summary = await self.get_summary(period)
-
-        # Find the specific agent stats
-        for agent_stat in summary.get("agent_stats", []):
-            if agent_stat.get("agent_name") == agent_name:
-                return agent_stat
-
-        return None

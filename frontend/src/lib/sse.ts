@@ -109,7 +109,7 @@ export function streamChat(
                 case 'agent':
                   try {
                     const agentData = JSON.parse(eventData);
-                    callbacks.onAgent(agentData.agent, agentData.all_agents);
+                    callbacks.onAgent(agentData.agent);
                   } catch {
                     // Ignore parse errors
                   }
@@ -124,13 +124,6 @@ export function streamChat(
                 case 'tool':
                   try {
                     callbacks.onTool(JSON.parse(eventData));
-                  } catch {
-                    // Ignore parse errors
-                  }
-                  break;
-                case 'agents_complete':
-                  try {
-                    callbacks.onAgentsComplete(JSON.parse(eventData).agents);
                   } catch {
                     // Ignore parse errors
                   }

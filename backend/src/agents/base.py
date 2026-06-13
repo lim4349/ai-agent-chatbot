@@ -51,8 +51,8 @@ class BaseAgent(ABC):
     ) -> dict:
         """Update workflow state after agent execution.
 
-        Call this at the end of each agent's process method to track
-        completed steps and accumulate context for multi-step workflows.
+        Call this at the end of the assistant process method to track
+        completed steps and accumulate context.
 
         Args:
             state: Current agent state
@@ -70,7 +70,6 @@ class BaseAgent(ABC):
             workflow_context += f"\n[{self.name}]: {result_content[:2000]}"
 
         return {
-            "next_agent": None,
             "completed_steps": completed_steps,
             "workflow_context": workflow_context,
         }

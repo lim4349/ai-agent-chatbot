@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AI Agent Chatbot",
-  description: "LangGraph-based multi-agent chatbot with research tools",
+  description: "LangGraph-based assistant chatbot with agentic RAG tools",
 };
 
 export default function RootLayout({

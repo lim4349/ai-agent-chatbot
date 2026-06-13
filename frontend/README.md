@@ -20,8 +20,7 @@ src/
 │   │   ├── message-bubble.tsx    # 메시지 버블 (아바타, 에이전트 배지, 복사)
 │   │   ├── message-input.tsx     # 메시지 입력 (대체 구현)
 │   │   ├── markdown-renderer.tsx # 마크다운 렌더링 (DOMPurify XSS 방어, 코드 하이라이팅)
-│   │   ├── agent-badge.tsx       # 에이전트 표시 배지 (색상/아이콘/다국어)
-│   │   ├── agent-switch-animation.tsx # 에이전트 전환 애니메이션
+│   │   ├── agent-badge.tsx       # Assistant 표시 배지 (아이콘/다국어)
 │   │   ├── tool-usage.tsx        # 도구 사용 표시 (접기/펼치기)
 │   │   ├── typing-indicator.tsx  # 타이핑 인디케이터 (바운스 애니메이션)
 │   │   ├── memory-indicator.tsx  # 대화 메모리 상태 표시 (토큰 사용량)
@@ -33,10 +32,9 @@ src/
 │   │   └── summary-notification.tsx # 요약 알림
 │   │
 │   ├── documents/                # 문서 업로드
-│   │   ├── combined-document-upload.tsx # 통합 업로드 (파일 + 텍스트 탭)
+│   │   ├── combined-document-upload.tsx # 세션별 파일 업로드 다이얼로그
 │   │   ├── file-upload-zone.tsx  # 드래그앤드롭 (react-dropzone, 매직바이트 검증)
 │   │   ├── upload-progress.tsx   # 업로드 진행률 + 상태 표시
-│   │   ├── document-upload.tsx   # 텍스트 업로드 (레거시)
 │   │   └── document-list.tsx     # 업로드 문서 목록 + 삭제
 │   │
 │   ├── header/
@@ -64,6 +62,8 @@ src/
 ├── lib/                          # 유틸리티 & 서비스
 │   ├── api.ts                    # API 클라이언트 (JWT 자동 주입 + 401 자동 재시도)
 │   ├── sse.ts                    # SSE 스트리밍 (AbortController, 토큰 필터링)
+│   ├── stream-buffer.ts          # 스트리밍 토큰 배치 플러시
+│   ├── chat-errors.ts            # 채팅 오류 분류
 │   ├── token-manager.ts          # JWT 토큰 관리 (저장/갱신/만료 체크/자동 갱신)
 │   ├── security-validator.ts     # XSS/인젝션 실시간 검증 (4단계 심각도, 한국어/영어)
 │   ├── file-validation.ts        # 파일 검증 (매직바이트, 경로탐색, 확장자, 크기)
@@ -73,7 +73,7 @@ src/
 │   └── utils.ts                  # cn() 클래스명 유틸리티
 │
 └── types/
-    └── index.ts                  # TypeScript 타입 (Message, Session, Agent, Auth 등)
+    └── index.ts                  # TypeScript 타입 (Message, Session, Assistant, Auth 등)
 ```
 
 ## 설치 및 실행
@@ -98,19 +98,18 @@ npm start
 
 ### 실시간 채팅
 - SSE (Server-Sent Events) 기반 토큰 스트리밍
-- **토큰 버퍼링**: 50ms 간격 또는 100자 초과 시 플러시 (렌더링 최적화)
+- **토큰 버퍼링**: 100ms 간격 또는 500자 초과 시 플러시 (렌더링 최적화)
 - 스트리밍 중 plain text, 완료 후 마크다운 렌더링 (성능 최적화)
 - 자동 스크롤 + "아래로" 버튼 (스크롤 위치 감지)
 
-### 에이전트 시각화
-- 에이전트별 색상 배지 (Chat, Research)
-- 에이전트 전환 애니메이션
+### Assistant 및 도구 시각화
+- Assistant 배지
 - 도구 사용 내역 접기/펼치기 표시
 - 이전 대화 참조 배지 (메모리 기반)
 
 ### 문서 업로드
 - 드래그 앤 드롭 파일 업로드 (react-dropzone)
-- 파일 + 텍스트 붙여넣기 2가지 모드
+- `device_id`와 `session_id` 기준 세션별 RAG 문서 격리
 - 실시간 파일 검증 (매직바이트, 크기, 타입, 경로탐색)
 - 업로드 진행률 표시 + 상태 배지
 - 지원 형식: PDF, DOCX, TXT, MD, CSV, JSON (최대 10MB)
@@ -155,7 +154,6 @@ RootLayout (layout.tsx)
                     ├── MessageList
                     │   ├── MessageBubble[]
                     │   │   ├── AgentBadge
-                    │   │   ├── AgentSwitchAnimation
                     │   │   ├── MarkdownRenderer (또는 plain text)
                     │   │   ├── ToolUsage (접기/펼치기)
                     │   │   └── MemoryReference
@@ -187,7 +185,7 @@ RootLayout (layout.tsx)
 
 ## 성능 최적화
 
-1. **토큰 버퍼링**: 50ms 간격 배치 플러시로 렌더링 횟수 최소화
+1. **토큰 버퍼링**: 100ms 간격 배치 플러시로 렌더링 횟수 최소화
 2. **스트리밍 시 plain text**: 마크다운 파싱 건너뛰어 CPU 부하 감소
 3. **스크롤 디바운싱**: 150ms 디바운스 + RAF 사용
 4. **코드블록 접기**: 30줄 이상 자동 접기

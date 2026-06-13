@@ -10,7 +10,6 @@ class AgentState(TypedDict, total=False):
 
     Attributes:
         messages: Conversation messages (uses add_messages reducer)
-        next_agent: Legacy compatibility field; the single assistant graph keeps this None
         tool_results: Accumulated tool execution results
         metadata: Session metadata (session_id, user_id, routing info)
         has_documents: Whether documents are available for RAG
@@ -20,7 +19,6 @@ class AgentState(TypedDict, total=False):
     """
 
     messages: Annotated[list, add_messages]
-    next_agent: str | None
     tool_results: list[dict[str, Any]]
     metadata: dict[str, Any]
     has_documents: bool
@@ -53,7 +51,6 @@ def create_initial_state(
 
     return {
         "messages": [{"role": "user", "content": message}],
-        "next_agent": None,
         "tool_results": [],
         "metadata": metadata,
         "has_documents": False,

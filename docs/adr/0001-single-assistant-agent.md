@@ -28,5 +28,7 @@ retrieval remain tools behind the Research Evidence module.
 - Chat Turns avoid an extra router LLM invocation.
 - Research Evidence becomes the main place for tool selection, confidence, and
   source handling.
+- Assistant observability is reported as total workflow metrics plus Research
+  Evidence quality signals, not per-agent comparison.
 - Future specialized behavior should be added as tools or sub-agents only when
   it has distinct context, permissions, evaluation, or ownership needs.

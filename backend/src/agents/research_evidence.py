@@ -13,6 +13,31 @@ from src.graph.state import AgentState
 
 logger = get_logger(__name__)
 
+DOCUMENT_INTENT_TERMS = ("rag", "문서", "자료", "파일", "업로드", "pdf", "document")
+WEB_INTENT_TERMS = (
+    "최신",
+    "현재",
+    "지금",
+    "오늘",
+    "최근",
+    "뉴스",
+    "검색",
+    "날씨",
+    "주가",
+    "price",
+    "news",
+)
+REPORT_INTENT_TERMS = ("보고서", "리포트", "report", "종합")
+
+
+@dataclass(frozen=True)
+class ResearchIntent:
+    """Detected evidence intent for guardrail routing."""
+
+    document: bool
+    web: bool
+    report: bool
+
 
 class ResearchToolDecision(BaseModel):
     """Tool plan chosen for a research turn."""
@@ -76,8 +101,8 @@ class ResearchEvidenceCollector:
     async def decide_tools(self, query: str, state: AgentState) -> ResearchToolDecision:
         """Ask the LLM which research tools are needed."""
         available_tools = self.available_tools()
-        document_requested, web_requested, report_requested = self.intent_flags(query)
-        if not document_requested and not web_requested and not report_requested:
+        intent = self.detect_intent(query)
+        if not intent.document and not intent.web and not intent.report:
             return ResearchToolDecision(
                 tools=[],
                 response_mode="answer",
@@ -160,22 +185,22 @@ Rules:
         has_documents: bool = False,
     ) -> ResearchToolDecision:
         """Guard obvious tool requirements even if the LLM under-selects tools."""
-        document_requested, web_requested, report_requested = self.intent_flags(query)
+        intent = self.detect_intent(query)
         tools = list(decision.tools)
 
-        if "retriever" in available_tools and document_requested and "retriever" not in tools:
+        if "retriever" in available_tools and intent.document and "retriever" not in tools:
             tools.append("retriever")
         if (
             "retriever" in available_tools
-            and report_requested
+            and intent.report
             and has_documents
             and "retriever" not in tools
         ):
             tools.append("retriever")
         if (
             "web_search" in available_tools
-            and web_requested
-            and (not document_requested or report_requested)
+            and intent.web
+            and (not intent.document or intent.report)
             and "web_search" not in tools
         ):
             tools.append("web_search")
@@ -186,30 +211,14 @@ Rules:
             reasoning=decision.reasoning,
         )
 
-    def intent_flags(self, query: str) -> tuple[bool, bool, bool]:
-        """Return document, web, and report intent flags for guardrail routing."""
+    def detect_intent(self, query: str) -> ResearchIntent:
+        """Return evidence intent flags for guardrail routing."""
         lowered = query.lower()
-        document_requested = any(
-            term in lowered for term in ("rag", "문서", "자료", "파일", "업로드", "pdf", "document")
+        return ResearchIntent(
+            document=any(term in lowered for term in DOCUMENT_INTENT_TERMS),
+            web=any(term in lowered for term in WEB_INTENT_TERMS),
+            report=any(term in lowered for term in REPORT_INTENT_TERMS),
         )
-        web_requested = any(
-            term in lowered
-            for term in (
-                "최신",
-                "현재",
-                "지금",
-                "오늘",
-                "최근",
-                "뉴스",
-                "검색",
-                "날씨",
-                "주가",
-                "price",
-                "news",
-            )
-        )
-        report_requested = any(term in lowered for term in ("보고서", "리포트", "report", "종합"))
-        return document_requested, web_requested, report_requested
 
     def fallback_decision(
         self,
@@ -219,13 +228,13 @@ Rules:
     ) -> ResearchToolDecision:
         """Deterministic fallback if structured tool choice fails."""
         tools = []
-        document_requested, web_requested, report_requested = self.intent_flags(query)
+        intent = self.detect_intent(query)
 
-        if "retriever" in available_tools and document_requested:
+        if "retriever" in available_tools and intent.document:
             tools.append("retriever")
         if (
             "retriever" in available_tools
-            and report_requested
+            and intent.report
             and has_documents
             and "retriever" not in tools
         ):
@@ -233,11 +242,11 @@ Rules:
         if (
             "web_search" in available_tools
             and "web_search" not in tools
-            and web_requested
-            and (not document_requested or report_requested)
+            and intent.web
+            and (not intent.document or intent.report)
         ):
             tools.append("web_search")
-        mode = "report" if report_requested else "answer"
+        mode = "report" if intent.report else "answer"
         return ResearchToolDecision(
             tools=tools,
             response_mode=mode,
@@ -318,37 +327,46 @@ Rules:
 
     def normalize_tool_results(self, tool_results: list[dict]) -> list[dict]:
         """Add common evidence metadata to tool results."""
-        normalized = []
-        for result in tool_results:
-            item = dict(result)
-            tool = item.get("tool")
-            if item.get("error"):
-                item["evidence_count"] = 0
-                item["confidence"] = "error"
-                normalized.append(item)
-                continue
+        return [self.normalize_tool_result(result) for result in tool_results]
 
-            if tool == "retriever":
-                docs = item.get("results") or []
-                scores = [
-                    float(doc.get("score", 0))
-                    for doc in docs
-                    if isinstance(doc, dict) and doc.get("score") is not None
-                ]
-                item["evidence_count"] = len(docs) if isinstance(docs, list) else 0
-                item["sources"] = self.extract_document_sources(docs)
-                item["confidence"] = self.score_confidence(max(scores) if scores else 0)
-            elif tool == "web_search":
-                text = str(item.get("results") or "")
-                item["evidence_count"] = 1 if text.strip() else 0
-                item["sources"] = self.extract_markdown_links(text)
-                item["confidence"] = "medium" if text.strip() else "none"
-            else:
-                item["evidence_count"] = 0
-                item["confidence"] = "none"
+    def normalize_tool_result(self, result: dict) -> dict:
+        """Normalize one tool result."""
+        item = dict(result)
+        if item.get("error"):
+            item["evidence_count"] = 0
+            item["confidence"] = "error"
+            return item
 
-            normalized.append(item)
-        return normalized
+        tool = item.get("tool")
+        if tool == "retriever":
+            return self.normalize_retriever_result(item)
+        if tool == "web_search":
+            return self.normalize_web_search_result(item)
+
+        item["evidence_count"] = 0
+        item["confidence"] = "none"
+        return item
+
+    def normalize_retriever_result(self, item: dict) -> dict:
+        """Add evidence metadata for uploaded-document retrieval results."""
+        docs = item.get("results") or []
+        scores = [
+            float(doc.get("score", 0))
+            for doc in docs
+            if isinstance(doc, dict) and doc.get("score") is not None
+        ]
+        item["evidence_count"] = len(docs) if isinstance(docs, list) else 0
+        item["sources"] = self.extract_document_sources(docs)
+        item["confidence"] = self.score_confidence(max(scores) if scores else 0)
+        return item
+
+    def normalize_web_search_result(self, item: dict) -> dict:
+        """Add evidence metadata for web search results."""
+        text = str(item.get("results") or "")
+        item["evidence_count"] = 1 if text.strip() else 0
+        item["sources"] = self.extract_markdown_links(text)
+        item["confidence"] = "medium" if text.strip() else "none"
+        return item
 
     def score_confidence(self, score: float) -> str:
         """Map retriever score to a coarse confidence level."""

@@ -3,14 +3,11 @@ import type {
   ChatResponse,
   HealthResponse,
   AgentListResponse,
-  DocumentUploadRequest,
-  DocumentUploadResponse,
   FileUploadResponse,
   DocumentListResponse,
   SessionResponse,
   SessionListResponse,
   MetricsSummary,
-  AgentMetricsResponse,
   MetricsPeriod,
 } from '@/types';
 import { API_BASE_URL, API_ENDPOINTS } from './constants';
@@ -136,14 +133,6 @@ export const api = {
     return fetchApi<AgentListResponse>(API_ENDPOINTS.agents);
   },
 
-  // Documents
-  async uploadDocument(request: DocumentUploadRequest): Promise<DocumentUploadResponse> {
-    return fetchApi<DocumentUploadResponse>(API_ENDPOINTS.documents, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-  },
-
   // File Upload (multipart/form-data)
   async uploadFile(
     file: File,
@@ -195,9 +184,5 @@ export const api = {
   // Metrics
   async getMetricsSummary(period: MetricsPeriod = '24h'): Promise<MetricsSummary> {
     return fetchApi<MetricsSummary>(`${API_ENDPOINTS.metricsSummary}?period=${period}`);
-  },
-
-  async getAgentMetrics(agentName: string, period: MetricsPeriod = '24h'): Promise<AgentMetricsResponse> {
-    return fetchApi<AgentMetricsResponse>(`${API_ENDPOINTS.metricsAgents}?agent_name=${encodeURIComponent(agentName)}&period=${period}`);
   },
 };

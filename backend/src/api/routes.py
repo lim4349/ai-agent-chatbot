@@ -25,8 +25,6 @@ from src.api.schemas import (
     DocumentDeleteResponse,
     DocumentInfo,
     DocumentListResponse,
-    DocumentUploadRequest,
-    DocumentUploadResponse,
     FileUploadResponse,
     HealthResponse,
     MetricsSummaryResponse,
@@ -118,7 +116,6 @@ async def chat(
             message=response_message,
             session_id=request.session_id,
             agent_used=agent_used,
-            route_reasoning=result.get("metadata", {}).get("route_reasoning"),
             tool_results=result.get("tool_results", []),
         )
 
@@ -232,32 +229,6 @@ async def list_agents(
     ]
 
     return AgentListResponse(agents=agents)
-
-
-@router.post("/documents", response_model=DocumentUploadResponse)
-@inject
-async def upload_document(
-    request: DocumentUploadRequest,
-    retriever: DocumentRetriever | None = Depends(Provide[DIContainer.retriever]),  # noqa: B008
-) -> DocumentUploadResponse:
-    """Upload a document for RAG.
-
-    Requires a configured retriever (Pinecone).
-    """
-    if not retriever:
-        raise HTTPException(
-            status_code=400,
-            detail="RAG is not configured. Set up a document retriever first.",
-        )
-
-    try:
-        await retriever.add_documents([{"content": request.content, "metadata": request.metadata}])
-        return DocumentUploadResponse(
-            status="indexed",
-            message="Document successfully added to knowledge base",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="문서 인덱싱 중 오류가 발생했습니다.") from e
 
 
 # === Session Management Endpoints ===
@@ -602,14 +573,6 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Processing failed: {e}") from e
 
 
-def _get_file_extension(filename: str) -> str:
-    """Get file extension from filename."""
-    import os
-
-    _, ext = os.path.splitext(filename.lower())
-    return ext.lstrip(".")
-
-
 @router.get("/documents", response_model=DocumentListResponse)
 @inject
 async def list_documents(
@@ -705,22 +668,6 @@ async def get_metrics_summary(
     try:
         summary = await metrics_store.get_summary(period)
 
-        from src.api.schemas import AgentMetricItem
-
-        agent_stats_items = [
-            AgentMetricItem(
-                agent_name=stat["agent_name"],
-                date=stat["date"],
-                total_requests=stat["total_requests"],
-                successful_requests=stat["success_count"],
-                failed_requests=stat["error_count"],
-                blocked_requests=stat.get("timeout_count", 0),
-                avg_duration_ms=stat["avg_duration_ms"],
-                total_tokens=stat["total_input_tokens"] + stat["total_output_tokens"],
-            )
-            for stat in summary.get("agent_stats", [])
-        ]
-
         return MetricsSummaryResponse(
             period=summary["period"],
             total_requests=summary["total_requests"],
@@ -729,7 +676,6 @@ async def get_metrics_summary(
             blocked_requests=summary.get("timeout_count", 0),
             avg_duration_ms=summary["avg_duration_ms"],
             total_tokens=summary["total_input_tokens"] + summary["total_output_tokens"],
-            agent_stats=agent_stats_items,
             quality_stats=summary.get("quality_stats", {}),
             start_time=summary["start_time"],
             end_time=summary["end_time"],
@@ -737,61 +683,3 @@ async def get_metrics_summary(
     except Exception as e:
         logger.error("metrics_summary_error", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve metrics summary") from e
-
-
-@router.get("/metrics/agents")
-@inject
-async def get_agent_metrics(
-    agent_name: str,
-    period: str = "24h",
-    metrics_store=Depends(Provide[DIContainer.metrics_store]),  # noqa: B008
-):
-    """Get statistics for a specific agent.
-
-    Args:
-        agent_name: Agent name to filter by
-        period: Time period - "24h", "7d", "30d"
-        metrics_store: Metrics store dependency
-
-    Returns:
-        Agent-specific statistics
-    """
-    if not metrics_store:
-        raise HTTPException(
-            status_code=503,
-            detail="Metrics store is not available. Check Supabase configuration.",
-        )
-
-    # Validate period
-    if period not in ("24h", "7d", "30d"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid period. Must be one of: 24h, 7d, 30d",
-        )
-
-    try:
-        stats = await metrics_store.get_agent_stats(agent_name, period)
-
-        if not stats:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No metrics found for agent '{agent_name}' in period '{period}'",
-            )
-
-        from src.api.schemas import AgentMetricsResponse
-
-        return AgentMetricsResponse(
-            agent_name=stats["agent_name"],
-            date=stats["date"],
-            total_requests=stats["total_requests"],
-            successful_requests=stats["success_count"],
-            failed_requests=stats["error_count"],
-            blocked_requests=stats.get("timeout_count", 0),
-            avg_duration_ms=stats["avg_duration_ms"],
-            total_tokens=stats["total_input_tokens"] + stats["total_output_tokens"],
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("agent_metrics_error", agent_name=agent_name, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve agent metrics") from e

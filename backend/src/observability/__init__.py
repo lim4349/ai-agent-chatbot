@@ -6,12 +6,11 @@ from src.observability.agent_metrics import (
     record_agent_metrics,
 )
 from src.observability.metrics_store import MetricsStore
-from src.observability.models import AgentDailyStats, MetricsSummary, RequestMetric
+from src.observability.models import MetricsSummary, RequestMetric
 
 __all__ = [
     "MetricsStore",
     "RequestMetric",
-    "AgentDailyStats",
     "MetricsSummary",
     "record_agent_metrics",
     "AgentMetricsRecorder",

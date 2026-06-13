@@ -5,6 +5,8 @@ import type { Session, HealthResponse } from '@/types';
 import { streamChat } from '@/lib/sse';
 import { api } from '@/lib/api';
 import { parseMemoryCommand, type ParsedMemoryCommand } from '@/lib/memory-commands';
+import { classifyChatError, type ChatError } from '@/lib/chat-errors';
+import { StreamTokenBuffer } from '@/lib/stream-buffer';
 import {
   addTurnToSession,
   appendAssistantContent,
@@ -13,7 +15,6 @@ import {
   removeEmptyAssistantTail,
   removeLastTurn,
   setLastAssistantAgent,
-  setLastAssistantAgents,
   setLastAssistantContent,
   setLastAssistantStatus,
 } from './chat-turn';
@@ -21,53 +22,6 @@ import { useToastStore } from './toast-store';
 
 // Device ID for guest mode (no login required)
 const DEVICE_ID_KEY = 'device_id';
-
-// Error classification utility
-function classifyError(error: string): ChatError {
-  const lowerError = error.toLowerCase();
-
-  // Network errors
-  if (lowerError.includes('network') || lowerError.includes('fetch') ||
-      lowerError.includes('connection') || lowerError.includes('econnrefused') ||
-      lowerError.includes('name or service not known') || lowerError.includes('dns')) {
-    return {
-      message: '네트워크 연결이 불안정합니다. 인터넷 연결을 확인해주세요.',
-      type: 'network',
-      retryable: true,
-      originalError: error,
-    };
-  }
-
-  // Timeout errors
-  if (lowerError.includes('timeout') || lowerError.includes('timed out')) {
-    return {
-      message: '요청 시간이 초과되었습니다. 다시 시도해주세요.',
-      type: 'timeout',
-      retryable: true,
-      originalError: error,
-    };
-  }
-
-  // Server errors
-  if (lowerError.includes('500') || lowerError.includes('502') ||
-      lowerError.includes('503') || lowerError.includes('429') ||
-      lowerError.includes('server error')) {
-    return {
-      message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-      type: 'server',
-      retryable: true,
-      originalError: error,
-    };
-  }
-
-  // Unknown errors
-  return {
-    message: '오류가 발생했습니다. 다시 시도해주세요.',
-    type: 'unknown',
-    retryable: true,
-    originalError: error,
-  };
-}
 
 export function getDeviceId(): string {
   if (typeof window === 'undefined') return '';
@@ -77,16 +31,6 @@ export function getDeviceId(): string {
     localStorage.setItem(DEVICE_ID_KEY, deviceId);
   }
   return deviceId;
-}
-
-// Error types for better error handling
-export type ErrorType = 'network' | 'timeout' | 'server' | 'unknown';
-
-export interface ChatError {
-  message: string;
-  type: ErrorType;
-  retryable: boolean;
-  originalError?: string;
 }
 
 interface ChatStore {
@@ -246,49 +190,22 @@ export const useChatStore = create<ChatStore>()(
           error: null,
         }));
 
-        // Token batching for smooth streaming - batch by time instead of rAF
-        let tokenBuffer = '';
-        let flushInterval: NodeJS.Timeout | null = null;
-        let lastFlushTime = Date.now();
-
-        // Constants for performance optimization
-        const BATCH_INTERVAL = 100; // Increased from 50ms to 100ms
-        const CHECK_INTERVAL = 32; // ~30fps instead of 60fps
-        const MAX_BUFFER_SIZE = 500; // Max characters to buffer before forced flush
-        const flushTokens = () => {
-          if (!tokenBuffer) return;
-          const batch = tokenBuffer;
-          tokenBuffer = '';
-          lastFlushTime = Date.now();
+        const tokenBuffer = new StreamTokenBuffer((batch) => {
           set((state) => ({
             sessions: appendAssistantContent(state.sessions, sessionId, batch),
           }));
-        };
-
-        // Flush every BATCH_INTERVAL (100ms) for smoother rendering, or when buffer gets large
-        const scheduleFlush = () => {
-          if (flushInterval) return;
-          flushInterval = setInterval(() => {
-            const now = Date.now();
-            const timeSinceLastFlush = now - lastFlushTime;
-            // Flush if: buffer has content AND (BATCH_INTERVAL passed OR buffer > MAX_BUFFER_SIZE)
-            if (tokenBuffer && (timeSinceLastFlush >= BATCH_INTERVAL || tokenBuffer.length > MAX_BUFFER_SIZE)) {
-              flushTokens();
-            }
-          }, CHECK_INTERVAL); // ~30fps check
-        };
+        });
 
         const streamRequest = streamChat(
           { message: content, session_id: sessionId, device_id: getDeviceId() },
           {
             onMetadata: () => {},
             onToken: (token) => {
-              tokenBuffer += token;
-              scheduleFlush();
+              tokenBuffer.push(token);
             },
-            onAgent: (agent, allAgents) => {
+            onAgent: (agent) => {
               set((state) => ({
-                sessions: setLastAssistantAgent(state.sessions, sessionId, agent, allAgents),
+                sessions: setLastAssistantAgent(state.sessions, sessionId, agent),
               }));
             },
             onStatus: (status) => {
@@ -309,21 +226,10 @@ export const useChatStore = create<ChatStore>()(
                 }),
               }));
             },
-            onAgentsComplete: (agents) => {
-              // Final update with all agents that participated
-              set((state) => ({
-                sessions: setLastAssistantAgents(state.sessions, sessionId, agents),
-              }));
-            },
             onDone: () => {
-              // Flush any remaining tokens
-              if (flushInterval) {
-                clearInterval(flushInterval);
-                flushInterval = null;
-              }
-              if (tokenBuffer) {
-                const remaining = tokenBuffer;
-                tokenBuffer = '';
+              tokenBuffer.stop();
+              const remaining = tokenBuffer.drain();
+              if (remaining) {
                 set((state) => ({
                   sessions: appendAssistantContent(state.sessions, sessionId, remaining),
                   isStreaming: false,
@@ -334,12 +240,9 @@ export const useChatStore = create<ChatStore>()(
               }
             },
             onError: (error) => {
-              if (flushInterval) {
-                clearInterval(flushInterval);
-                flushInterval = null;
-              }
-              tokenBuffer = '';
-              const classifiedError = classifyError(error);
+              tokenBuffer.stop();
+              tokenBuffer.clear();
+              const classifiedError = classifyChatError(error);
               set((state) => ({
                 isStreaming: false,
                 _currentStreamAbort: null,
@@ -349,7 +252,13 @@ export const useChatStore = create<ChatStore>()(
             },
           }
         );
-        set({ _currentStreamAbort: streamRequest.abort });
+        set({
+          _currentStreamAbort: () => {
+            tokenBuffer.stop();
+            tokenBuffer.clear();
+            streamRequest.abort();
+          },
+        });
       },
 
       setStreaming: (value) => set({ isStreaming: value }),

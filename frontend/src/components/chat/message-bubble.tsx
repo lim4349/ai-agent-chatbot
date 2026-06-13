@@ -7,18 +7,16 @@ import type { Message } from '@/types';
 import { AgentBadge } from './agent-badge';
 import { ToolUsage } from './tool-usage';
 import { MemoryReference } from './memory-reference';
-import { AgentSwitchAnimation } from './agent-switch-animation';
 import { MarkdownRenderer } from './markdown-renderer';
 import { useTranslation } from '@/lib/i18n';
 
 interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
-  previousAgent?: string;
   onHeightChange?: (height: number) => void;
 }
 
-function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightChange }: MessageBubbleProps) {
+function MessageBubbleComponent({ message, isStreaming, onHeightChange }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const { t } = useTranslation();
@@ -96,12 +94,7 @@ function MessageBubbleComponent({ message, isStreaming, previousAgent, onHeightC
         {/* Agent badge and switch animation */}
         {!isUser && (
           <div className="flex items-center gap-2 flex-wrap">
-            {message.agent && <AgentBadge agent={message.agent} agents={message.agents} />}
-            <AgentSwitchAnimation
-              fromAgent={previousAgent}
-              toAgent={message.agent || 'assistant'}
-              isVisible={!!previousAgent && previousAgent !== message.agent}
-            />
+            {message.agent && <AgentBadge agent={message.agent} />}
           </div>
         )}
 
@@ -198,9 +191,6 @@ export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps)
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
   if (prevProps.message.agent !== nextProps.message.agent) return false;
   if (prevProps.message.status !== nextProps.message.status) return false;
-  if ((prevProps.message.agents || []).join('|') !== (nextProps.message.agents || []).join('|')) {
-    return false;
-  }
   if ((prevProps.message.tools?.length || 0) !== (nextProps.message.tools?.length || 0)) {
     return false;
   }

@@ -31,12 +31,12 @@ class SSEStreamer:
     def __init__(self) -> None:
         self.streamed_nodes: set[str] = set()
         self.sent_content_hashes: set[int] = set()
-        self.all_agents: list[str] = []
+        self.sent_agents: set[str] = set()
 
     def _add_agent(self, agent: str) -> bool:
-        """Add agent to tracking list. Returns True if newly added."""
-        if agent and agent not in self.all_agents:
-            self.all_agents.append(agent)
+        """Track an agent event. Returns True if newly added."""
+        if agent and agent not in self.sent_agents:
+            self.sent_agents.add(agent)
             return True
         return False
 
@@ -70,7 +70,7 @@ class SSEStreamer:
         if node_name in GRAPH_TRACE_NODES and self._add_agent(node_name):
             events.append({
                 "event": "agent",
-                "data": json.dumps({"agent": node_name, "all_agents": self.all_agents}),
+                "data": json.dumps({"agent": node_name}),
             })
 
         if node_name in NODE_STATUS_MESSAGES:
@@ -134,14 +134,7 @@ class SSEStreamer:
 
     def finalize(self) -> list[dict]:
         """Generate final events after streaming completes."""
-        events: list[dict] = []
-        if self.all_agents:
-            events.append({
-                "event": "agents_complete",
-                "data": json.dumps({"agents": self.all_agents}),
-            })
-        events.append({"event": "done", "data": ""})
-        return events
+        return [{"event": "done", "data": ""}]
 
 
 async def stream_graph_events(

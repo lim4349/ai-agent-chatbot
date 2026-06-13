@@ -11,10 +11,7 @@ def test_assistant_chain_start_emits_agent_and_status_events():
     events = streamer.handle_chain_start("assistant")
 
     assert [event["event"] for event in events] == ["agent", "status"]
-    assert json.loads(events[0]["data"]) == {
-        "agent": "assistant",
-        "all_agents": ["assistant"],
-    }
+    assert json.loads(events[0]["data"]) == {"agent": "assistant"}
     assert json.loads(events[1]["data"]) == {"message": "답변 준비 중..."}
 
 

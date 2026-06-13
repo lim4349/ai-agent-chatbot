@@ -92,13 +92,11 @@ export function appendAssistantContent(
 export function setLastAssistantAgent(
   sessions: Session[],
   sessionId: string,
-  agent: string,
-  agents?: string[]
+  agent: string
 ): Session[] {
   return updateLastAssistantMessage(sessions, sessionId, (message) => ({
     ...message,
     agent,
-    agents: agents || [agent],
   }));
 }
 
@@ -126,18 +124,6 @@ export function appendToolToLastAssistant(
   return updateLastAssistantMessage(sessions, sessionId, (message) => ({
     ...message,
     tools: [...(message.tools || []), tool],
-  }));
-}
-
-export function setLastAssistantAgents(
-  sessions: Session[],
-  sessionId: string,
-  agents: string[]
-): Session[] {
-  return updateLastAssistantMessage(sessions, sessionId, (message) => ({
-    ...message,
-    agents,
-    agent: agents[agents.length - 1] || message.agent,
   }));
 }
 

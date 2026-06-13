@@ -8,7 +8,6 @@ export interface MetricsSummary {
   blocked_requests: number;
   avg_duration_ms: number;
   total_tokens: number;
-  agent_stats: AgentMetricItem[];
   quality_stats?: QualityStats;
   start_time: string;
   end_time: string;
@@ -20,28 +19,6 @@ export interface QualityStats {
   evidence_rate: number;
   confidence_counts: Record<string, number>;
   tool_counts: Record<string, number>;
-}
-
-export interface AgentMetricItem {
-  agent_name: string;
-  date: string;
-  total_requests: number;
-  successful_requests: number;
-  failed_requests: number;
-  blocked_requests: number;
-  avg_duration_ms: number;
-  total_tokens: number;
-}
-
-export interface AgentMetricsResponse {
-  agent_name: string;
-  date: string;
-  total_requests: number;
-  successful_requests: number;
-  failed_requests: number;
-  blocked_requests: number;
-  avg_duration_ms: number;
-  total_tokens: number;
 }
 
 export interface RequestMetricResponse {

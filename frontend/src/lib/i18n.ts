@@ -91,9 +91,7 @@ const translations = {
 
     // Agent labels
     'agent.assistant': '어시스턴트',
-    'agent.chat': '대화',
-    'agent.research': '리서치',
-    'agent.additionalAgents': '추가 에이전트',
+    'agent.assistantDescription': '대화, 메모리, 근거 수집을 통합 처리',
 
     // Tool labels
     'tool.web_search': '웹 검색',
@@ -235,9 +233,7 @@ const translations = {
     'health.unlimited': 'Unlimited',
 
     'agent.assistant': 'Assistant',
-    'agent.chat': 'Chat',
-    'agent.research': 'Research',
-    'agent.additionalAgents': 'Additional agents',
+    'agent.assistantDescription': 'Handles conversation, memory, and evidence collection',
 
     // Tool labels
     'tool.web_search': 'Web search',

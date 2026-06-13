@@ -21,7 +21,7 @@ A user-uploaded file parsed, chunked, embedded, and stored for session-scoped re
 _Avoid_: file, vector record
 
 **RAG Document Lifecycle**:
-The full path a **RAG Document** follows from upload validation through retrieval or deletion.
+The session-scoped file upload path a **RAG Document** follows from upload validation through retrieval or deletion.
 _Avoid_: upload endpoint, document service
 
 **Conversation Memory**:

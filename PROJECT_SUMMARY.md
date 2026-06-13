@@ -122,9 +122,9 @@ User Memory (Supabase, permanent)
   5. Semantic search with multilingual-e5-large
 
 ### Real-Time Chat
-- **SSE Streaming**: Token-by-token streaming with 50ms buffering
+- **SSE Streaming**: Token-by-token streaming with 100ms buffering
 - **Smart Rendering**: Plain text during stream → markdown after completion
-- **Agent Visualization**: Color-coded badges, switch animations
+- **Assistant Visualization**: Single Assistant badge plus tool usage details
 - **Tool Tracking**: Tool usage display (expandable)
 - **Auto-scroll**: Smart scrolling with "scroll to bottom" button
 
@@ -153,8 +153,8 @@ User Memory (Supabase, permanent)
 - Request volume (24h, 7d, 30d)
 - Success/failure rates
 - Token usage tracking
-- Agent request distribution (pie chart)
 - Average response times
+- Research Evidence usage, confidence, and tool counts
 
 **Stored Metrics** (Supabase):
 - `request_metrics`: Agent performance logs
@@ -271,7 +271,7 @@ RootLayout (layout.tsx)
             │   └── Theme toggle
             ├── Sidebar (sessions)
             └── Main
-                ├── DocumentUpload
+    ├── CombinedDocumentUpload
                 └── ChatContainer
                     ├── MessageList
                     │   ├── MessageBubble
@@ -295,7 +295,6 @@ RootLayout (layout.tsx)
 | DELETE | `/api/v1/sessions/{id}/full` | ❌ | Full cleanup |
 | GET | `/api/v1/health` | ❌ | Health check |
 | GET | `/api/v1/metrics/summary` | ❌ | Metrics summary |
-| GET | `/api/v1/metrics/agents` | ❌ | Agent metrics |
 
 ---
 
@@ -324,7 +323,7 @@ RootLayout (layout.tsx)
 ### Performance Optimizations
 
 **Frontend**:
-1. **Token Buffering (50ms)**: Stream tokens collected → flushed every 50ms or 100+ chars
+1. **Token Buffering (100ms)**: Stream tokens collected → flushed every 100ms or 500+ chars
 2. **Dual Rendering**: Plain text during SSE → markdown after completion
 3. **Code Block Auto-Collapse**: >30 lines automatically collapsed
 4. **Scroll Optimization**: 150ms debounce + requestAnimationFrame

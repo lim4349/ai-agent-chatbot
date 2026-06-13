@@ -13,13 +13,10 @@ export const API_ENDPOINTS = {
   sessionFull: (id: string) => `/api/v1/sessions/${id}/full`,
   logs: '/api/v1/logs',
   metricsSummary: '/api/v1/metrics/summary',
-  metricsAgents: '/api/v1/metrics/agents',
 } as const;
 
 export const AGENT_COLORS: Record<AgentType, { bg: string; text: string; label: string }> = {
   assistant: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'Assistant' },
-  chat: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Chat' },
-  research: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Research' },
 };
 
 export const MAX_MESSAGE_LENGTH = 2000;

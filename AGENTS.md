@@ -52,6 +52,9 @@ so paid routing is not used accidentally.
 ## Security Defaults
 
 - Keep the active tool surface limited to `web_search` and `retriever`.
+- RAG document ingestion must go through `/api/v1/documents/upload` with
+  `device_id` and `session_id`; do not add unauthenticated/global document
+  ingestion paths.
 - Log endpoints are debug-only. Do not expose `/api/v1/logs` in production.
 - Do not commit real secrets. Use `.env.example` placeholders and configure secrets in
   Render, Vercel, or GitHub Actions.

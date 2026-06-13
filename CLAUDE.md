@@ -62,6 +62,7 @@ npm run build
 - Redis가 없어도 동작하는 fallback 경로를 깨지 않도록 주의
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
 - LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
+- 문서 업로드는 `POST /api/v1/documents/upload` 경로만 사용하며 `device_id`와 `session_id`로 격리
 - 대화/메모리 흐름 수정은 `src/agents/assistant_agent.py` 조정
 - 도구 선택 수정은 `src/agents/research_evidence.py`의 `ResearchToolDecision` 및 guardrail 로직 조정
 

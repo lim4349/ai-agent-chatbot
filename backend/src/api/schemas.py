@@ -23,23 +23,6 @@ class ChatRequest(BaseModel):
     stream: bool = Field(default=False, description="Enable streaming response")
 
 
-class DocumentUploadRequest(BaseModel):
-    """Document upload request for RAG."""
-
-    content: str = Field(..., min_length=1, description="Document content")
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Session or document metadata"
-    )
-
-
-class FileUploadRequest(BaseModel):
-    """File upload request for RAG with binary file content."""
-
-    metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Session or document metadata"
-    )
-
-
 # --- Response Models ---
 
 
@@ -49,7 +32,6 @@ class ChatResponse(BaseModel):
     message: str = Field(..., description="Assistant response")
     session_id: str = Field(..., description="Session ID")
     agent_used: str = Field(..., description="Agent that processed the request")
-    route_reasoning: str | None = Field(default=None, description="Router reasoning")
     tool_results: list[dict[str, Any]] = Field(
         default_factory=list, description="Tool execution results"
     )
@@ -87,13 +69,6 @@ class ErrorResponse(BaseModel):
     """Error response schema."""
 
     error: dict = Field(..., description="Error details")
-
-
-class DocumentUploadResponse(BaseModel):
-    """Document upload response."""
-
-    status: str = Field(..., description="Upload status")
-    message: str = Field(..., description="Status message")
 
 
 class FileUploadResponse(BaseModel):
@@ -175,19 +150,6 @@ class SessionListResponse(BaseModel):
 # --- Metrics Models ---
 
 
-class AgentMetricItem(BaseModel):
-    """Per-agent metric item."""
-
-    agent_name: str = Field(..., description="Agent name")
-    date: str = Field(..., description="Date in YYYY-MM-DD format")
-    total_requests: int = Field(..., description="Total number of requests")
-    successful_requests: int = Field(..., description="Successful requests")
-    failed_requests: int = Field(..., description="Failed requests")
-    blocked_requests: int = Field(..., description="Blocked requests")
-    avg_duration_ms: float = Field(..., description="Average request duration in milliseconds")
-    total_tokens: int = Field(..., description="Total tokens processed")
-
-
 class MetricsSummaryResponse(BaseModel):
     """Metrics summary response."""
 
@@ -198,27 +160,11 @@ class MetricsSummaryResponse(BaseModel):
     blocked_requests: int = Field(..., description="Blocked requests")
     avg_duration_ms: float = Field(..., description="Average duration across all requests")
     total_tokens: int = Field(..., description="Total tokens processed")
-    agent_stats: list[AgentMetricItem] = Field(
-        default_factory=list, description="Per-agent statistics"
-    )
     quality_stats: dict[str, Any] = Field(
         default_factory=dict, description="LLMOps quality and evidence statistics"
     )
     start_time: datetime = Field(..., description="Start of period")
     end_time: datetime = Field(..., description="End of period")
-
-
-class AgentMetricsResponse(BaseModel):
-    """Agent-specific metrics response."""
-
-    agent_name: str = Field(..., description="Agent name")
-    date: str = Field(..., description="Date in YYYY-MM-DD format")
-    total_requests: int = Field(..., description="Total number of requests")
-    successful_requests: int = Field(..., description="Successful requests")
-    failed_requests: int = Field(..., description="Failed requests")
-    blocked_requests: int = Field(..., description="Blocked requests")
-    avg_duration_ms: float = Field(..., description="Average request duration in milliseconds")
-    total_tokens: int = Field(..., description="Total tokens processed")
 
 
 class RequestMetricResponse(BaseModel):

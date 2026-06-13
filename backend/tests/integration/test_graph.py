@@ -130,7 +130,6 @@ async def test_graph_assistant_uses_web_tool_for_web_query():
     result = await graph.ainvoke(state, config=_config("web-search"))
 
     assert result["completed_steps"] == ["assistant"]
-    assert result["next_agent"] is None
     assert result["tool_results"][0]["tool"] == "web_search"
     assert llm.calls == 2
 
@@ -150,7 +149,6 @@ async def test_graph_assistant_uses_retriever_for_document_query():
     result = await graph.ainvoke(state, config=_config("rag"))
 
     assert result["completed_steps"] == ["assistant"]
-    assert result["next_agent"] is None
     assert result["tool_results"][0]["tool"] == "retriever"
     assert llm.calls == 2
 
@@ -170,7 +168,6 @@ async def test_graph_assistant_uses_both_tools_for_report_query():
     result = await graph.ainvoke(state, config=_config("report"))
 
     assert result["completed_steps"] == ["assistant"]
-    assert result["next_agent"] is None
     assert [tool_result["tool"] for tool_result in result["tool_results"]] == [
         "web_search",
         "retriever",
@@ -192,6 +189,5 @@ async def test_graph_assistant_answers_simple_query_without_tools():
     result = await graph.ainvoke(state, config=_config("assistant"))
 
     assert result["completed_steps"] == ["assistant"]
-    assert result["next_agent"] is None
     assert result["tool_results"] == []
     assert llm.calls == 1
