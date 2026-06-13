@@ -1,5 +1,4 @@
 const TOKEN_KEY = 'auth_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
 
 export interface TokenPayload {
   exp: number;
@@ -11,8 +10,8 @@ export interface TokenPayload {
 }
 
 /**
- * Token Manager for JWT authentication
- * Handles token storage, validation, and refresh logic
+ * Token storage utility for optional bearer-token API calls.
+ * The current product flow is guest-first and does not expose login UI.
  */
 export const tokenManager = {
   /**
@@ -30,8 +29,8 @@ export const tokenManager = {
   },
 
   /**
-   * Store the access token
-   * @param token - The JWT access token
+   * Store an access token.
+   * @param token - Bearer token to attach to API requests
    * @param rememberMe - If true, stores in localStorage; otherwise sessionStorage
    */
   setToken(token: string, rememberMe: boolean = false): void {
@@ -42,36 +41,18 @@ export const tokenManager = {
   },
 
   /**
-   * Get the stored refresh token
-   */
-  getRefreshToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem(REFRESH_TOKEN_KEY);
-  },
-
-  /**
-   * Store the refresh token (always in localStorage for persistence)
-   */
-  setRefreshToken(token: string): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(REFRESH_TOKEN_KEY, token);
-  },
-
-  /**
-   * Clear all tokens from both localStorage and sessionStorage
+   * Clear stored access tokens from both localStorage and sessionStorage.
    */
   clearTokens(): void {
     if (typeof window === 'undefined') return;
 
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
   },
 
   /**
    * Check if a token is expired
-   * @param token - JWT token to check
+   * @param token - JWT-like token to check
    * @returns true if token is expired or invalid, false otherwise
    */
   isTokenExpired(token: string): boolean {
@@ -91,8 +72,8 @@ export const tokenManager = {
   },
 
   /**
-   * Parse and decode JWT token payload
-   * @param token - JWT token to parse
+   * Parse and decode a JWT-like token payload.
+   * @param token - Token to parse
    * @returns Decoded token payload or null if invalid
    */
   parseToken(token: string): TokenPayload | null {
@@ -126,120 +107,10 @@ export const tokenManager = {
   },
 
   /**
-   * Get the user ID from the current token
-   */
-  getUserId(): string | null {
-    const payload = this.getTokenPayload();
-    return payload?.user_id || payload?.sub || null;
-  },
-
-  /**
-   * Get the user email from the current token
-   */
-  getUserEmail(): string | null {
-    const payload = this.getTokenPayload();
-    return payload?.email || null;
-  },
-
-  /**
    * Check if there's a valid (non-expired) token
    */
   hasValidToken(): boolean {
     const token = this.getToken();
     return token !== null && !this.isTokenExpired(token);
   },
-
-  /**
-   * Refresh the access token using the refresh token
-   * @returns New access token or null if refresh failed
-   */
-  async refreshToken(): Promise<string | null> {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return null;
-
-    try {
-      // Import API_BASE_URL dynamically to avoid circular dependencies
-      const { API_BASE_URL } = await import('./constants');
-
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // Store new tokens
-        this.setToken(data.access_token, data.remember ?? true);
-        if (data.refresh_token) {
-          this.setRefreshToken(data.refresh_token);
-        }
-
-        return data.access_token;
-      }
-
-      // Refresh failed, clear tokens
-      this.clearTokens();
-      return null;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      this.clearTokens();
-      return null;
-    }
-  },
-
-  /**
-   * Calculate time until token expires in milliseconds
-   * @returns Milliseconds until expiration, or 0 if expired/invalid
-   */
-  getTimeUntilExpiration(): number {
-    const payload = this.getTokenPayload();
-    if (!payload || !payload.exp) return 0;
-
-    const expirationTime = payload.exp * 1000;
-    const now = Date.now();
-
-    return Math.max(0, expirationTime - now);
-  },
-
-  /**
-   * Setup automatic token refresh before expiration
-   * @param callback - Function to call when refresh is needed
-   * @returns Cleanup function to clear the timeout
-   */
-  setupAutoRefresh(callback: () => void): () => void {
-    const timeUntilExpiry = this.getTimeUntilExpiration();
-
-    // Refresh 5 minutes before expiration
-    const refreshTime = Math.max(0, timeUntilExpiry - 5 * 60 * 1000);
-
-    const timeoutId = setTimeout(() => {
-      callback();
-    }, refreshTime);
-
-    // Return cleanup function
-    return () => clearTimeout(timeoutId);
-  },
 };
-
-/**
- * Higher-order function to wrap API calls with token refresh logic
- */
-export async function withTokenRefresh<T>(
-  apiCall: () => Promise<T>
-): Promise<T> {
-  try {
-    return await apiCall();
-  } catch (error: unknown) {
-    const err = error as { status?: number; message?: string };
-    // If 401 Unauthorized, try to refresh token and retry
-    if (err.status === 401 || err.message?.includes('401')) {
-      const newToken = await tokenManager.refreshToken();
-      if (newToken) {
-        return await apiCall();
-      }
-    }
-    throw error;
-  }
-}

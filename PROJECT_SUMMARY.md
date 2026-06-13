@@ -50,17 +50,16 @@ A production-ready **LangGraph-based single-assistant Agentic RAG chatbot system
 | Vector DB | Pinecone | RAG embeddings (multilingual-e5-large) |
 | Session Memory | Upstash Redis / Redis | Short-term (TTL: 1 hour) |
 | User/Topic Storage | Supabase PostgreSQL | Long-term persistent memory |
-| Auth | Supabase Auth | User authentication |
 | Tracing (Optional) | LangSmith | LLM observability |
 
 ### Document Processing
 | Format | Library | Features |
 |--------|---------|----------|
 | PDF | pdfplumber | Text + table extraction |
-| DOCX | python-docx | Heading, table support |
-| TXT/MD/CSV/JSON | Built-in | Multi-format support |
+| DOCX | python-docx | Ordered heading, paragraph, table support |
+| TXT/MD/CSV/JSON | Built-in | Markdown-like canonical parsing, table preservation |
 | Embedding | Pinecone SDK | Async embedding generation |
-| Chunking | Custom | Structure-aware 500-token chunks, 50-token overlap |
+| Chunking | Custom | Hierarchy-aware parent-child chunks with heading/page/table metadata |
 
 ### Deployment Infrastructure
 | Environment | Frontend | Backend | Hosting |
@@ -116,10 +115,12 @@ User Memory (Supabase, permanent)
 - **Max size**: 10MB
 - **Processing pipeline**:
   1. File validation (magic bytes, MIME, size)
-  2. Multi-format parsing (pdfplumber, python-docx, etc.)
-  3. Structure-aware chunking (500 tokens, 50 overlap)
-  4. Async embedding → Pinecone vector store
-  5. Semantic search with multilingual-e5-large
+  2. Layout-aware parsing into canonical Markdown-like elements
+  3. Heading/table/page metadata and parse quality warnings
+  4. Hierarchy-aware parent-child chunking
+  5. Child chunk embedding → Pinecone vector store
+  6. Child search → parent context hydration for final answers
+- **Lifecycle UI**: upload, list, delete, parse warning, loading, and delete-in-progress states in the document dialog
 
 ### Real-Time Chat
 - **SSE Streaming**: Token-by-token streaming with 100ms buffering
@@ -142,9 +143,8 @@ User Memory (Supabase, permanent)
 - PII detection (email, phone, etc.)
 
 **Frontend Security**:
-- JWT token management (sessionStorage)
-- Auto-refresh 60 seconds before expiry
-- 401 auto-retry on authentication failure
+- Guest-first `device_id` and `session_id` scoping
+- Optional bearer token header support in the API client for future auth integration
 - URL protocol validation for links
 
 ### Observability & Analytics
@@ -155,6 +155,8 @@ User Memory (Supabase, permanent)
 - Token usage tracking
 - Average response times
 - Research Evidence usage, confidence, and tool counts
+- Offline RAG evaluation JSONL runner with expected tools, sources, confidence, page, heading path, table answer coverage, and parent hydration checks
+- CI gate support for minimum source-hit, answer-coverage, tool-match, confidence-pass, citation-page, heading-path, table-coverage, and parent-hydration rates
 
 **Stored Metrics** (Supabase):
 - `request_metrics`: Agent performance logs
@@ -200,7 +202,7 @@ User Memory (Supabase, permanent)
 │                    Infrastructure Layer                             │
 │   ┌────────────┐  ┌────────────┐  ┌────────────┐                    │
 │   │  Pinecone  │  │   Redis    │  │  Supabase  │                    │
-│   │ (Vector DB)│  │  (Session) │  │(Auth + DB) │                    │
+│   │ (Vector DB)│  │  (Session) │  │(DB/Memory) │                    │
 │   └────────────┘  └────────────┘  └────────────┘                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -259,27 +261,27 @@ backend/src/
     └── agent_metrics.py
 ```
 
-### Frontend Component Architecture (60 TypeScript files)
+### Frontend Component Architecture (69 TypeScript files)
 ```
 RootLayout (layout.tsx)
-└── AuthProvider (initialization + token refresh)
-    └── TooltipProvider
-        └── ChatPage
-            ├── Header
-            │   ├── HealthIndicator
-            │   ├── Language toggle
-            │   └── Theme toggle
-            ├── Sidebar (sessions)
-            └── Main
-    ├── CombinedDocumentUpload
-                └── ChatContainer
-                    ├── MessageList
-                    │   ├── MessageBubble
-                    │   │   ├── AgentBadge
-                    │   │   ├── MarkdownRenderer
-                    │   │   └── ToolUsage
-                    │   └── TypingIndicator
-                    └── ChatInput
+└── TooltipProvider
+    └── ChatPage
+        ├── Header
+        │   ├── HealthIndicator
+        │   ├── Language toggle
+        │   └── Theme toggle
+        ├── Sidebar (sessions)
+        └── Main
+            ├── CombinedDocumentUpload
+            │   └── DocumentList
+            └── ChatContainer
+                ├── MessageList
+                │   ├── MessageBubble
+                │   │   ├── AgentBadge
+                │   │   ├── MarkdownRenderer
+                │   │   └── ToolUsage
+                │   └── TypingIndicator
+                └── ChatInput
 ```
 
 ### API Endpoints (15+)
@@ -288,9 +290,9 @@ RootLayout (layout.tsx)
 |--------|------|------|-------------|
 | POST | `/api/v1/chat` | ❌ | Sync chat response |
 | POST | `/api/v1/chat/stream` | ❌ | SSE streaming chat |
-| POST | `/api/v1/documents/upload` | ✅ | File upload (RAG) |
-| GET | `/api/v1/documents` | ✅ | List documents |
-| GET | `/api/v1/sessions` | ✅ | Session list |
+| POST | `/api/v1/documents/upload` | ❌ | File upload (RAG, scoped by `device_id` + `session_id`) |
+| GET | `/api/v1/documents` | ❌ | List documents scoped by `device_id` |
+| GET | `/api/v1/sessions` | ❌ | Session list scoped by `device_id` |
 | DELETE | `/api/v1/sessions/{id}` | ❌ | Session delete |
 | DELETE | `/api/v1/sessions/{id}/full` | ❌ | Full cleanup |
 | GET | `/api/v1/health` | ❌ | Health check |
@@ -301,8 +303,8 @@ RootLayout (layout.tsx)
 ## 4. FILE STRUCTURE OVERVIEW
 
 ### Total Codebase Size
-- **Backend**: 95 Python files
-- **Frontend**: 60 TypeScript files
+- **Backend**: 99 Python files
+- **Frontend**: 69 TypeScript files
 - **Documentation**: 12 markdown files
 - **Configuration**: docker-compose.yml, render.yaml, pyproject.toml, package.json, etc.
 
@@ -335,6 +337,7 @@ RootLayout (layout.tsx)
 3. **Auto-Summarization**: Triggered at >2000 tokens
 4. **Connection Pooling**: Redis, Supabase, HTTP pooling
 5. **Token Estimation**: tiktoken for accurate counting
+6. **Structured Output Fallback**: OpenRouter-compatible text JSON fallback when structured output is unavailable
 
 ### Security Implementation
 
@@ -356,11 +359,12 @@ RootLayout (layout.tsx)
 - URL protocol validation (http/https only)
 - Markdown sanitization
 
-**JWT Token Management**:
-- sessionStorage (not localStorage)
-- Auto-refresh 60 seconds before expiry
-- 401 retry loop with fresh token
-- 60-second auth check intervals
+**Guest Session Isolation**:
+- `device_id` identifies the browser guest identity
+- `session_id` scopes chat turns and RAG documents
+- Frontend auth screens and route guards are not active
+- Session deletion clears session memory, session topic summaries, RAG documents, and the session row
+- User facts/profile data are deleted only through explicit user memory deletion
 
 ### Design Patterns
 
@@ -432,12 +436,13 @@ Docker Compose Services:
 **External Services**:
 - Pinecone (Vector DB): Free tier ~1M vectors
 - Upstash Redis (Session): Free tier ~10K requests/day
-- Supabase (Auth + DB): Free tier ~500MB storage
+- Supabase (DB): Free tier ~500MB storage
 
 **CI/CD**: GitHub Actions
 ```
 On: Push to main
 ├── Backend Tests (ruff lint, pytest)
+├── Research Evidence Eval (offline JSONL thresholds)
 ├── Frontend Tests (eslint, next build)
 ├── Security Scan (Trivy, npm audit)
 └── Deploy (parallel to Render + Vercel)
@@ -458,7 +463,7 @@ On: Push to main
 ### Pinecone Index
 
 **Index**: `documents` (1024 dimensions, cosine metric)
-**Metadata**: session_id, doc_source, chunk_index, file_name
+**Metadata**: session_id, device_id, document_id, record_type, parent_id, child_id, filename, heading_path, page/page_end, section_type, parse quality summary
 
 ---
 
@@ -496,7 +501,7 @@ On: Push to main
 | Metric | Value |
 |--------|-------|
 | Backend Files | Python FastAPI/LangGraph modules |
-| Frontend Files | 60 TypeScript |
+| Frontend Files | 69 TypeScript |
 | REST Endpoints | 15+ |
 | Agents | 1 active (`assistant`) |
 | Active Tools | 2 (`web_search`, `retriever`) |
@@ -536,6 +541,6 @@ docker-compose up -d
 
 ---
 
-**Last Updated**: 2026-06-12
+**Last Updated**: 2026-06-13
 **Created for**: Portfolio PDF Presentation
 **Ready for**: Deployment, Scaling, Feature Extensions

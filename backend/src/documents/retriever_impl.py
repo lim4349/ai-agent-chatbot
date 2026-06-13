@@ -99,6 +99,7 @@ class PineconeDocumentRetriever(DocumentRetriever):
 
         # Format results for the research agent with confidence filtering
         formatted_results = []
+        seen_contexts: set[tuple[str, str]] = set()
         for result in results:
             # Skip low-relevance results (anti-hallucination)
             if result.score < MIN_RELEVANCE_SCORE:
@@ -110,17 +111,34 @@ class PineconeDocumentRetriever(DocumentRetriever):
                 )
                 continue
 
+            parent_result = await self._hydrate_parent_context(result, device_id=device_id)
+            context_result = parent_result or result
+            parent_id = result.metadata.get("parent_id") or result.metadata.get("chunk_id", "")
+            context_key = (result.document_id, str(parent_id))
+            if context_key in seen_contexts:
+                continue
+            seen_contexts.add(context_key)
+
             formatted_result = {
-                "content": result.chunk_content,
+                "content": context_result.chunk_content,
+                "matched_excerpt": result.chunk_content,
                 "metadata": {
                     "source": result.metadata.get("source", "unknown"),
                     "filename": result.metadata.get("filename", "unknown"),
                     "file_type": result.metadata.get("file_type", "unknown"),
                     "page": result.metadata.get("page"),
+                    "page_end": context_result.metadata.get("page_end")
+                    or result.metadata.get("page_end"),
                     "heading": result.metadata.get("heading"),
+                    "heading_path": result.metadata.get("heading_path", []),
+                    "heading_path_text": result.metadata.get("heading_path_text", ""),
+                    "section_type": result.metadata.get("section_type", "paragraph"),
                     "chunk_index": result.metadata.get("chunk_index", 0),
                     "total_chunks": result.metadata.get("total_chunks", 1),
                     "document_id": result.document_id,
+                    "record_type": result.metadata.get("record_type", "chunk"),
+                    "parent_id": result.metadata.get("parent_id"),
+                    "child_id": result.metadata.get("child_id") or result.metadata.get("chunk_id"),
                 },
                 "score": result.score,
                 # Flag low-confidence results for the research agent to handle
@@ -134,6 +152,29 @@ class PineconeDocumentRetriever(DocumentRetriever):
             filtered_count=len(results) - len(formatted_results),
         )
         return formatted_results
+
+    async def _hydrate_parent_context(self, result, device_id: str | None = None):
+        """Fetch parent context for child search results when available."""
+        if result.metadata.get("record_type") != "child":
+            return None
+
+        parent_id = result.metadata.get("parent_id")
+        if not parent_id:
+            return None
+
+        parent_result = await self.vector_store.get_chunk(
+            document_id=result.document_id,
+            chunk_id=str(parent_id),
+            device_id=device_id,
+        )
+        if not parent_result or not parent_result.chunk_content:
+            logger.info(
+                "parent_context_missing",
+                document_id=result.document_id,
+                parent_id=parent_id,
+            )
+            return None
+        return parent_result
 
     async def add_documents(self, documents: list[dict]) -> None:
         """Add documents to the retriever (parse, chunk, embed, store).

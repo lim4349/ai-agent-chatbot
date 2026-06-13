@@ -123,6 +123,22 @@ def extract_structured_result(result) -> dict | None:
     return None
 
 
+def validate_structured_result(data: dict | None, output_schema: type) -> dict | None:
+    """Validate parsed structured data against a Pydantic schema when available."""
+    if data is None:
+        return None
+    if output_schema is dict:
+        return data
+    if hasattr(output_schema, "model_validate"):
+        try:
+            validated = output_schema.model_validate(data)
+        except Exception:
+            return None
+        if hasattr(validated, "model_dump"):
+            return validated.model_dump()
+    return data
+
+
 def parse_json_response(content: str) -> dict | None:
     """Parse a JSON object from direct text, markdown blocks, or mixed text."""
     if not content:

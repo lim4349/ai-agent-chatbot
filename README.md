@@ -8,7 +8,7 @@ LangGraph 기반 Agentic RAG 챗봇 시스템입니다. 단일 `assistant` 에�
 - 백엔드: FastAPI + LangGraph + dependency-injector
 - LLM: OpenRouter (`openrouter/free`, 유료 fallback 없음)
 - 세션/메모리: Redis 우선, 로컬에서는 In-Memory fallback
-- RAG: Pinecone + 문서 업로드 파이프라인
+- RAG: Pinecone + layout-aware 문서 업로드 파이프라인
 - 배포: Render(백엔드) + Vercel(프론트엔드)
 
 ## 그래프 구조
@@ -31,11 +31,12 @@ LangGraph 기반 Agentic RAG 챗봇 시스템입니다. 단일 `assistant` 에�
 
 - 단일 AssistantAgent 기반 Agentic RAG 흐름
 - Research Evidence 기반 agentic tool calling
-- 문서 업로드 후 질의응답 (`retriever`)
+- 문서 업로드, layout-aware parsing, parent-child retrieval, 목록/삭제 후 질의응답 (`retriever`)
 - 웹 검색 도구 연동 (`web_search`, Tavily)
 - 세션 메모리 저장 및 요약
 - SSE 기반 스트리밍 응답
 - `/dashboard` 운영 대시보드
+- CI에서 실행 가능한 offline RAG evaluation JSONL gate
 
 ## 디렉토리 구조
 
@@ -117,6 +118,7 @@ docker compose up -d --build
 cd backend
 uv run --with ruff ruff check .
 uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
+uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl --min-source-hit-rate 1.0 --min-answer-coverage-rate 1.0 --max-no-answer-rate 0.0 --min-tool-match-rate 1.0 --min-confidence-pass-rate 1.0 --min-citation-page-hit-rate 1.0 --min-heading-path-hit-rate 1.0 --min-table-answer-coverage-rate 1.0 --min-parent-hydration-rate 1.0
 
 # frontend
 cd frontend

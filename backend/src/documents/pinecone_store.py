@@ -35,6 +35,12 @@ class DocumentStats:
     filename: str | None
     file_type: str | None
     upload_time: datetime | None
+    parent_chunk_count: int = 0
+    child_chunk_count: int = 0
+    page_count: int = 0
+    table_count: int = 0
+    element_count: int = 0
+    parse_warnings: list[str] | None = None
 
 
 class PineconeVectorStore:
@@ -131,9 +137,21 @@ class PineconeVectorStore:
 
         # Prepare data for Pinecone
         vectors = []
+        texts_to_embed = []
+        embedding_vector_indices = []
+        parse_summary = document.metadata.get("parse_summary", {})
+        parent_chunk_count = sum(
+            1 for chunk in document.chunks if getattr(chunk.metadata, "record_type", "") == "parent"
+        )
+        child_chunk_count = sum(
+            1 for chunk in document.chunks if getattr(chunk.metadata, "record_type", "") == "child"
+        )
 
         for chunk in document.chunks:
             chunk_id = f"{document.id}_{chunk.id}"
+            record_type = getattr(chunk.metadata, "record_type", None) or "chunk"
+            heading_path = list(getattr(chunk.metadata, "heading_path", []) or [])
+            parse_warnings = parse_summary.get("warnings", [])
 
             # Build metadata with user/session isolation
             metadata = {
@@ -143,12 +161,24 @@ class PineconeVectorStore:
                 "file_type": document.file_type,
                 "source": chunk.metadata.source,
                 "page": chunk.metadata.page,
+                "page_end": getattr(chunk.metadata, "page_end", None),
                 "heading": chunk.metadata.heading,
+                "heading_path": heading_path,
+                "heading_path_text": " > ".join(heading_path),
                 "section_type": chunk.metadata.section_type,
+                "record_type": record_type,
+                "parent_id": getattr(chunk.metadata, "parent_id", None),
+                "child_id": getattr(chunk.metadata, "child_id", None),
                 "chunk_index": chunk.metadata.chunk_index,
                 "total_chunks": chunk.metadata.total_chunks,
                 "char_count": chunk.metadata.char_count,
                 "token_count": chunk.metadata.token_count,
+                "parent_chunk_count": parent_chunk_count,
+                "child_chunk_count": child_chunk_count,
+                "parse_page_count": parse_summary.get("page_count", 0),
+                "parse_table_count": parse_summary.get("table_count", 0),
+                "parse_element_count": parse_summary.get("element_count", 0),
+                "parse_warnings": parse_warnings[:10] if isinstance(parse_warnings, list) else [],
                 "upload_time": document.upload_time.isoformat() if document.upload_time else None,
                 # Pinecone requires string values for metadata filtering
                 "text": chunk.content,  # Store text in metadata
@@ -168,19 +198,27 @@ class PineconeVectorStore:
                     "metadata": metadata,
                 }
             )
+            if record_type != "parent":
+                texts_to_embed.append(chunk.content)
+                embedding_vector_indices.append(len(vectors) - 1)
 
         # Generate embeddings
         logger.info(
             "generating_embeddings",
             document_id=document.id,
-            chunk_count=len(vectors),
+            chunk_count=len(texts_to_embed),
         )
-        texts = [chunk.content for chunk in document.chunks]
-        embeddings = await self.embedding_generator.generate(texts)
+        embeddings = await self.embedding_generator.generate(texts_to_embed)
 
         # Add embeddings to vectors
-        for i, embedding in enumerate(embeddings):
-            vectors[i]["values"] = embedding
+        for vector_index, embedding in zip(embedding_vector_indices, embeddings, strict=True):
+            vectors[vector_index]["values"] = embedding
+
+        # Parent records are stored for context hydration, not vector recall.
+        empty_vector = self._empty_query_vector()
+        for vector in vectors:
+            if "values" not in vector:
+                vector["values"] = empty_vector
 
         # Upsert to Pinecone (batch in chunks of 100)
         batch_size = 100
@@ -279,6 +317,53 @@ class PineconeVectorStore:
         )
 
         return search_results
+
+    async def get_chunk(
+        self,
+        *,
+        document_id: str,
+        chunk_id: str,
+        device_id: str | None = None,
+    ) -> SearchResult | None:
+        """Fetch one stored chunk by document/chunk ID for parent context hydration."""
+        if not self._index:
+            logger.error("pinecone_not_initialized")
+            return None
+
+        namespace = f"device_{device_id}" if device_id else self.namespace
+        vector_id = f"{document_id}_{chunk_id}"
+
+        try:
+            response = await asyncio.to_thread(
+                self._index.fetch,
+                ids=[vector_id],
+                namespace=namespace,
+            )
+        except Exception as e:
+            logger.error("chunk_fetch_failed", error=str(e), document_id=document_id)
+            return None
+
+        vectors = getattr(response, "vectors", None)
+        if vectors is None and isinstance(response, dict):
+            vectors = response.get("vectors")
+        if not vectors:
+            return None
+
+        record = vectors.get(vector_id)
+        if not record:
+            return None
+
+        metadata = getattr(record, "metadata", None)
+        if metadata is None and isinstance(record, dict):
+            metadata = record.get("metadata")
+        metadata = dict(metadata or {})
+
+        return SearchResult(
+            chunk_content=metadata.get("text", ""),
+            score=0.0,
+            document_id=metadata.get("document_id", document_id),
+            metadata=metadata,
+        )
 
     def _build_filter(self, filters: dict | None) -> dict | None:
         """Build Pinecone filter from filters.
@@ -409,13 +494,17 @@ class PineconeVectorStore:
             return 0
 
     async def get_document_stats(
-        self, doc_id: str, device_id: str | None = None
+        self,
+        doc_id: str,
+        device_id: str | None = None,
+        session_id: str | None = None,
     ) -> DocumentStats | None:
         """Get statistics for a document.
 
         Args:
             doc_id: Document ID
             device_id: Device ID for ownership verification (guest mode)
+            session_id: Optional session ID for document isolation
 
         Returns:
             DocumentStats object or None if not found
@@ -430,12 +519,16 @@ class PineconeVectorStore:
         try:
             # Query with filter to get all chunks
             # Use dummy vector to query
+            filters = {"document_id": {"$eq": doc_id}}
+            if session_id:
+                filters["session_id"] = {"$eq": session_id}
+
             results = await asyncio.to_thread(
                 self._index.query,
                 vector=self._empty_query_vector(),
                 top_k=1000,
                 namespace=namespace,
-                filter={"document_id": {"$eq": doc_id}},
+                filter=filters,
                 include_metadata=True,
             )
 
@@ -446,9 +539,21 @@ class PineconeVectorStore:
             if not metadatas:
                 return None
 
-            # Aggregate stats
+            # Aggregate stats. Parent chunks represent LLM context; child chunks represent search
+            # records. Older documents without record_type are counted as child/search chunks.
+            parent_metadatas = [
+                m for m in metadatas if isinstance(m, dict) and m.get("record_type") == "parent"
+            ]
+            child_metadatas = [
+                m
+                for m in metadatas
+                if isinstance(m, dict) and m.get("record_type", "child") != "parent"
+            ]
             chunk_count = len(results.matches)
-            total_tokens = sum(m.get("token_count", 0) for m in metadatas if isinstance(m, dict))
+            token_metadatas = parent_metadatas or metadatas
+            total_tokens = sum(
+                m.get("token_count", 0) for m in token_metadatas if isinstance(m, dict)
+            )
 
             # Get common metadata from first chunk
             first_meta = metadatas[0] if metadatas else {}
@@ -463,6 +568,10 @@ class PineconeVectorStore:
                 with contextlib.suppress(ValueError):
                     upload_time = datetime.fromisoformat(upload_time_str)
 
+            parse_warnings = first_meta.get("parse_warnings", [])
+            if not isinstance(parse_warnings, list):
+                parse_warnings = []
+
             return DocumentStats(
                 document_id=doc_id,
                 chunk_count=chunk_count,
@@ -470,16 +579,27 @@ class PineconeVectorStore:
                 filename=filename,
                 file_type=file_type,
                 upload_time=upload_time,
+                parent_chunk_count=len(parent_metadatas),
+                child_chunk_count=len(child_metadatas),
+                page_count=int(first_meta.get("parse_page_count") or 0),
+                table_count=int(first_meta.get("parse_table_count") or 0),
+                element_count=int(first_meta.get("parse_element_count") or 0),
+                parse_warnings=[str(warning) for warning in parse_warnings],
             )
         except Exception as e:
             logger.error("failed_to_get_document_stats", error=str(e), document_id=doc_id)
             return None
 
-    async def list_documents(self, device_id: str | None = None) -> list[str]:
+    async def list_documents(
+        self,
+        device_id: str | None = None,
+        session_id: str | None = None,
+    ) -> list[str]:
         """List all unique document IDs in the store.
 
         Args:
             device_id: Device ID for filtering (guest mode)
+            session_id: Optional session ID for document isolation
 
         Returns:
             List of document IDs
@@ -494,11 +614,14 @@ class PineconeVectorStore:
         try:
             # List all vectors with metadata
             # Note: Pinecone doesn't have a direct list_all, we need to query
+            filters = {"session_id": {"$eq": session_id}} if session_id else None
+
             results = await asyncio.to_thread(
                 self._index.query,
                 vector=self._empty_query_vector(),
                 top_k=1000,
                 namespace=namespace,
+                filter=filters,
                 include_metadata=True,
             )
 
@@ -509,7 +632,12 @@ class PineconeVectorStore:
 
             return sorted(doc_ids)
         except Exception as e:
-            logger.error("failed_to_list_documents", error=str(e), device_id=device_id)
+            logger.error(
+                "failed_to_list_documents",
+                error=str(e),
+                device_id=device_id,
+                session_id=session_id,
+            )
             return []
 
     async def clear(self) -> bool:

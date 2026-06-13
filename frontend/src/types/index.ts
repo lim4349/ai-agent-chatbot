@@ -51,6 +51,17 @@ export interface FileUploadResponse {
   upload_time: string;
   status: string;
   message: string;
+  parse_summary?: DocumentParseSummary | null;
+  warnings?: string[];
+}
+
+export interface DocumentParseSummary {
+  page_count: number;
+  table_count: number;
+  element_count: number;
+  parent_chunk_count: number;
+  child_chunk_count: number;
+  warnings: string[];
 }
 
 export interface DocumentInfo {
@@ -60,6 +71,11 @@ export interface DocumentInfo {
   upload_time: string;
   chunk_count: number;
   total_tokens: number;
+  parent_chunk_count?: number;
+  child_chunk_count?: number;
+  page_count?: number;
+  table_count?: number;
+  warnings?: string[];
 }
 
 export interface DocumentListResponse {
@@ -131,73 +147,6 @@ export interface SSECallbacks {
   }) => void;
   onDone: () => void;
   onError: (error: string) => void;
-}
-
-// Authentication Types
-
-export interface User {
-  id: string;
-  email: string;
-  username?: string;
-  full_name?: string;
-  avatar_url?: string;
-  created_at?: string;
-  updated_at?: string;
-  is_active?: boolean;
-  role?: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-  remember?: boolean;
-}
-
-export interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: User;
-  remember?: boolean;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  username?: string;
-  full_name?: string;
-}
-
-export interface RegisterResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: User;
-}
-
-export interface RefreshTokenRequest {
-  refresh_token: string;
-}
-
-export interface RefreshTokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  token_type: string;
-  expires_in: number;
-}
-
-export interface AuthError {
-  error: string;
-  detail?: string;
-  status?: number;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
 }
 
 // Re-export metrics types

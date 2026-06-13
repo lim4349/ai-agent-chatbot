@@ -33,20 +33,3 @@ export const INJECTION_PATTERNS = [
   'ignore instructions',
 ];
 export const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
-
-// Authentication Constants
-export const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiration
-export const TOKEN_REFRESH_CHECK_INTERVAL = 60 * 1000; // Check every minute
-export const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // Check session every 5 minutes
-
-// Token Storage Keys
-export const TOKEN_KEY = 'auth_token';
-export const REFRESH_TOKEN_KEY = 'refresh_token';
-
-// Auth Routes
-export const AUTH_ROUTES = {
-  login: '/login',
-  register: '/register',
-  logout: '/logout',
-  profile: '/profile',
-} as const;

@@ -28,14 +28,14 @@ export class ApiError extends Error {
 }
 
 /**
- * Main fetch function with JWT token support and automatic refresh
- * Handles authentication, token expiration, and retry logic
+ * Main fetch function with optional bearer-token support.
+ * The product flow is guest-first, but existing stored tokens are still attached.
  */
 async function fetchApi<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  // Get current token
+  // Attach an optional bearer token if one exists.
   const token = tokenManager.getToken();
 
   // Prepare headers with Authorization
@@ -44,7 +44,6 @@ async function fetchApi<T>(
     ...(options?.headers as Record<string, string> || {}),
   };
 
-  // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -55,7 +54,7 @@ async function fetchApi<T>(
     headers,
   });
 
-  // Handle 401 Unauthorized - skip login redirect in guest mode
+  // Skip login redirects in guest mode.
   if (response.status === 401) {
     throw new ApiError('Unauthorized', 401);
   }
@@ -87,7 +86,6 @@ async function fetchApiUpload<T>(
     ...(options?.headers as Record<string, string> || {}),
   };
 
-  // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -97,7 +95,7 @@ async function fetchApiUpload<T>(
     headers,
   });
 
-  // Handle 401 Unauthorized - skip login redirect in guest mode
+  // Skip login redirects in guest mode.
   if (response.status === 401) {
     throw new ApiError('Unauthorized', 401);
   }
@@ -152,12 +150,20 @@ export const api = {
     });
   },
 
-  async getDocuments(deviceId: string): Promise<DocumentListResponse> {
-    return fetchApi<DocumentListResponse>(`${API_ENDPOINTS.documents}?device_id=${encodeURIComponent(deviceId)}`);
+  async getDocuments(deviceId: string, sessionId?: string): Promise<DocumentListResponse> {
+    const params = new URLSearchParams({ device_id: deviceId });
+    if (sessionId) {
+      params.set('session_id', sessionId);
+    }
+    return fetchApi<DocumentListResponse>(`${API_ENDPOINTS.documents}?${params.toString()}`);
   },
 
-  async deleteDocument(documentId: string, deviceId: string): Promise<void> {
-    await fetchApi(`${API_ENDPOINTS.documents}/${documentId}?device_id=${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+  async deleteDocument(documentId: string, deviceId: string, sessionId?: string): Promise<void> {
+    const params = new URLSearchParams({ device_id: deviceId });
+    if (sessionId) {
+      params.set('session_id', sessionId);
+    }
+    await fetchApi(`${API_ENDPOINTS.documents}/${documentId}?${params.toString()}`, { method: 'DELETE' });
   },
 
   // Session

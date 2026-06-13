@@ -10,7 +10,13 @@ from src.core.config import LLMConfig
 from src.core.di_container import container
 from src.core.logging import get_logger
 from src.llm.factory import LLMFactory
-from src.llm.invocation import extract_structured_result, generate_with_cache, normalize_content
+from src.llm.invocation import (
+    extract_structured_result,
+    generate_with_cache,
+    normalize_content,
+    parse_json_response,
+    validate_structured_result,
+)
 
 logger = get_logger(__name__)
 
@@ -106,18 +112,29 @@ class OpenAIProvider:
 
         Returns None if the LLM fails to generate structured output.
         """
-        structured = self.client.with_structured_output(output_schema)
+        try:
+            structured = self.client.with_structured_output(output_schema)
 
-        # Suppress Pydantic warnings during structured output generation
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message=".*PydanticSerializationUnexpectedValue.*",
-            )
-            result = await structured.ainvoke(messages, **kwargs)
+            # Suppress Pydantic warnings during structured output generation
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    category=UserWarning,
+                    message=".*PydanticSerializationUnexpectedValue.*",
+                )
+                result = await structured.ainvoke(messages, **kwargs)
 
-        if result is None:
+            if result is not None:
+                structured_result = extract_structured_result(result)
+                validated = validate_structured_result(structured_result, output_schema)
+                if validated is not None:
+                    return validated
+        except Exception as e:
+            logger.warning("structured_output_failed", error=str(e))
+
+        try:
+            content = await self.generate(messages, **kwargs)
+            return validate_structured_result(parse_json_response(content), output_schema)
+        except Exception as e:
+            logger.warning("structured_output_text_fallback_failed", error=str(e))
             return None
-
-        return extract_structured_result(result)

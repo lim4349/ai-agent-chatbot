@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from src.core.logging import get_logger
 from src.documents.chunking.code_chunker import CodeDocumentChunker
-from src.documents.chunking.tabular_chunker import TabularDocumentChunker
 
 logger = get_logger(__name__)
 
@@ -120,20 +119,13 @@ class ChunkingStrategyRegistry:
 
         """
         if strategy == "code":
-            from src.documents.chunker import StructureAwareChunker
-
             # For code, we can use the existing chunker with code awareness
             # Or use CodeDocumentChunker if implemented
             return CodeDocumentChunker(
                 max_tokens=self.max_tokens,
                 overlap_tokens=self.overlap_tokens,
             )
-        elif strategy == "tabular":
-            return TabularDocumentChunker(
-                max_tokens=self.max_tokens,
-                overlap_tokens=self.overlap_tokens,
-            )
-        elif strategy == "default":
+        elif strategy in ("tabular", "default"):
             from src.documents.chunker import StructureAwareChunker
 
             return StructureAwareChunker(

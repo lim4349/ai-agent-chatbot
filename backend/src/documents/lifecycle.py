@@ -47,19 +47,31 @@ class DocumentLifecycle:
         session_id: str,
     ) -> Document:
         """Parse, chunk, and store one uploaded document."""
-        sections = self.parser.parse_from_bytes(upload.content, upload.file_type)
+        parsed_document = None
+        if hasattr(self.parser, "parse_document_from_bytes"):
+            parsed_document = self.parser.parse_document_from_bytes(upload.content, upload.file_type)
+            sections = parsed_document.elements
+        else:
+            sections = self.parser.parse_from_bytes(upload.content, upload.file_type)
+
         if not sections:
             raise DocumentUploadValidationError("No content extracted from file")
 
         chunks = self.chunker.chunk(sections, source=upload.filename)
+        parent_chunks = [c for c in chunks if getattr(c.metadata, "record_type", "") == "parent"]
+        child_chunks = [c for c in chunks if getattr(c.metadata, "record_type", "") == "child"]
+        token_chunks = parent_chunks or chunks
+        document_metadata = dict(upload.metadata)
+        document_metadata["parse_summary"] = _parse_summary(parsed_document, len(parent_chunks), len(child_chunks))
+
         document = Document(
             id=str(uuid4()),
             filename=upload.filename,
             file_type=upload.file_type,
             upload_time=datetime.now(tz=UTC),
             chunks=chunks,
-            total_tokens=sum(c.metadata.token_count for c in chunks),
-            metadata=upload.metadata,
+            total_tokens=sum(c.metadata.token_count for c in token_chunks),
+            metadata=document_metadata,
         )
 
         await self.vector_store.add_document(
@@ -73,19 +85,33 @@ class DocumentLifecycle:
         """Return whether the session has any stored RAG Documents."""
         return await self.vector_store.has_documents_for_session(device_id, session_id)
 
-    async def list_documents(self, *, device_id: str) -> list[Any]:
-        """List stored RAG Document stats for a device."""
-        doc_ids = await self.vector_store.list_documents(device_id=device_id)
+    async def list_documents(self, *, device_id: str, session_id: str | None = None) -> list[Any]:
+        """List stored RAG Document stats for a device and optional session."""
+        doc_ids = await self.vector_store.list_documents(device_id=device_id, session_id=session_id)
         documents = []
         for doc_id in doc_ids:
-            stats = await self.vector_store.get_document_stats(doc_id, device_id=device_id)
+            stats = await self.vector_store.get_document_stats(
+                doc_id,
+                device_id=device_id,
+                session_id=session_id,
+            )
             if stats:
                 documents.append(stats)
         return documents
 
-    async def delete_document(self, *, document_id: str, device_id: str) -> bool:
-        """Delete one RAG Document after verifying device ownership."""
-        stats = await self.vector_store.get_document_stats(document_id, device_id=device_id)
+    async def delete_document(
+        self,
+        *,
+        document_id: str,
+        device_id: str,
+        session_id: str | None = None,
+    ) -> bool:
+        """Delete one RAG Document after verifying device and optional session ownership."""
+        stats = await self.vector_store.get_document_stats(
+            document_id,
+            device_id=device_id,
+            session_id=session_id,
+        )
         if not stats:
             return False
         await self.vector_store.delete_document(document_id, device_id=device_id)
@@ -147,3 +173,21 @@ def validate_upload_bytes(
         file_type=str(file_type),
         metadata=metadata,
     )
+
+
+def _parse_summary(parsed_document: Any, parent_count: int, child_count: int) -> dict[str, Any]:
+    """Build a stable parse summary for API responses and vector metadata."""
+    quality = getattr(parsed_document, "quality", None)
+    if quality and hasattr(quality, "as_dict"):
+        summary = quality.as_dict()
+    else:
+        summary = {
+            "page_count": 0,
+            "table_count": 0,
+            "element_count": 0,
+            "warnings": [],
+        }
+
+    summary["parent_chunk_count"] = parent_count
+    summary["child_chunk_count"] = child_count
+    return summary

@@ -1,13 +1,13 @@
 # Frontend — AI Agent Chatbot
 
-Next.js 16 기반 AI 에이전트 챗봇 프론트엔드. SSE 실시간 스트리밍, JWT 인증, XSS 방어, 다국어 지원을 포함한 프로덕션 수준 챗봇 UI.
+Next.js 16 기반 AI 에이전트 챗봇 프론트엔드. SSE 실시간 스트리밍, XSS 방어, 문서 업로드/삭제, layout-aware 문서 처리 상태 표시, 다국어 지원을 포함한 프로덕션 수준 챗봇 UI.
 
 ## 소스 구조
 
 ```
 src/
 ├── app/                          # Next.js App Router
-│   ├── layout.tsx                # 루트 레이아웃 (AuthProvider, 다크모드)
+│   ├── layout.tsx                # 루트 레이아웃 (TooltipProvider, 다크모드)
 │   ├── page.tsx                  # / → /chat 리다이렉트
 │   ├── chat/page.tsx             # 메인 채팅 페이지
 │   └── globals.css               # Tailwind CSS 전역 스타일
@@ -31,11 +31,11 @@ src/
 │   │   ├── context-separator.tsx # 컨텍스트 구분선
 │   │   └── summary-notification.tsx # 요약 알림
 │   │
-│   ├── documents/                # 문서 업로드
+│   ├── documents/                # 문서 업로드/목록
 │   │   ├── combined-document-upload.tsx # 세션별 파일 업로드 다이얼로그
 │   │   ├── file-upload-zone.tsx  # 드래그앤드롭 (react-dropzone, 매직바이트 검증)
 │   │   ├── upload-progress.tsx   # 업로드 진행률 + 상태 표시
-│   │   └── document-list.tsx     # 업로드 문서 목록 + 삭제
+│   │   └── document-list.tsx     # 업로드 문서 목록 + 삭제 + parse warning/search chunk 표시
 │   │
 │   ├── header/
 │   │   ├── header.tsx            # 상단바 (메뉴, 타이틀, 헬스, 언어/테마 전환)
@@ -50,30 +50,28 @@ src/
 │   │   └── badge, button, card, dialog, dropdown-menu, input, scroll-area,
 │   │       separator, sheet, skeleton, tabs, textarea, toast, tooltip
 │   │
-│   ├── auth-provider.tsx         # 인증 초기화 + 자동 토큰 갱신 (60초 주기)
-│   └── protected-route.tsx       # 인증 라우트 가드
+│   └── error-boundary.tsx        # 화면 오류 fallback
 │
 ├── stores/                       # Zustand 상태관리
 │   ├── chat-store.ts             # 세션, 메시지, 스트리밍, 메모리 명령어
-│   ├── auth-store.ts             # 인증 상태 (login, register, logout, checkAuth)
 │   ├── document-store.ts         # 문서 업로드/목록/삭제 상태
 │   └── toast-store.ts            # 토스트 알림 (success/info/warning/error)
 │
 ├── lib/                          # 유틸리티 & 서비스
-│   ├── api.ts                    # API 클라이언트 (JWT 자동 주입 + 401 자동 재시도)
+│   ├── api.ts                    # API 클라이언트 (REST, multipart upload, optional bearer token)
 │   ├── sse.ts                    # SSE 스트리밍 (AbortController, 토큰 필터링)
 │   ├── stream-buffer.ts          # 스트리밍 토큰 배치 플러시
 │   ├── chat-errors.ts            # 채팅 오류 분류
-│   ├── token-manager.ts          # JWT 토큰 관리 (저장/갱신/만료 체크/자동 갱신)
+│   ├── token-manager.ts          # 저장 토큰 유틸리티 (현재 로그인 UI는 비활성)
 │   ├── security-validator.ts     # XSS/인젝션 실시간 검증 (4단계 심각도, 한국어/영어)
 │   ├── file-validation.ts        # 파일 검증 (매직바이트, 경로탐색, 확장자, 크기)
 │   ├── memory-commands.ts        # 한국어 메모리 명령어 파서 (기억해/알고있니/잊어줘/요약해줘)
 │   ├── i18n.ts                   # 다국어 (ko/en, Zustand + localStorage)
-│   ├── constants.ts              # API URL, 에이전트 색상, 제한값, 인증 타이밍
+│   ├── constants.ts              # API URL, 에이전트 색상, 제한값
 │   └── utils.ts                  # cn() 클래스명 유틸리티
 │
 └── types/
-    └── index.ts                  # TypeScript 타입 (Message, Session, Assistant, Auth 등)
+    └── index.ts                  # TypeScript 타입 (Message, Session, Assistant 등)
 ```
 
 ## 설치 및 실행
@@ -112,6 +110,9 @@ npm start
 - `device_id`와 `session_id` 기준 세션별 RAG 문서 격리
 - 실시간 파일 검증 (매직바이트, 크기, 타입, 경로탐색)
 - 업로드 진행률 표시 + 상태 배지
+- 업로드 다이얼로그에서 문서 목록/삭제 상태 표시
+- backend layout-aware parser의 페이지 수, 표 수, parse warning 표시
+- parent-child retrieval 기준 search chunk 수 표시
 - 지원 형식: PDF, DOCX, TXT, MD, CSV, JSON (최대 10MB)
 
 ### 메모리 명령어 (한국어)
@@ -126,7 +127,7 @@ npm start
 - **XSS 방어**: DOMPurify 태그/속성 화이트리스트, URL 프로토콜 검증
 - **입력 검증**: 4단계 심각도 (critical/error/warning/info), 패턴 목록 표시
 - **파일 검증**: 매직바이트, 경로 탐색 방지, 의심 확장자 차단
-- **JWT**: sessionStorage 우선, 만료 60초 전 자동 갱신, 401 자동 재시도
+- **Guest-first 세션**: `device_id`와 `session_id` 기반 격리, 활성 로그인 UI 없음
 
 ### 다국어 (i18n)
 - 한국어 / 영어 전환
@@ -138,30 +139,29 @@ npm start
 
 ```
 RootLayout (layout.tsx)
-└── AuthProvider (인증 초기화 + 토큰 갱신 루프)
-    └── TooltipProvider
-        └── ChatPage (chat/page.tsx)
-            ├── Header
-            │   ├── HealthIndicator (30초 주기 헬스 체크)
-            │   ├── 언어 토글 (EN/한)
-            │   └── 테마 토글 (라이트/다크)
-            ├── Sidebar (데스크톱: 상시 / 모바일: Sheet)
-            │   ├── NewSessionButton
-            │   └── SessionItem[] (선택, 삭제)
-            └── Main
-                ├── CombinedDocumentUpload (다이얼로그)
-                └── ChatContainer
-                    ├── MessageList
-                    │   ├── MessageBubble[]
-                    │   │   ├── AgentBadge
-                    │   │   ├── MarkdownRenderer (또는 plain text)
-                    │   │   ├── ToolUsage (접기/펼치기)
-                    │   │   └── MemoryReference
-                    │   └── TypingIndicator
-                    └── ChatInput
-                        ├── Textarea (Enter 전송, Shift+Enter 줄바꿈)
-                        ├── 글자수 카운터 (2000자 제한)
-                        └── SecurityWarning 배너
+└── TooltipProvider
+    └── ChatPage (chat/page.tsx)
+        ├── Header
+        │   ├── HealthIndicator (30초 주기 헬스 체크)
+        │   ├── 언어 토글 (EN/한)
+        │   └── 테마 토글 (라이트/다크)
+        ├── Sidebar (데스크톱: 상시 / 모바일: Sheet)
+        │   ├── NewSessionButton
+        │   └── SessionItem[] (선택, 삭제)
+        └── Main
+            ├── CombinedDocumentUpload (업로드 + 목록/삭제 다이얼로그)
+            └── ChatContainer
+                ├── MessageList
+                │   ├── MessageBubble[]
+                │   │   ├── AgentBadge
+                │   │   ├── MarkdownRenderer (또는 plain text)
+                │   │   ├── ToolUsage (접기/펼치기)
+                │   │   └── MemoryReference
+                │   └── TypingIndicator
+                └── ChatInput
+                    ├── Textarea (Enter 전송, Shift+Enter 줄바꿈)
+                    ├── 글자수 카운터 (2000자 제한)
+                    └── SecurityWarning 배너
 ```
 
 ## 상태관리 (Zustand)
@@ -173,14 +173,11 @@ RootLayout (layout.tsx)
 - 메모리 명령어 파싱 및 피드백
 - localStorage 영속화 (sessions, activeSessionId, memories)
 
-### auth-store
-- `login()`, `register()`, `logout()`, `checkAuth()`
-- JWT 토큰 기반 인증 상태 관리
-- localStorage 영속화 (user)
-
 ### document-store
 - `uploadFile()` — 파일 검증 + 업로드 + 진행률
 - `fetchDocuments()`, `deleteDocument()`
+- `deletingDocumentIds`, `documentError` — 목록/삭제 상태 표시
+- `page_count`, `table_count`, `child_chunk_count`, `warnings` — 서버 parse summary 표시용 optional 필드
 - 영속화 없음 (매번 서버에서 가져옴)
 
 ## 성능 최적화

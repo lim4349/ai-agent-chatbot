@@ -58,6 +58,19 @@ jobs:
             echo "No unit tests found, skipping pytest"
           fi
 
+      - name: Research Evidence Eval
+        run: |
+          python -m src.evaluation.rag_eval evals/research_golden.jsonl \
+            --min-source-hit-rate 1.0 \
+            --min-answer-coverage-rate 1.0 \
+            --max-no-answer-rate 0.0 \
+            --min-tool-match-rate 1.0 \
+            --min-confidence-pass-rate 1.0 \
+            --min-citation-page-hit-rate 1.0 \
+            --min-heading-path-hit-rate 1.0 \
+            --min-table-answer-coverage-rate 1.0 \
+            --min-parent-hydration-rate 1.0
+
   ci-frontend:
     name: CI - Frontend
     runs-on: ubuntu-latest

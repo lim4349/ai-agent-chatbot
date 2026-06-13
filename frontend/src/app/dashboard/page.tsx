@@ -105,10 +105,11 @@ function MetricRow({ label, value, color = 'text-foreground' }: MetricRowProps) 
 }
 
 export default function DashboardPage() {
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [period, setPeriod] = useState<MetricsPeriod>('24h');
 
   const loadMetrics = useCallback(async () => {
@@ -117,6 +118,7 @@ export default function DashboardPage() {
     try {
       const data = await api.getMetricsSummary(period);
       setMetrics(data);
+      setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load metrics');
     } finally {
@@ -139,6 +141,16 @@ export default function DashboardPage() {
   const evidenceRate = metrics?.quality_stats
     ? `${Math.round((metrics.quality_stats.evidence_rate || 0) * 100)}%`
     : '0%';
+  const hasNoRequests = metrics?.total_requests === 0;
+  const lastUpdatedText = lastUpdated
+    ? lastUpdated.toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   const statusData = metrics ? [
     {
@@ -197,6 +209,11 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
               <p className="mt-1 text-muted-foreground">{t('dashboard.description')}</p>
+              {lastUpdatedText && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('dashboard.lastUpdated', lastUpdatedText)}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -232,7 +249,13 @@ export default function DashboardPage() {
           {error && (
             <Card className="border-destructive">
               <CardContent className="pt-6">
-                <p className="text-destructive">{t('dashboard.error')}: {error}</p>
+                <p className="font-medium text-destructive">
+                  {t('dashboard.metricsUnavailable')}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('dashboard.metricsUnavailableDescription')}
+                </p>
+                <p className="mt-2 text-sm text-destructive">{error}</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -245,8 +268,30 @@ export default function DashboardPage() {
             </Card>
           )}
 
+          {!loading && !error && !metrics && (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="font-medium">{t('dashboard.metricsUnavailable')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('dashboard.metricsUnavailableDescription')}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {metrics && !loading && (
             <>
+              {hasNoRequests && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="font-medium">{t('dashboard.noData')}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {t('dashboard.lowSample')}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <SummaryCard
                   title={t('dashboard.totalRequests')}

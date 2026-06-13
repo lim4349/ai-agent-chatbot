@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Wrench, FileText, Search, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation, type TranslationKey } from '@/lib/i18n';
 
 interface ToolUsageProps {
   tools: Array<{
@@ -24,8 +25,22 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   default: Wrench,
 };
 
+const TOOL_LABEL_KEYS: Record<string, TranslationKey> = {
+  web_search: 'tool.web_search',
+  retriever: 'tool.retriever',
+};
+
+const CONFIDENCE_LABEL_KEYS: Record<string, TranslationKey> = {
+  high: 'confidence.high',
+  medium: 'confidence.medium',
+  low: 'confidence.low',
+  none: 'confidence.none',
+  error: 'confidence.error',
+};
+
 export function ToolUsage({ tools }: ToolUsageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation();
 
   if (!tools || tools.length === 0) return null;
 
@@ -35,7 +50,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
     return acc;
   }, 0);
 
-  const toggleId = `tool-usage-${tools.map(t => t.name).join('-')}`;
+  const toggleId = `tool-usage-${tools.map((tool) => tool.name).join('-')}`;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -52,13 +67,13 @@ export function ToolUsage({ tools }: ToolUsageProps) {
         className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
         aria-expanded={isExpanded}
         aria-controls={toggleId}
-        aria-label={isExpanded ? 'Hide tool details' : 'Show tool details'}
+        aria-label={isExpanded ? t('tool.hideDetails') : t('tool.showDetails')}
       >
         <div className="flex items-center gap-2">
           <Wrench className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
           <span className="font-medium text-muted-foreground">
-            {tools.length} {tools.length === 1 ? 'tool' : 'tools'} used
-            {totalResults > 0 && ` • ${totalResults} results`}
+            {t('tool.used', tools.length)}
+            {totalResults > 0 && ` • ${t('tool.results', totalResults)}`}
           </span>
         </div>
         {isExpanded ? (
@@ -84,6 +99,8 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                 ? 1
                 : 0;
             const sources = tool.sources || tool.documentSources || [];
+            const toolLabelKey = TOOL_LABEL_KEYS[tool.name];
+            const confidenceLabelKey = tool.confidence ? CONFIDENCE_LABEL_KEYS[tool.confidence] : undefined;
 
             return (
               <div
@@ -92,30 +109,35 @@ export function ToolUsage({ tools }: ToolUsageProps) {
               >
                 <Icon className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium capitalize">{tool.name}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {toolLabelKey ? t(toolLabelKey) : tool.name || t('tool.unknown')}
+                    </span>
                     {resultCount > 0 && (
                       <span className="text-muted-foreground">
-                        {resultCount} results
+                        {t('tool.results', resultCount)}
                       </span>
                     )}
                     {tool.status === 'error' && (
-                      <span className="text-destructive">error</span>
+                      <span className="text-destructive">{t('tool.error')}</span>
                     )}
                   </div>
 
                   {tool.confidence && (
                     <div className="text-muted-foreground">
-                      Confidence: <span className="font-medium">{tool.confidence}</span>
+                      {t('tool.confidence')}: {' '}
+                      <span className="font-medium">
+                        {confidenceLabelKey ? t(confidenceLabelKey) : tool.confidence}
+                      </span>
                     </div>
                   )}
 
                   {sources.length > 0 && (
                     <div className="space-y-0.5">
-                      <span className="text-muted-foreground">Sources:</span>
-                      <ul className="list-disc list-inside text-muted-foreground truncate">
+                      <span className="text-muted-foreground">{t('tool.sources')}:</span>
+                      <ul className="list-disc list-inside text-muted-foreground">
                         {sources.map((source, idx) => (
-                          <li key={idx} className="truncate">{source}</li>
+                          <li key={idx} className="break-all">{source}</li>
                         ))}
                       </ul>
                     </div>

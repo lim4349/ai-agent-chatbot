@@ -32,8 +32,13 @@ class ChunkMetadata:
 
     source: str
     page: int | None = None
+    page_end: int | None = None
     heading: str | None = None
+    heading_path: list[str] | None = None
     section_type: str = "paragraph"
+    record_type: str = "chunk"
+    parent_id: str | None = None
+    child_id: str | None = None
     chunk_index: int = 0
     total_chunks: int = 0
     char_count: int = 0

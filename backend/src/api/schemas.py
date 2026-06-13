@@ -71,6 +71,17 @@ class ErrorResponse(BaseModel):
     error: dict = Field(..., description="Error details")
 
 
+class DocumentParseSummary(BaseModel):
+    """Document parsing and chunking summary."""
+
+    page_count: int = Field(default=0, description="Number of parsed pages")
+    table_count: int = Field(default=0, description="Number of parsed tables")
+    element_count: int = Field(default=0, description="Number of parsed layout elements")
+    parent_chunk_count: int = Field(default=0, description="Number of parent context chunks")
+    child_chunk_count: int = Field(default=0, description="Number of child search chunks")
+    warnings: list[str] = Field(default_factory=list, description="Parse quality warnings")
+
+
 class FileUploadResponse(BaseModel):
     """File upload response with processing details."""
 
@@ -82,6 +93,10 @@ class FileUploadResponse(BaseModel):
     upload_time: datetime = Field(..., description="Upload timestamp")
     status: str = Field(..., description="Upload and processing status")
     message: str = Field(..., description="Status message")
+    parse_summary: DocumentParseSummary | None = Field(
+        default=None, description="Layout parsing and chunking summary"
+    )
+    warnings: list[str] = Field(default_factory=list, description="Parse quality warnings")
 
 
 class DocumentInfo(BaseModel):
@@ -93,6 +108,11 @@ class DocumentInfo(BaseModel):
     upload_time: datetime = Field(..., description="When the document was uploaded")
     chunk_count: int = Field(..., description="Number of chunks")
     total_tokens: int = Field(..., description="Estimated total tokens")
+    parent_chunk_count: int = Field(default=0, description="Number of parent context chunks")
+    child_chunk_count: int = Field(default=0, description="Number of child search chunks")
+    page_count: int = Field(default=0, description="Number of parsed pages")
+    table_count: int = Field(default=0, description="Number of parsed tables")
+    warnings: list[str] = Field(default_factory=list, description="Parse quality warnings")
 
 
 class DocumentListResponse(BaseModel):

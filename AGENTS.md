@@ -9,6 +9,8 @@ Project-wide guidance for AI coding agents working in this repository.
 - LLM provider: OpenRouter via OpenAI-compatible API
 - Production model: `openrouter/free`
 - Vector/RAG: Pinecone
+- RAG processing: layout-aware local parser, Markdown table preservation,
+  hierarchy-aware parent-child chunking
 - Short-term memory: Redis/Upstash in production, in-memory fallback locally
 - Deployment: Render backend, Vercel frontend
 
@@ -55,6 +57,8 @@ so paid routing is not used accidentally.
 - RAG document ingestion must go through `/api/v1/documents/upload` with
   `device_id` and `session_id`; do not add unauthenticated/global document
   ingestion paths.
+- Frontend is guest-first. Do not reintroduce login screens, auth route guards,
+  or auth providers unless the product flow explicitly changes.
 - Log endpoints are debug-only. Do not expose `/api/v1/logs` in production.
 - Do not commit real secrets. Use `.env.example` placeholders and configure secrets in
   Render, Vercel, or GitHub Actions.
@@ -66,6 +70,16 @@ Run backend commands from `backend/`.
 ```bash
 uv run --with ruff ruff check .
 uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
+uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl \
+  --min-source-hit-rate 1.0 \
+  --min-answer-coverage-rate 1.0 \
+  --max-no-answer-rate 0.0 \
+  --min-tool-match-rate 1.0 \
+  --min-confidence-pass-rate 1.0 \
+  --min-citation-page-hit-rate 1.0 \
+  --min-heading-path-hit-rate 1.0 \
+  --min-table-answer-coverage-rate 1.0 \
+  --min-parent-hydration-rate 1.0
 ```
 
 Important patterns:
@@ -74,6 +88,12 @@ Important patterns:
 - Factory functions in `src/core/di_container.py` should stay above the container class.
 - Prefer Protocol-compatible implementations over inheritance-heavy abstractions.
 - For blocking third-party SDK calls inside async flows, use `asyncio.to_thread`.
+- RAG upload parsing should preserve heading path, page/table metadata, parse
+  warnings, and parent-child retrieval records. Keep the public tool surface as
+  `retriever`.
+- Session deletion removes session memory, session topic summaries, RAG documents,
+  and the session row. User facts/profile data are deleted only through the
+  explicit user memory deletion endpoint.
 
 ## Frontend Workflow
 

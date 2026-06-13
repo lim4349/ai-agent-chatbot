@@ -8,15 +8,17 @@ interface DocumentStore {
   isUploading: boolean;
   uploadProgress: number;
   isLoading: boolean;
+  deletingDocumentIds: string[];
   uploadStatus: 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
   uploadError: string | null;
+  documentError: string | null;
   currentUploadFilename: string | null;
   currentUploadFileSize: number | null;
   currentUploadValidation: ValidationResult | null;
 
   uploadFile: (file: File, sessionId: string, deviceId: string) => Promise<void>;
-  fetchDocuments: (deviceId: string) => Promise<void>;
-  deleteDocument: (id: string, deviceId: string) => Promise<void>;
+  fetchDocuments: (deviceId: string, sessionId?: string) => Promise<void>;
+  deleteDocument: (id: string, deviceId: string, sessionId?: string) => Promise<void>;
   resetUploadStatus: () => void;
   clearValidationError: () => void;
 }
@@ -26,8 +28,10 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
   isUploading: false,
   uploadProgress: 0,
   isLoading: false,
+  deletingDocumentIds: [],
   uploadStatus: 'idle',
   uploadError: null,
+  documentError: null,
   currentUploadFilename: null,
   currentUploadFileSize: null,
   currentUploadValidation: null,
@@ -79,6 +83,7 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
         uploadProgress: 100,
         uploadStatus: 'completed',
         isUploading: false,
+        uploadError: null,
       });
 
       // Add the new document to the list
@@ -89,10 +94,15 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
         upload_time: response.upload_time,
         chunk_count: response.chunks_created,
         total_tokens: response.total_tokens,
+        parent_chunk_count: response.parse_summary?.parent_chunk_count,
+        child_chunk_count: response.parse_summary?.child_chunk_count,
+        page_count: response.parse_summary?.page_count,
+        table_count: response.parse_summary?.table_count,
+        warnings: response.warnings || response.parse_summary?.warnings || [],
       };
 
       set((state) => ({
-        documents: [newDoc, ...state.documents],
+        documents: [newDoc, ...state.documents.filter((doc) => doc.id !== newDoc.id)],
       }));
 
       // Reset status after a delay
@@ -111,28 +121,44 @@ export const useDocumentStore = create<DocumentStore>()((set, get) => ({
     }
   },
 
-  fetchDocuments: async (deviceId: string) => {
-    set({ isLoading: true });
+  fetchDocuments: async (deviceId: string, sessionId?: string) => {
+    set({ isLoading: true, documentError: null });
 
     try {
-      const response = await api.getDocuments(deviceId);
-      set({ documents: response.documents });
+      const response = await api.getDocuments(deviceId, sessionId);
+      set({ documents: response.documents, documentError: null });
     } catch (error) {
       console.error('Failed to fetch documents:', error);
+      set({
+        documentError: error instanceof Error ? error.message : 'Failed to fetch documents',
+      });
     } finally {
       set({ isLoading: false });
     }
   },
 
-  deleteDocument: async (id: string, deviceId: string) => {
+  deleteDocument: async (id: string, deviceId: string, sessionId?: string) => {
+    set((state) => ({
+      deletingDocumentIds: [...new Set([...state.deletingDocumentIds, id])],
+      documentError: null,
+    }));
+
     try {
-      await api.deleteDocument(id, deviceId);
+      await api.deleteDocument(id, deviceId, sessionId);
       set((state) => ({
         documents: state.documents.filter((doc) => doc.id !== id),
+        documentError: null,
       }));
     } catch (error) {
       console.error('Failed to delete document:', error);
+      set({
+        documentError: error instanceof Error ? error.message : 'Failed to delete document',
+      });
       throw error;
+    } finally {
+      set((state) => ({
+        deletingDocumentIds: state.deletingDocumentIds.filter((documentId) => documentId !== id),
+      }));
     }
   },
 

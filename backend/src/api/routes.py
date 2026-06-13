@@ -25,6 +25,7 @@ from src.api.schemas import (
     DocumentDeleteResponse,
     DocumentInfo,
     DocumentListResponse,
+    DocumentParseSummary,
     FileUploadResponse,
     HealthResponse,
     MetricsSummaryResponse,
@@ -555,6 +556,7 @@ async def upload_file(
     try:
         lifecycle = DocumentLifecycle(parser=parser, chunker=chunker, vector_store=doc_store)
         doc = await lifecycle.ingest_upload(upload, device_id=device_id, session_id=session_id)
+        parse_summary = DocumentParseSummary(**doc.metadata.get("parse_summary", {}))
         return FileUploadResponse(
             document_id=doc.id,
             filename=doc.filename,
@@ -564,6 +566,8 @@ async def upload_file(
             upload_time=doc.upload_time,
             status="success",
             message=f"Successfully processed {doc.filename} ({len(doc.chunks)} chunks)",
+            parse_summary=parse_summary,
+            warnings=parse_summary.warnings,
         )
     except ImportError as e:
         raise HTTPException(status_code=400, detail=f"Missing dependency: {e}") from e
@@ -577,9 +581,10 @@ async def upload_file(
 @inject
 async def list_documents(
     device_id: str,
+    session_id: str | None = None,
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentListResponse:
-    """List all uploaded documents for the device."""
+    """List uploaded documents for the device and optional session."""
     if not doc_store:
         return DocumentListResponse(documents=[])
 
@@ -593,8 +598,13 @@ async def list_documents(
                 upload_time=stats.upload_time or datetime.now(tz=UTC),
                 chunk_count=stats.chunk_count,
                 total_tokens=stats.total_tokens,
+                parent_chunk_count=stats.parent_chunk_count,
+                child_chunk_count=stats.child_chunk_count,
+                page_count=stats.page_count,
+                table_count=stats.table_count,
+                warnings=stats.parse_warnings or [],
             )
-            for stats in await lifecycle.list_documents(device_id=device_id)
+            for stats in await lifecycle.list_documents(device_id=device_id, session_id=session_id)
         ]
 
         return DocumentListResponse(documents=documents)
@@ -607,6 +617,7 @@ async def list_documents(
 async def delete_document(
     document_id: str,
     device_id: str,
+    session_id: str | None = None,
     doc_store: PineconeVectorStore = Depends(Provide[DIContainer.vector_store]),  # noqa: B008
 ) -> DocumentDeleteResponse:
     """Delete a document and all its chunks.
@@ -621,7 +632,11 @@ async def delete_document(
 
     try:
         lifecycle = DocumentLifecycle(parser=None, chunker=None, vector_store=doc_store)
-        if not await lifecycle.delete_document(document_id=document_id, device_id=device_id):
+        if not await lifecycle.delete_document(
+            document_id=document_id,
+            device_id=device_id,
+            session_id=session_id,
+        ):
             raise HTTPException(status_code=404, detail="Document not found")
 
         return DocumentDeleteResponse(

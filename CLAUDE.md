@@ -15,7 +15,7 @@ LangGraph 기반 챗봇입니다. FastAPI 백엔드와 Next.js 프론트엔드�
 - Frontend: Next.js 16, React 19, TypeScript, Zustand
 - LLM: OpenRouter/OpenAI-compatible provider 중심
 - Memory: Redis 우선, 로컬/장애 시 In-Memory fallback
-- RAG: Pinecone + 문서 파서(pdf/docx/txt/md/csv/json)
+- RAG: Pinecone + layout-aware 문서 파서(pdf/docx/txt/md/csv/json) + parent-child retrieval
 - Observability: structlog, LangSmith optional
 
 ## 실행
@@ -37,12 +37,23 @@ npm run dev
 ```bash
 # backend
 cd backend
-uv run pytest -v
-uv run ruff check src tests
+uv run --with ruff ruff check .
+uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
+uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl \
+  --min-source-hit-rate 1.0 \
+  --min-answer-coverage-rate 1.0 \
+  --max-no-answer-rate 0.0 \
+  --min-tool-match-rate 1.0 \
+  --min-confidence-pass-rate 1.0 \
+  --min-citation-page-hit-rate 1.0 \
+  --min-heading-path-hit-rate 1.0 \
+  --min-table-answer-coverage-rate 1.0 \
+  --min-parent-hydration-rate 1.0
 
 # frontend
 cd frontend
 npm run lint
+npm test
 npm run build
 ```
 
@@ -63,13 +74,16 @@ npm run build
 - 프론트는 `/chat`, `/dashboard`의 사용자 플로우를 우선 검증
 - LLM 모델: `openrouter/free` (OpenRouter free router, 유료 fallback 없음)
 - 문서 업로드는 `POST /api/v1/documents/upload` 경로만 사용하며 `device_id`와 `session_id`로 격리
+- 문서 파싱은 heading path, page/table metadata, parse warning을 보존하고 parent-child retrieval record로 Pinecone에 저장
+- 프론트는 guest-first이며 로그인 화면, auth provider, route guard를 다시 추가하지 않음
+- 세션 삭제는 session memory, topic summaries, RAG documents, session row만 삭제하고 user facts/profile은 `/api/v1/users/{user_id}/memory`에서만 삭제
 - 대화/메모리 흐름 수정은 `src/agents/assistant_agent.py` 조정
 - 도구 선택 수정은 `src/agents/research_evidence.py`의 `ResearchToolDecision` 및 guardrail 로직 조정
 
 ## 커밋 전 최소 확인
 
 ```bash
-cd backend && uv run pytest -v
 cd backend && uv run --with ruff ruff check .
+cd backend && uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
 cd frontend && npm run lint && npm test && npm run build
 ```

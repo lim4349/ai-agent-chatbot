@@ -1,6 +1,5 @@
 /**
- * JWT Token Manager Test Suite
- * Tests for token management functionality
+ * Optional bearer token utility tests.
  */
 
 import { tokenManager } from '../token-manager';
@@ -61,10 +60,8 @@ describe('tokenManager', () => {
   describe('clearTokens', () => {
     it('should remove all tokens', () => {
       tokenManager.setToken('access.token', true);
-      tokenManager.setRefreshToken('refresh.token');
       tokenManager.clearTokens();
       expect(tokenManager.getToken()).toBeNull();
-      expect(tokenManager.getRefreshToken()).toBeNull();
     });
   });
 

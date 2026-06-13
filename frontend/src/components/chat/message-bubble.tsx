@@ -88,7 +88,7 @@ function MessageBubbleComponent({ message, isStreaming, onHeightChange }: Messag
       >
         {/* Sender label */}
         <span className="text-sm font-semibold text-foreground">
-          {isUser ? 'You' : 'Assistant'}
+          {isUser ? t('chat.senderUser') : t('chat.senderAssistant')}
         </span>
 
         {/* Agent badge and switch animation */}
