@@ -80,7 +80,9 @@ uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl \
   --min-citation-page-hit-rate 1.0 \
   --min-heading-path-hit-rate 1.0 \
   --min-table-answer-coverage-rate 1.0 \
-  --min-parent-hydration-rate 1.0
+  --min-parent-hydration-rate 1.0 \
+  --min-evidence-item-source-hit-rate 1.0 \
+  --min-evidence-snippet-coverage-rate 1.0
 ```
 
 Important patterns:

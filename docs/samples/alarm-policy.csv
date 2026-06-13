@@ -1,0 +1,5 @@
+metric,severity,threshold,duration,owner
+cpu_usage,critical,95%,5m,SRE
+redis_memory,warning,80%,10m,Platform
+db_latency,critical,120ms,3m,DBA
+api_error_rate,critical,5%,5m,SRE

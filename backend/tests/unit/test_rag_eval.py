@@ -22,6 +22,9 @@ def test_evaluate_cases_reports_source_hit_and_answer_rates():
                 expected_table_terms=["answer"],
                 expects_parent_context=True,
                 parent_hydrated=True,
+                expected_evidence_sources=["doc-a"],
+                evidence_items=[{"source": "doc-a", "snippet": "answer 근거"}],
+                expected_snippet_terms=["answer"],
             ),
             EvalCase(
                 question="Q2",
@@ -43,11 +46,13 @@ def test_evaluate_cases_reports_source_hit_and_answer_rates():
                 "no_answer_rate": 0.5,
                 "tool_match_rate": 0.5,
                 "confidence_pass_rate": 0.5,
-                "citation_page_hit_rate": 1.0,
-                "heading_path_hit_rate": 1.0,
-                "table_answer_coverage_rate": 1.0,
-                "parent_hydration_rate": 1.0,
-            }
+        "citation_page_hit_rate": 1.0,
+        "heading_path_hit_rate": 1.0,
+        "table_answer_coverage_rate": 1.0,
+        "parent_hydration_rate": 1.0,
+        "evidence_item_source_hit_rate": 1.0,
+        "evidence_snippet_coverage_rate": 1.0,
+    }
 
 
 def test_load_cases_parses_tool_and_confidence_expectations(tmp_path):
@@ -102,6 +107,28 @@ def test_load_cases_parses_layout_retrieval_expectations(tmp_path):
     assert cases[0].expected_table_terms == ["50만 원"]
     assert cases[0].expects_parent_context is True
     assert cases[0].parent_hydrated is True
+
+
+def test_load_cases_parses_evidence_item_expectations(tmp_path):
+    dataset = tmp_path / "golden.jsonl"
+    dataset.write_text(
+        (
+            '{"question":"SLA는?",'
+            '"expected_sources":["ops-runbook.md"],'
+            '"retrieved_sources":["ops-runbook.md"],'
+            '"answer":"SLA는 99.9%",'
+            '"expected_evidence_sources":["ops-runbook.md"],'
+            '"evidence_items":[{"source":"ops-runbook.md","snippet":"SLA 99.9%"}],'
+            '"expected_snippet_terms":["99.9%"]}\n'
+        ),
+        encoding="utf-8",
+    )
+
+    cases = load_cases(dataset)
+
+    assert cases[0].expected_evidence_sources == ["ops-runbook.md"]
+    assert cases[0].evidence_items == [{"source": "ops-runbook.md", "snippet": "SLA 99.9%"}]
+    assert cases[0].expected_snippet_terms == ["99.9%"]
 
 
 def test_check_thresholds_reports_failing_metrics():

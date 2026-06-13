@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Wrench, FileText, Search, Globe } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Wrench, FileText, Search, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation, type TranslationKey } from '@/lib/i18n';
+import type { EvidenceItem } from '@/types';
 
 interface ToolUsageProps {
   tools: Array<{
@@ -13,6 +14,7 @@ interface ToolUsageProps {
     documentSources?: string[];
     sources?: string[];
     confidence?: string;
+    evidenceItems?: EvidenceItem[];
     status?: string;
   }>;
 }
@@ -45,6 +47,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
   if (!tools || tools.length === 0) return null;
 
   const totalResults = tools.reduce((acc, tool) => {
+    if (tool.evidenceItems?.length) return acc + tool.evidenceItems.length;
     if (Array.isArray(tool.results)) return acc + tool.results.length;
     if (typeof tool.results === 'string' && tool.results.trim()) return acc + 1;
     return acc;
@@ -87,7 +90,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
         id={toggleId}
         className={cn(
           'overflow-hidden transition-all duration-200',
-          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded ? 'max-h-[720px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         <div className="px-3 pb-3 space-y-2">
@@ -99,6 +102,7 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                 ? 1
                 : 0;
             const sources = tool.sources || tool.documentSources || [];
+            const evidenceItems = tool.evidenceItems || [];
             const toolLabelKey = TOOL_LABEL_KEYS[tool.name];
             const confidenceLabelKey = tool.confidence ? CONFIDENCE_LABEL_KEYS[tool.confidence] : undefined;
 
@@ -142,6 +146,72 @@ export function ToolUsage({ tools }: ToolUsageProps) {
                       </ul>
                     </div>
                   )}
+
+                  {evidenceItems.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-muted-foreground">{t('tool.evidence')}:</span>
+                      <div className="space-y-1.5">
+                        {evidenceItems.map((item, idx) => {
+                          const itemConfidenceKey = item.confidence
+                            ? CONFIDENCE_LABEL_KEYS[item.confidence]
+                            : undefined;
+                          const isWeak = item.confidence === 'low' || item.confidence === 'none';
+                          const pageLabel = formatPageLabel(item.page, item.page_end, t);
+                          const scoreLabel =
+                            typeof item.score === 'number' ? item.score.toFixed(2) : undefined;
+
+                          return (
+                            <div
+                              key={`${item.source}-${idx}`}
+                              className={cn(
+                                'rounded border bg-background/70 p-2 space-y-1',
+                                isWeak ? 'border-amber-500/50' : 'border-border/60'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="break-words font-medium text-foreground">
+                                    {item.title || item.source || t('tool.unknownSource')}
+                                  </div>
+                                  {pageLabel && (
+                                    <div className="text-muted-foreground">{pageLabel}</div>
+                                  )}
+                                </div>
+                                {isWeak && (
+                                  <AlertTriangle
+                                    className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500"
+                                    aria-label={t('tool.lowConfidence')}
+                                  />
+                                )}
+                              </div>
+
+                              {item.heading_path && (
+                                <div className="break-words text-muted-foreground">
+                                  {t('tool.heading')}: {item.heading_path}
+                                </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+                                {item.confidence && (
+                                  <span>
+                                    {t('tool.confidence')}: {' '}
+                                    {itemConfidenceKey ? t(itemConfidenceKey) : item.confidence}
+                                  </span>
+                                )}
+                                {scoreLabel && <span>{t('tool.score')}: {scoreLabel}</span>}
+                              </div>
+
+                              {item.snippet && (
+                                <blockquote className="max-h-28 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-border pl-2 text-muted-foreground">
+                                  {item.snippet}
+                                </blockquote>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -150,4 +220,16 @@ export function ToolUsage({ tools }: ToolUsageProps) {
       </div>
     </div>
   );
+}
+
+function formatPageLabel(
+  page: number | null | undefined,
+  pageEnd: number | null | undefined,
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  if (!page) return '';
+  if (pageEnd && pageEnd !== page) {
+    return t('tool.pages', page, pageEnd);
+  }
+  return t('tool.page', page);
 }

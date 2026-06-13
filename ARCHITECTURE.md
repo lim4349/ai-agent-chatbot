@@ -169,6 +169,25 @@ backend/src/
 
 도구 선택은 LLM structured decision을 보조 신호로 사용하고, deterministic guardrail이 최종 안전장치가 됩니다. 명시적 문서/RAG 질문은 `retriever`, 최신/뉴스/검색 질문은 `web_search`, 문서가 있는 애매한 요약 요청은 `retriever`를 강제합니다. structured output이 실패하거나 모델이 빈 도구 목록을 반환해도 fallback decision이 같은 정책을 적용합니다.
 
+### Evidence Contract
+
+ResearchEvidenceCollector는 raw tool 결과를 UI와 metrics에서 재사용할 수 있는 `evidence_items`로 정규화합니다.
+
+```json
+{
+  "tool": "retriever",
+  "source": "ops-incident-runbook.md",
+  "page": 3,
+  "page_end": 4,
+  "heading_path": "API 오류율 급증 대응",
+  "score": 0.91,
+  "confidence": "high",
+  "snippet": "API 오류율이 5%를 넘으면 최근 배포..."
+}
+```
+
+snippet은 backend에서 320자 이내로 제한합니다. 문서 질문에서 retriever 근거가 없거나 낮은 confidence면 Assistant final prompt에 abstention warning을 넣어 일반 지식으로 대체 답변하지 않도록 합니다.
+
 **메모리 명령**:
 - `기억해:` / `기억해줘:` - 사용자 정보 저장
 - `알고 있니?` - 저장된 메모리 검색
@@ -385,7 +404,7 @@ MetricsStore.record_request()
 - **Health Indicator**: 백엔드 상태, LLM 모델, 메모리 백엔드
 - **요청 차트**: 24시간 요청 수, 성공/실패율
 - **Evidence 도구 사용량**: `web_search`, `retriever` 호출 수
-- **Evidence 품질**: tool confidence, source count, evidence count 요약
+- **Evidence 품질**: tool confidence, source count, evidence count, evidence item source/snippet 요약
 
 ---
 

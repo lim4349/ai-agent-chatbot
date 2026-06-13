@@ -123,6 +123,13 @@ const translations = {
     'tool.results': (count: number) => `${count}개 결과`,
     'tool.confidence': '신뢰도',
     'tool.sources': '출처',
+    'tool.evidence': '근거 상세',
+    'tool.page': (page: number) => `${page}페이지`,
+    'tool.pages': (start: number, end: number) => `${start}-${end}페이지`,
+    'tool.heading': '섹션',
+    'tool.score': '점수',
+    'tool.lowConfidence': '낮은 신뢰도',
+    'tool.unknownSource': '알 수 없는 출처',
     'tool.error': '오류',
 
     // Evidence confidence labels
@@ -297,6 +304,13 @@ const translations = {
     'tool.results': (count: number) => `${count} result${count === 1 ? '' : 's'}`,
     'tool.confidence': 'Confidence',
     'tool.sources': 'Sources',
+    'tool.evidence': 'Evidence details',
+    'tool.page': (page: number) => `Page ${page}`,
+    'tool.pages': (start: number, end: number) => `Pages ${start}-${end}`,
+    'tool.heading': 'Section',
+    'tool.score': 'Score',
+    'tool.lowConfidence': 'Low confidence',
+    'tool.unknownSource': 'Unknown source',
     'tool.error': 'Error',
 
     // Evidence confidence labels

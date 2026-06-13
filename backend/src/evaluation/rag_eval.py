@@ -42,6 +42,9 @@ class EvalCase:
     expected_table_terms: list[str] = field(default_factory=list)
     expects_parent_context: bool = False
     parent_hydrated: bool = False
+    expected_evidence_sources: list[str] = field(default_factory=list)
+    evidence_items: list[dict[str, Any]] = field(default_factory=list)
+    expected_snippet_terms: list[str] = field(default_factory=list)
 
 
 def load_cases(path: Path) -> list[EvalCase]:
@@ -72,6 +75,9 @@ def parse_case(data: dict[str, Any], line_number: int) -> EvalCase:
     expected_table_terms = [str(term) for term in data.get("expected_table_terms", [])]
     expects_parent_context = bool(data.get("expects_parent_context", False))
     parent_hydrated = bool(data.get("parent_hydrated", False))
+    expected_evidence_sources = [str(source) for source in data.get("expected_evidence_sources", [])]
+    evidence_items = list(data.get("evidence_items", []))
+    expected_snippet_terms = [str(term) for term in data.get("expected_snippet_terms", [])]
 
     if not question:
         raise ValueError(f"Line {line_number}: question is required")
@@ -93,6 +99,14 @@ def parse_case(data: dict[str, Any], line_number: int) -> EvalCase:
         raise ValueError(f"Line {line_number}: retrieved_heading_paths must be a list")
     if not isinstance(data.get("expected_table_terms", []), list):
         raise ValueError(f"Line {line_number}: expected_table_terms must be a list")
+    if not isinstance(data.get("expected_evidence_sources", []), list):
+        raise ValueError(f"Line {line_number}: expected_evidence_sources must be a list")
+    if not isinstance(data.get("evidence_items", []), list):
+        raise ValueError(f"Line {line_number}: evidence_items must be a list")
+    if not all(isinstance(item, dict) for item in evidence_items):
+        raise ValueError(f"Line {line_number}: evidence_items must contain objects")
+    if not isinstance(data.get("expected_snippet_terms", []), list):
+        raise ValueError(f"Line {line_number}: expected_snippet_terms must be a list")
     if confidence not in CONFIDENCE_ORDER:
         raise ValueError(f"Line {line_number}: confidence must be one of {confidence_values()}")
     if min_confidence not in CONFIDENCE_ORDER:
@@ -114,6 +128,9 @@ def parse_case(data: dict[str, Any], line_number: int) -> EvalCase:
         expected_table_terms=expected_table_terms,
         expects_parent_context=expects_parent_context,
         parent_hydrated=parent_hydrated,
+        expected_evidence_sources=expected_evidence_sources,
+        evidence_items=evidence_items,
+        expected_snippet_terms=expected_snippet_terms,
     )
 
 
@@ -131,6 +148,8 @@ def evaluate_cases(cases: list[EvalCase]) -> dict[str, Any]:
             "heading_path_hit_rate": 0,
             "table_answer_coverage_rate": 0,
             "parent_hydration_rate": 0,
+            "evidence_item_source_hit_rate": 0,
+            "evidence_snippet_coverage_rate": 0,
         }
 
     source_hits = 0
@@ -149,6 +168,10 @@ def evaluate_cases(cases: list[EvalCase]) -> dict[str, Any]:
     table_passes = 0
     parent_expectations = 0
     parent_passes = 0
+    evidence_item_source_expectations = 0
+    evidence_item_source_hits = 0
+    snippet_expectations = 0
+    snippet_passes = 0
 
     for case in cases:
         expected = set(case.expected_sources)
@@ -186,6 +209,24 @@ def evaluate_cases(cases: list[EvalCase]) -> dict[str, Any]:
             parent_expectations += 1
             if case.parent_hydrated:
                 parent_passes += 1
+        if case.expected_evidence_sources:
+            evidence_item_source_expectations += 1
+            item_sources = {
+                str(item.get("source", ""))
+                for item in case.evidence_items
+                if isinstance(item, dict)
+            }
+            if set(case.expected_evidence_sources) & item_sources:
+                evidence_item_source_hits += 1
+        if case.expected_snippet_terms:
+            snippet_expectations += 1
+            snippets = " ".join(
+                str(item.get("snippet", ""))
+                for item in case.evidence_items
+                if isinstance(item, dict)
+            ).lower()
+            if all(term.lower() in snippets for term in case.expected_snippet_terms):
+                snippet_passes += 1
 
     total = len(cases)
     return {
@@ -199,6 +240,11 @@ def evaluate_cases(cases: list[EvalCase]) -> dict[str, Any]:
         "heading_path_hit_rate": safe_rate(heading_hits, heading_expectations),
         "table_answer_coverage_rate": safe_rate(table_passes, table_expectations),
         "parent_hydration_rate": safe_rate(parent_passes, parent_expectations),
+        "evidence_item_source_hit_rate": safe_rate(
+            evidence_item_source_hits,
+            evidence_item_source_expectations,
+        ),
+        "evidence_snippet_coverage_rate": safe_rate(snippet_passes, snippet_expectations),
     }
 
 
@@ -237,6 +283,8 @@ def main() -> None:
     parser.add_argument("--min-heading-path-hit-rate", type=float, default=None)
     parser.add_argument("--min-table-answer-coverage-rate", type=float, default=None)
     parser.add_argument("--min-parent-hydration-rate", type=float, default=None)
+    parser.add_argument("--min-evidence-item-source-hit-rate", type=float, default=None)
+    parser.add_argument("--min-evidence-snippet-coverage-rate", type=float, default=None)
     args = parser.parse_args()
 
     cases = load_cases(args.dataset)
@@ -254,6 +302,8 @@ def main() -> None:
             "heading_path_hit_rate": args.min_heading_path_hit_rate,
             "table_answer_coverage_rate": args.min_table_answer_coverage_rate,
             "parent_hydration_rate": args.min_parent_hydration_rate,
+            "evidence_item_source_hit_rate": args.min_evidence_item_source_hit_rate,
+            "evidence_snippet_coverage_rate": args.min_evidence_snippet_coverage_rate,
         }.items()
         if value is not None
     }

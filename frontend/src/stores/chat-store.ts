@@ -222,6 +222,7 @@ export const useChatStore = create<ChatStore>()(
                   results: tool.results,
                   sources: tool.sources,
                   confidence: tool.confidence,
+                  evidenceItems: tool.evidence_items || tool.evidenceItems,
                   status: tool.error ? 'error' : 'success',
                 }),
               }));

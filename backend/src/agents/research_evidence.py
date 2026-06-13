@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -29,6 +30,7 @@ WEB_INTENT_TERMS = (
     "news",
 )
 REPORT_INTENT_TERMS = ("보고서", "리포트", "report", "종합")
+SNIPPET_CHAR_LIMIT = 320
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,8 @@ class ResearchEvidence:
     context: str
     confidence: str = "none"
     evidence_count: int = 0
+    evidence_items: list[dict] = field(default_factory=list)
+    warning: str | None = None
 
 
 class ResearchEvidenceCollector:
@@ -92,12 +96,15 @@ class ResearchEvidenceCollector:
             state,
         )
         normalized = self.normalize_tool_results(tool_results)
+        evidence_items = self.collect_evidence_items(normalized)
         return ResearchEvidence(
             decision=decision,
             tool_results=normalized,
             context=self.format_tool_context(normalized),
             confidence=self.estimate_confidence(normalized),
             evidence_count=self.count_evidence(normalized),
+            evidence_items=evidence_items,
+            warning=self.build_evidence_warning(normalized),
         )
 
     async def decide_tools(self, query: str, state: AgentState) -> ResearchToolDecision:
@@ -353,6 +360,8 @@ Rules:
         if item.get("error"):
             item["evidence_count"] = 0
             item["confidence"] = "error"
+            item["sources"] = []
+            item["evidence_items"] = []
             return item
 
         tool = item.get("tool")
@@ -363,6 +372,7 @@ Rules:
 
         item["evidence_count"] = 0
         item["confidence"] = "none"
+        item["evidence_items"] = []
         return item
 
     def normalize_retriever_result(self, item: dict) -> dict:
@@ -373,16 +383,24 @@ Rules:
             for doc in docs
             if isinstance(doc, dict) and doc.get("score") is not None
         ]
-        item["evidence_count"] = len(docs) if isinstance(docs, list) else 0
-        item["sources"] = self.extract_document_sources(docs)
+        evidence_items = [
+            self.create_retriever_evidence_item(doc)
+            for doc in docs
+            if isinstance(doc, dict)
+        ]
+        item["evidence_items"] = evidence_items
+        item["evidence_count"] = len(evidence_items)
+        item["sources"] = self.extract_sources_from_evidence_items(evidence_items)
         item["confidence"] = self.score_confidence(max(scores) if scores else 0)
         return item
 
     def normalize_web_search_result(self, item: dict) -> dict:
         """Add evidence metadata for web search results."""
         text = str(item.get("results") or "")
-        item["evidence_count"] = 1 if text.strip() else 0
-        item["sources"] = self.extract_markdown_links(text)
+        evidence_items = self.create_web_evidence_items(text)
+        item["evidence_items"] = evidence_items
+        item["evidence_count"] = len(evidence_items)
+        item["sources"] = self.extract_sources_from_evidence_items(evidence_items)
         item["confidence"] = "medium" if text.strip() else "none"
         return item
 
@@ -395,6 +413,129 @@ Rules:
         if score > 0:
             return "low"
         return "none"
+
+    def create_retriever_evidence_item(self, doc: dict) -> dict:
+        """Build a bounded, UI-safe evidence item from a retriever result."""
+        metadata = doc.get("metadata") or {}
+        score = self.safe_float(doc.get("score"))
+        heading_path = metadata.get("heading_path_text") or self.heading_path_text(
+            metadata.get("heading_path", [])
+        )
+        source = str(metadata.get("source") or metadata.get("filename") or "uploaded document")
+        snippet_source = doc.get("matched_excerpt") or doc.get("content") or ""
+        return {
+            "tool": "retriever",
+            "source": source,
+            "page": self.safe_int(metadata.get("page")),
+            "page_end": self.safe_int(metadata.get("page_end")),
+            "heading_path": heading_path,
+            "score": score,
+            "confidence": self.score_confidence(score),
+            "snippet": self.truncate_snippet(snippet_source),
+        }
+
+    def create_web_evidence_items(self, text: str) -> list[dict]:
+        """Build evidence items from markdown-style web search links."""
+        if not text.strip():
+            return []
+
+        items = []
+        seen_urls: set[str] = set()
+        for match in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", text):
+            title = match.group(1).strip()
+            url = match.group(2).strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            items.append(
+                {
+                    "tool": "web_search",
+                    "source": url,
+                    "url": url,
+                    "title": title,
+                    "page": None,
+                    "page_end": None,
+                    "heading_path": "",
+                    "score": None,
+                    "confidence": "medium",
+                    "snippet": self.truncate_snippet(text),
+                }
+            )
+
+        if items:
+            return items
+
+        return [
+            {
+                "tool": "web_search",
+                "source": "web_search",
+                "url": None,
+                "title": "",
+                "page": None,
+                "page_end": None,
+                "heading_path": "",
+                "score": None,
+                "confidence": "medium",
+                "snippet": self.truncate_snippet(text),
+            }
+        ]
+
+    def truncate_snippet(self, content: object, limit: int = SNIPPET_CHAR_LIMIT) -> str:
+        """Normalize and bound evidence snippets before they leave the backend."""
+        text = str(content or "").strip()
+        if not text:
+            return ""
+
+        lines = [
+            re.sub(r"[ \t]+", " ", line).strip()
+            for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        ]
+        normalized = "\n".join(line for line in lines if line)
+        if len(normalized) <= limit:
+            return normalized
+        return normalized[: max(limit - 3, 0)].rstrip() + "..."
+
+    def heading_path_text(self, heading_path: object) -> str:
+        """Normalize heading path metadata into a display string."""
+        if isinstance(heading_path, list):
+            return " > ".join(str(part) for part in heading_path if part)
+        if heading_path:
+            return str(heading_path)
+        return ""
+
+    def safe_float(self, value: object) -> float:
+        """Return a JSON-safe float score."""
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def safe_int(self, value: object) -> int | None:
+        """Return an int metadata value when available."""
+        try:
+            if value is None or value == "":
+                return None
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def collect_evidence_items(self, tool_results: list[dict]) -> list[dict]:
+        """Flatten normalized tool evidence into a common contract."""
+        items = []
+        for result in tool_results:
+            for item in result.get("evidence_items", []):
+                if isinstance(item, dict):
+                    items.append(item)
+        return items
+
+    def extract_sources_from_evidence_items(self, evidence_items: list[dict]) -> list[str]:
+        """Extract displayable unique sources from normalized evidence items."""
+        sources = []
+        for item in evidence_items:
+            source = item.get("source")
+            if source and source not in sources:
+                sources.append(str(source))
+        return sources
 
     def extract_document_sources(self, docs: list[dict]) -> list[str]:
         """Extract displayable document sources from retrieved chunks."""
@@ -410,14 +551,51 @@ Rules:
 
     def extract_markdown_links(self, text: str) -> list[str]:
         """Extract markdown URLs from formatted web search output."""
-        import re
-
         urls = []
         for match in re.finditer(r"\[[^\]]+\]\(([^)]+)\)", text):
             url = match.group(1)
             if url not in urls:
                 urls.append(url)
         return urls
+
+    def build_evidence_warning(self, tool_results: list[dict]) -> str | None:
+        """Return abstention guidance for missing or weak required evidence."""
+        warnings = []
+        for result in tool_results:
+            tool = result.get("tool")
+            evidence_count = int(result.get("evidence_count", 0))
+            confidence = result.get("confidence", "none")
+            error = result.get("error")
+
+            if tool == "retriever":
+                if error:
+                    warnings.append(
+                        "Uploaded-document evidence is unavailable. Do not answer document-specific "
+                        "questions from general knowledge; state that document evidence could not be checked."
+                    )
+                elif evidence_count == 0:
+                    warnings.append(
+                        "No matching uploaded-document evidence was found. For document or RAG questions, "
+                        "state that the uploaded documents do not provide enough evidence."
+                    )
+                elif confidence == "low":
+                    warnings.append(
+                        "Uploaded-document evidence is low confidence. Do not present unsupported specifics; "
+                        "state the limitation clearly."
+                    )
+
+            if tool == "web_search":
+                if error:
+                    warnings.append(
+                        "Web evidence is unavailable. For current or news questions, state that current "
+                        "information could not be verified."
+                    )
+                elif evidence_count == 0:
+                    warnings.append(
+                        "No web evidence was found. For current or news questions, avoid unsupported claims."
+                    )
+
+        return " ".join(warnings) if warnings else None
 
     def count_evidence(self, tool_results: list[dict]) -> int:
         """Count evidence items across normalized tool results."""

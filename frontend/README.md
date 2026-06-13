@@ -103,6 +103,8 @@ npm start
 ### Assistant 및 도구 시각화
 - Assistant 배지
 - 도구 사용 내역 접기/펼치기 표시
+- 정규화된 evidence detail 표시: source, page, heading path, confidence, score, bounded snippet
+- low/none confidence 근거 경고 표시
 - 이전 대화 참조 배지 (메모리 기반)
 
 ### 문서 업로드

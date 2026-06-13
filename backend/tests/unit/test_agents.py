@@ -274,3 +274,41 @@ class TestAssistantAgent:
             }
         ]
         assert [tool_result["tool"] for tool_result in result["tool_results"]] == ["retriever"]
+
+    @pytest.mark.asyncio
+    async def test_missing_document_evidence_adds_abstention_warning(self, mock_memory):
+        """Document questions with empty retrieval should receive explicit abstention guidance."""
+
+        class RecordingLLM:
+            config = type("Config", (), {"model": "mock-model"})()
+
+            def __init__(self):
+                self.messages = []
+
+            async def generate_structured(self, messages, output_schema, **kwargs):
+                return {
+                    "tools": ["retriever"],
+                    "response_mode": "answer",
+                    "reasoning": "document query",
+                }
+
+            async def generate_with_usage(self, messages, **kwargs):
+                self.messages = messages
+                return "문서 근거가 부족합니다.", {"input_tokens": 1, "output_tokens": 1}
+
+        class EmptyRetrieverTool:
+            async def execute(self, query, top_k=3, session_id=None, device_id=None):
+                return []
+
+        llm = RecordingLLM()
+        agent = AssistantAgent(llm=llm, memory=mock_memory, retriever=EmptyRetrieverTool())
+        state = create_initial_state("업로드 문서에서 SLA를 찾아줘", "test-session", "device-1")
+        state["has_documents"] = True
+
+        result = await agent.process(state)
+
+        evidence_prompt = "\n".join(
+            message["content"] for message in llm.messages if message["role"] == "system"
+        )
+        assert "No matching uploaded-document evidence was found" in evidence_prompt
+        assert result["tool_results"][0]["evidence_items"] == []

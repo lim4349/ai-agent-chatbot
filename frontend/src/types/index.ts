@@ -23,6 +23,19 @@ export interface ChatResponse {
   referenced_topics?: string[];
 }
 
+export interface EvidenceItem {
+  tool: string;
+  source: string;
+  page?: number | null;
+  page_end?: number | null;
+  heading_path?: string;
+  score?: number | null;
+  confidence?: string;
+  snippet?: string;
+  url?: string | null;
+  title?: string;
+}
+
 export interface HealthResponse {
   status: string;
   llm_provider: string;
@@ -111,6 +124,7 @@ export interface Message {
     documentSources?: string[];
     sources?: string[];
     confidence?: string;
+    evidenceItems?: EvidenceItem[];
     status?: string;
   }>;
   status?: string;
@@ -143,6 +157,8 @@ export interface SSECallbacks {
     results?: unknown[] | string;
     sources?: string[];
     confidence?: string;
+    evidence_items?: EvidenceItem[];
+    evidenceItems?: EvidenceItem[];
     error?: string;
   }) => void;
   onDone: () => void;

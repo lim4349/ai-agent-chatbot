@@ -68,6 +68,8 @@ Guidelines:
 - Answer in the user's language.
 - Use collected evidence when provided.
 - If the evidence is missing, weak, or failed, say so clearly instead of inventing details.
+- For uploaded-document questions, never replace missing document evidence with general knowledge.
+- If evidence confidence is low or none, prefer a brief abstention and explain what evidence is missing.
 - Cite uploaded-document or web context by source names when source metadata is available.
 - Keep ordinary conversation concise and useful.
 
@@ -128,6 +130,7 @@ Guidelines:
                         "Use the following Research Evidence when it is relevant.\n"
                         f"Response mode: {evidence.decision.response_mode}\n"
                         f"Evidence confidence: {evidence.confidence}\n"
+                        f"Evidence warning: {evidence.warning or 'None'}\n"
                         f"Tool plan: {evidence.decision.reasoning or 'No additional reasoning.'}\n\n"
                         f"{evidence.context}"
                     ),
@@ -145,6 +148,13 @@ Guidelines:
                 evidence_tools=[result.get("tool") for result in evidence.tool_results],
                 evidence_confidence=evidence.confidence,
                 evidence_count=evidence.evidence_count,
+                evidence_items=evidence.evidence_items,
+                evidence_sources=[
+                    item.get("source")
+                    for item in evidence.evidence_items
+                    if item.get("source")
+                ],
+                evidence_top_score=self._top_evidence_score(evidence.evidence_items),
             )
             response, usage = await self.llm.generate_with_usage(messages)
             metrics.set_token_count(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
@@ -160,3 +170,12 @@ Guidelines:
             "tool_results": [*state.get("tool_results", []), *evidence.tool_results],
             **workflow_updates,
         }
+
+    def _top_evidence_score(self, evidence_items: list[dict]) -> float | None:
+        """Return the highest numeric evidence score for metrics metadata."""
+        scores = [
+            float(item["score"])
+            for item in evidence_items
+            if isinstance(item.get("score"), int | float)
+        ]
+        return max(scores) if scores else None

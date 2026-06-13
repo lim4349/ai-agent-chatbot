@@ -26,8 +26,19 @@ API 문서: http://localhost:8000/docs
 ```bash
 uv run --with ruff ruff check .
 uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
-uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl --min-source-hit-rate 1.0 --min-answer-coverage-rate 1.0 --max-no-answer-rate 0.0 --min-tool-match-rate 1.0 --min-confidence-pass-rate 1.0 --min-citation-page-hit-rate 1.0 --min-heading-path-hit-rate 1.0 --min-table-answer-coverage-rate 1.0 --min-parent-hydration-rate 1.0
+uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl \
+  --min-source-hit-rate 1.0 \
+  --min-answer-coverage-rate 1.0 \
+  --max-no-answer-rate 0.0 \
+  --min-tool-match-rate 1.0 \
+  --min-confidence-pass-rate 1.0 \
+  --min-citation-page-hit-rate 1.0 \
+  --min-heading-path-hit-rate 1.0 \
+  --min-table-answer-coverage-rate 1.0 \
+  --min-parent-hydration-rate 1.0 \
+  --min-evidence-item-source-hit-rate 1.0 \
+  --min-evidence-snippet-coverage-rate 1.0
 ```
 
-`evals/research_golden.jsonl`은 Research Evidence가 기대 도구, 출처, confidence, citation page, heading path, table answer coverage, parent hydration 기준을 만족하는지 확인하는 offline 회귀 데이터셋입니다.
+`evals/research_golden.jsonl`은 Research Evidence가 기대 도구, 출처, confidence, citation page, heading path, table answer coverage, parent hydration, normalized evidence item, snippet term 기준을 만족하는지 확인하는 offline 회귀 데이터셋입니다.
 `PINECONE_API_KEY`와 `PINECONE_INDEX_NAME`이 있으면 실제 Pinecone Adapter를 사용하는 RAG Document Lifecycle smoke test도 실행됩니다.

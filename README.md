@@ -43,6 +43,7 @@ LangGraph 기반 Agentic RAG 챗봇 시스템입니다. 단일 `assistant` 에�
 - 단일 AssistantAgent 기반 Agentic RAG 흐름
 - Research Evidence 기반 agentic tool calling
 - 문서 업로드, layout-aware parsing, parent-child retrieval, 목록/삭제 후 질의응답 (`retriever`)
+- backend-normalized `evidence_items` contract: source, page, heading path, score, confidence, bounded snippet
 - 웹 검색 도구 연동 (`web_search`, Tavily)
 - 세션 메모리 저장 및 요약
 - SSE 기반 스트리밍 응답
@@ -129,7 +130,18 @@ docker compose up -d --build
 cd backend
 uv run --with ruff ruff check .
 uv run --with pytest --with pytest-asyncio --with pytest-cov --with pytest-timeout python -m pytest -q
-uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl --min-source-hit-rate 1.0 --min-answer-coverage-rate 1.0 --max-no-answer-rate 0.0 --min-tool-match-rate 1.0 --min-confidence-pass-rate 1.0 --min-citation-page-hit-rate 1.0 --min-heading-path-hit-rate 1.0 --min-table-answer-coverage-rate 1.0 --min-parent-hydration-rate 1.0
+uv run python -m src.evaluation.rag_eval evals/research_golden.jsonl \
+  --min-source-hit-rate 1.0 \
+  --min-answer-coverage-rate 1.0 \
+  --max-no-answer-rate 0.0 \
+  --min-tool-match-rate 1.0 \
+  --min-confidence-pass-rate 1.0 \
+  --min-citation-page-hit-rate 1.0 \
+  --min-heading-path-hit-rate 1.0 \
+  --min-table-answer-coverage-rate 1.0 \
+  --min-parent-hydration-rate 1.0 \
+  --min-evidence-item-source-hit-rate 1.0 \
+  --min-evidence-snippet-coverage-rate 1.0
 
 # frontend
 cd frontend

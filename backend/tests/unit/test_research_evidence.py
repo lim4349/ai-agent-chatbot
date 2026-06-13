@@ -72,6 +72,7 @@ def test_explicit_guardrail_adds_missing_retriever_choice():
 
 def test_normalize_retriever_result_adds_sources_count_and_confidence():
     collector = ResearchEvidenceCollector(llm=FakeLLM())
+    long_content = "A" * 400
 
     normalized = collector.normalize_tool_result(
         {
@@ -79,8 +80,14 @@ def test_normalize_retriever_result_adds_sources_count_and_confidence():
             "query": "문서",
             "results": [
                 {
-                    "content": "A",
-                    "metadata": {"source": "doc-a.txt"},
+                    "content": long_content,
+                    "matched_excerpt": "결혼 경조사비는 50만 원입니다.",
+                    "metadata": {
+                        "source": "doc-a.txt",
+                        "page": 3,
+                        "page_end": 4,
+                        "heading_path": ["제3장 복리후생", "제2조 경조사비"],
+                    },
                     "score": 0.91,
                 },
                 {
@@ -95,6 +102,31 @@ def test_normalize_retriever_result_adds_sources_count_and_confidence():
     assert normalized["evidence_count"] == 2
     assert normalized["sources"] == ["doc-a.txt", "doc-b.txt"]
     assert normalized["confidence"] == "high"
+    assert normalized["evidence_items"][0] == {
+        "tool": "retriever",
+        "source": "doc-a.txt",
+        "page": 3,
+        "page_end": 4,
+        "heading_path": "제3장 복리후생 > 제2조 경조사비",
+        "score": 0.91,
+        "confidence": "high",
+        "snippet": "결혼 경조사비는 50만 원입니다.",
+    }
+
+
+def test_retriever_evidence_snippet_is_bounded():
+    collector = ResearchEvidenceCollector(llm=FakeLLM())
+
+    item = collector.create_retriever_evidence_item(
+        {
+            "content": "가" * 500,
+            "metadata": {"source": "long.md"},
+            "score": 0.7,
+        }
+    )
+
+    assert len(item["snippet"]) <= 320
+    assert item["snippet"].endswith("...")
 
 
 def test_normalize_web_search_result_extracts_markdown_sources():
@@ -111,6 +143,9 @@ def test_normalize_web_search_result_extracts_markdown_sources():
     assert normalized["evidence_count"] == 1
     assert normalized["sources"] == ["https://example.com"]
     assert normalized["confidence"] == "medium"
+    assert normalized["evidence_items"][0]["tool"] == "web_search"
+    assert normalized["evidence_items"][0]["source"] == "https://example.com"
+    assert normalized["evidence_items"][0]["title"] == "Source"
 
 
 def test_tool_error_result_has_no_evidence_and_error_confidence():
@@ -122,3 +157,23 @@ def test_tool_error_result_has_no_evidence_and_error_confidence():
 
     assert normalized["evidence_count"] == 0
     assert normalized["confidence"] == "error"
+    assert normalized["evidence_items"] == []
+
+
+def test_evidence_warning_flags_missing_retriever_results():
+    collector = ResearchEvidenceCollector(llm=FakeLLM())
+
+    warning = collector.build_evidence_warning(
+        [
+            {
+                "tool": "retriever",
+                "query": "문서",
+                "results": [],
+                "evidence_count": 0,
+                "confidence": "none",
+            }
+        ]
+    )
+
+    assert warning is not None
+    assert "No matching uploaded-document evidence" in warning

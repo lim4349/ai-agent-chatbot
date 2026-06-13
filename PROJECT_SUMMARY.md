@@ -166,7 +166,7 @@ User Memory (Supabase, permanent)
 - Token usage tracking
 - Average response times
 - Research Evidence usage, confidence, and tool counts
-- Offline RAG evaluation JSONL runner with expected tools, sources, confidence, page, heading path, table answer coverage, and parent hydration checks
+- Offline RAG evaluation JSONL runner with expected tools, sources, confidence, page, heading path, table answer coverage, parent hydration, evidence item source, and snippet coverage checks
 - CI gate support for minimum source-hit, answer-coverage, tool-match, confidence-pass, citation-page, heading-path, table-coverage, and parent-hydration rates
 
 **Stored Metrics** (Supabase):
@@ -492,12 +492,12 @@ Confirmed design direction:
 - Evaluation strategy: deterministic golden-set eval first; LLM-as-judge is deferred.
 
 Implementation batches:
-1. Model/config/documentation alignment: NVIDIA baseline model, `DEFAULT_LLM_MODEL`, deployment examples, agent instructions, and architecture docs.
-2. Evidence contract: backend-normalized `evidence_items` with source, page, heading path, score, confidence, and bounded snippet.
-3. Evidence UI: expandable tool panel showing concise evidence details and low-confidence warnings.
-4. Abstention hardening: stricter RAG behavior when retriever evidence is empty or low confidence.
-5. Eval expansion: grow deterministic golden cases from 5 to 15-30 across PDF/MD/CSV, no-answer, table, summary, web, and mixed RAG+web scenarios.
-6. Synthetic sample set: multi-domain portfolio documents with IT operations as the main domain and HR/policy/technical docs as secondary coverage.
+1. Completed: model/config/documentation alignment with NVIDIA baseline model, `DEFAULT_LLM_MODEL`, deployment examples, agent instructions, and architecture docs.
+2. Completed: backend-normalized `evidence_items` with source, page, heading path, score, confidence, and bounded snippet.
+3. Completed: expandable ToolUsage evidence panel with concise evidence details and low-confidence warnings.
+4. Completed: abstention hardening for empty or low-confidence retriever evidence.
+5. Completed: deterministic golden cases expanded from 5 to 15 across PDF/MD/CSV-style, abstention, table, summary, web, and mixed RAG+web scenarios.
+6. Completed: synthetic multi-domain sample document set under `docs/samples/`.
 
 **Current Free Tier Constraints**:
 - Render: 512MB RAM → keep active tool surface small
