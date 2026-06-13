@@ -25,7 +25,7 @@ async def record_agent_metrics(
     Automatically captures duration, token usage, and status from LLM responses.
 
     Usage:
-        async with record_agent_metrics(store, sid, "chat", "gpt-4o") as metrics:
+        async with record_agent_metrics(store, sid, "assistant", "openrouter/free") as metrics:
             result = await llm.generate(messages)
             metrics.set_token_count(input_tokens, output_tokens)
             metrics.set_status("success")

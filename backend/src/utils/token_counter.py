@@ -9,6 +9,8 @@ from src.core.logging import get_logger
 logger = get_logger(__name__)
 
 # Token limits per model (context window sizes)
+DEFAULT_TOKEN_MODEL = "openrouter/free"
+
 MODEL_TOKEN_LIMITS = {
     "gpt-4": 8192,
     "gpt-4-32k": 32768,
@@ -54,7 +56,7 @@ def get_encoding_for_model(model: str) -> tiktoken.Encoding:
     return tiktoken.get_encoding("cl100k_base")
 
 
-def count_tokens(messages: list[dict], model: str = "gpt-4") -> int:
+def count_tokens(messages: list[dict], model: str = DEFAULT_TOKEN_MODEL) -> int:
     """Count tokens for a list of messages.
 
     Args:
@@ -86,7 +88,7 @@ def count_tokens(messages: list[dict], model: str = "gpt-4") -> int:
     return token_count
 
 
-def count_tokens_for_message(message: dict, model: str = "gpt-4") -> int:
+def count_tokens_for_message(message: dict, model: str = DEFAULT_TOKEN_MODEL) -> int:
     """Count tokens for a single message.
 
     Args:
@@ -114,7 +116,7 @@ def count_tokens_for_message(message: dict, model: str = "gpt-4") -> int:
 def truncate_messages(
     messages: list[dict],
     max_tokens: int,
-    model: str = "gpt-4",
+    model: str = DEFAULT_TOKEN_MODEL,
     reserve_tokens: int = DEFAULT_RESPONSE_RESERVE,
 ) -> list[dict]:
     """Truncate messages to fit within token limit.
@@ -199,7 +201,7 @@ def get_model_token_limit(model: str) -> int:
 
 def calculate_available_tokens(
     messages: list[dict],
-    model: str = "gpt-4",
+    model: str = DEFAULT_TOKEN_MODEL,
     reserve_tokens: int = DEFAULT_RESPONSE_RESERVE,
 ) -> int:
     """Calculate available tokens for response generation.

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from src.core.logging import get_logger
 from src.utils.token_counter import (
+    DEFAULT_TOKEN_MODEL,
     count_tokens,
     count_tokens_for_message,
     truncate_messages,
@@ -29,7 +30,7 @@ class ContextConfig:
     reserve_tokens: int = 1000
     """Tokens to reserve for response generation."""
 
-    model: str = "gpt-4"
+    model: str = DEFAULT_TOKEN_MODEL
     """Model name for token counting."""
 
     window_size: int = 10

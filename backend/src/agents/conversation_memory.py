@@ -40,7 +40,6 @@ class ConversationMemoryCommands:
         "document",
         "논문",
         "paper",
-        "ieee",
     )
     CONVERSATION_SUMMARY_TERMS = ("대화", "채팅", "지금까지", "conversation", "chat")
 

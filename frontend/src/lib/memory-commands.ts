@@ -15,8 +15,8 @@ export interface ParsedMemoryCommand {
  * - "알려줘" -> { type: 'recall' }
  * - "잊어줘: 내용" -> { type: 'forget', content: '내용' }
  * - "잊어: 내용" -> { type: 'forget', content: '내용' }
- * - "요약해줘" -> { type: 'summarize' }
- * - "요약해" -> { type: 'summarize' }
+ * - "대화 요약해줘" -> { type: 'summarize' }
+ * - "지금까지 대화 요약해줘" -> { type: 'summarize' }
  */
 export function parseMemoryCommand(message: string): ParsedMemoryCommand {
   const trimmed = message.trim();
@@ -53,12 +53,12 @@ export function parseMemoryCommand(message: string): ParsedMemoryCommand {
     }
   }
 
-  // Summarize commands: 요약해줘, 요약해
+  // Summarize commands: explicit conversation summary only.
   if (
-    trimmed === '요약해줘' ||
-    trimmed === '요약해' ||
     trimmed === '대화 요약해줘' ||
-    trimmed === '대화 요약해'
+    trimmed === '대화 요약해' ||
+    trimmed === '지금까지 대화 요약해줘' ||
+    trimmed === '지금까지 대화 요약해'
   ) {
     return { type: 'summarize' };
   }
