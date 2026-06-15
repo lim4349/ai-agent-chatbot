@@ -6,6 +6,12 @@ import pytest
 
 from src.agents.assistant_agent import AssistantAgent
 from src.graph.state import create_initial_state
+from src.search.direct_fetch import DirectFetchResult
+
+
+class NoopDirectFetcher:
+    async def fetch(self, plan):
+        return DirectFetchResult.empty(url=plan.date_url)
 
 
 class TestAssistantAgent:
@@ -164,7 +170,12 @@ class TestAssistantAgent:
 
         llm = RecordingLLM()
         search_tool = MockSearchTool()
-        agent = AssistantAgent(llm=llm, memory=mock_memory, search_tool=search_tool)
+        agent = AssistantAgent(
+            llm=llm,
+            memory=mock_memory,
+            search_tool=search_tool,
+            direct_fetcher=NoopDirectFetcher(),
+        )
         state = create_initial_state("hf에서 오늘자 논문 검색해줘", "test-session")
 
         result = await agent.process(state)

@@ -5,11 +5,17 @@ from datetime import date, datetime
 import pytest
 
 from src.agents.research_evidence import ResearchEvidenceCollector, ResearchToolDecision
+from src.search.direct_fetch import DirectFetchItem, DirectFetchResult
 from src.search.query_planner import SearchQueryPlanner
 
 
 class FakeLLM:
     config = type("Config", (), {"model": "mock-model"})()
+
+
+class NoopDirectFetcher:
+    async def fetch(self, plan):
+        return DirectFetchResult.empty(url=plan.date_url)
 
 
 def test_detect_intent_identifies_document_web_and_report_requests():
@@ -194,6 +200,7 @@ async def test_web_search_plan_adds_stale_date_warning_to_evidence():
         llm=FakeLLM(),
         search_tool=search_tool,
         search_planner=SearchQueryPlanner(today_provider=lambda: date(2026, 6, 15)),
+        direct_fetcher=NoopDirectFetcher(),
     )
 
     result = await collector.run_web_search("hf에서 오늘자 논문 검색해줘")
@@ -207,6 +214,57 @@ async def test_web_search_plan_adds_stale_date_warning_to_evidence():
     assert result["date_validation"]["status"] == "stale"
     assert warning is not None
     assert "Requested evidence for 2026-06-15" in warning
+
+
+@pytest.mark.asyncio
+async def test_web_search_uses_direct_source_when_date_page_is_available():
+    class FailingSearchTool:
+        async def execute_many(self, queries, *, max_queries=2):
+            raise AssertionError("search API should not be called when direct source works")
+
+    class MockDirectFetcher:
+        async def fetch(self, plan):
+            return DirectFetchResult(
+                url=plan.date_url,
+                status_code=200,
+                content_type="text/html",
+                extractor=plan.direct_fetch_extractor,
+                items=[
+                    DirectFetchItem(
+                        title="APPO: Agentic Procedural Policy Optimization",
+                        url="https://huggingface.co/papers/2606.12384",
+                        snippet="Agentic policy optimization paper.",
+                        date="2026-06-15",
+                        score=32,
+                    )
+                ],
+                text=(
+                    "## Direct source: Hugging Face papers 2026-06-15\n"
+                    "Source: [Hugging Face papers 2026-06-15]"
+                    "(https://huggingface.co/papers/date/2026-06-15)\n\n"
+                    "### 1. [APPO: Agentic Procedural Policy Optimization]"
+                    "(https://huggingface.co/papers/2606.12384)\n"
+                    "Votes: 32\n"
+                    "Daily date: 2026-06-15\n"
+                    "Summary: Agentic policy optimization paper."
+                ),
+            )
+
+    collector = ResearchEvidenceCollector(
+        llm=FakeLLM(),
+        search_tool=FailingSearchTool(),
+        search_planner=SearchQueryPlanner(today_provider=lambda: date(2026, 6, 15)),
+        direct_fetcher=MockDirectFetcher(),
+    )
+
+    result = await collector.run_web_search("Hugging Face papers today votes top 5")
+    normalized = collector.normalize_tool_result(result)
+
+    assert result["date_validation"]["status"] == "fresh"
+    assert result["direct_fetch"]["items"][0]["score"] == 32
+    assert normalized["confidence"] == "medium"
+    assert normalized["evidence_count"] == 2
+    assert "https://huggingface.co/papers/2606.12384" in normalized["sources"]
 
 
 def test_tool_error_result_has_no_evidence_and_error_confidence():

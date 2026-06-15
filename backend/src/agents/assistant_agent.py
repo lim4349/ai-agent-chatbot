@@ -39,6 +39,7 @@ class AssistantAgent(BaseAgent):
         summarizer: Summarizer | None = Provide[DIContainer.summarizer],
         search_tool=None,
         retriever=None,
+        direct_fetcher=None,
         metrics_store=Provide[DIContainer.metrics_store],
     ):
         super().__init__(llm, memory=memory)
@@ -56,6 +57,7 @@ class AssistantAgent(BaseAgent):
             llm=llm,
             search_tool=search_tool,
             retriever=retriever,
+            direct_fetcher=direct_fetcher,
         )
         self._user_profiles: dict[str, dict] = {}
 

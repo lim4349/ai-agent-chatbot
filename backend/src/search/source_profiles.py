@@ -48,6 +48,7 @@ DEFAULT_SOURCE_PROFILES: tuple[SourceProfile, ...] = (
                 aliases=PAPERS.aliases,
                 search_terms=("Hugging Face Daily Papers",),
                 date_url_template="https://huggingface.co/papers/date/{date}",
+                direct_fetch_extractor="huggingface_daily_papers",
             ),
             "models": MODELS,
             "datasets": DATASETS,

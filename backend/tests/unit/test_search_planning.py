@@ -1,7 +1,12 @@
 """Tests for generalized web search planning."""
 
+import html
+import json
 from datetime import date
 
+import pytest
+
+from src.search.direct_fetch import DirectSourceFetcher, parse_huggingface_daily_papers
 from src.search.evidence_dates import EvidenceDateValidator
 from src.search.query_planner import SearchQueryPlanner
 from src.search.source_profiles import ContentIntentResolver, SourceResolver
@@ -34,6 +39,7 @@ def test_content_resolver_matches_source_specific_papers():
     assert content_type is not None
     assert content_type.id == "papers"
     assert content_type.date_url_template == "https://huggingface.co/papers/date/{date}"
+    assert content_type.direct_fetch_extractor == "huggingface_daily_papers"
 
 
 def test_query_planner_uses_date_template_when_available():
@@ -46,6 +52,7 @@ def test_query_planner_uses_date_template_when_available():
     assert plan.content_type == "papers"
     assert plan.temporal.exact_date == "2026-06-15"
     assert plan.date_url == "https://huggingface.co/papers/date/2026-06-15"
+    assert plan.direct_fetch_extractor == "huggingface_daily_papers"
     assert plan.queries[0] == (
         "site:huggingface.co/papers/date/2026-06-15 Hugging Face Daily Papers"
     )
@@ -82,3 +89,83 @@ def test_evidence_date_validator_marks_stale_daily_page():
     assert validation.expected_date == "2026-06-15"
     assert validation.latest_observed_date == "2026-06-12"
     assert validation.warning is not None
+
+
+def test_huggingface_daily_papers_parser_extracts_upvote_sorted_items():
+    html_text = build_huggingface_daily_html(
+        [
+            {
+                "paper": {
+                    "id": "2606.00001",
+                    "title": "Lower Vote Paper",
+                    "summary": "Less popular.",
+                    "submittedOnDailyAt": "2026-06-15T00:00:00.000Z",
+                    "upvotes": 3,
+                    "authors": [{"name": "Alice"}],
+                }
+            },
+            {
+                "paper": {
+                    "id": "2606.00002",
+                    "title": "Higher Vote Paper",
+                    "summary": "More popular.",
+                    "submittedOnDailyAt": "2026-06-15T00:00:00.000Z",
+                    "upvotes": 11,
+                    "authors": [{"name": "Bob"}],
+                }
+            },
+        ]
+    )
+
+    items = parse_huggingface_daily_papers(
+        html_text,
+        "https://huggingface.co/papers/date/2026-06-15",
+    )
+
+    assert [item.title for item in items] == ["Higher Vote Paper", "Lower Vote Paper"]
+    assert items[0].score == 11
+    assert items[0].date == "2026-06-15"
+    assert items[0].url == "https://huggingface.co/papers/2606.00002"
+
+
+@pytest.mark.asyncio
+async def test_direct_fetcher_formats_huggingface_daily_papers_without_search_api():
+    class FakeDirectSourceFetcher(DirectSourceFetcher):
+        async def fetch_html(self, url: str) -> tuple[str, int, str | None]:
+            return (
+                build_huggingface_daily_html(
+                    [
+                        {
+                            "paper": {
+                                "id": "2606.00001",
+                                "title": "Top Paper",
+                                "summary": "The most relevant daily paper.",
+                                "submittedOnDailyAt": "2026-06-15T00:00:00.000Z",
+                                "upvotes": 42,
+                                "authors": [{"name": "Alice"}],
+                            }
+                        }
+                    ]
+                ),
+                200,
+                "text/html; charset=utf-8",
+            )
+
+    planner = SearchQueryPlanner(today_provider=lambda: date(2026, 6, 15))
+    plan = planner.plan("Hugging Face papers today votes top 5")
+
+    result = await FakeDirectSourceFetcher().fetch(plan)
+
+    assert result.error is None
+    assert result.items[0].title == "Top Paper"
+    assert result.items[0].score == 42
+    assert "## Direct source: Hugging Face papers 2026-06-15" in result.text
+    assert "### 1. [Top Paper](https://huggingface.co/papers/2606.00001)" in result.text
+    assert "Votes: 42" in result.text
+    assert "Daily date: 2026-06-15" in result.text
+
+
+def build_huggingface_daily_html(records: list[dict]) -> str:
+    """Build escaped page data shaped like Hugging Face's daily papers HTML."""
+    payload = ",".join(json.dumps(record, separators=(",", ":")) for record in records)
+    return html.escape(payload)

@@ -53,6 +53,9 @@ class SearchQueryPlanner:
             site=source.site if source else None,
             content_type=content_type.id if content_type else None,
             date_url=date_url,
+            direct_fetch_extractor=(
+                content_type.direct_fetch_extractor if content_type else None
+            ),
             max_queries=2 if len(queries) > 1 else 1,
         )
 

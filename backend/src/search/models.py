@@ -49,6 +49,7 @@ class ContentTypeProfile:
     aliases: tuple[str, ...]
     search_terms: tuple[str, ...]
     date_url_template: str | None = None
+    direct_fetch_extractor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,7 @@ class SearchQueryPlan:
     site: str | None = None
     content_type: str | None = None
     date_url: str | None = None
+    direct_fetch_extractor: str | None = None
     max_queries: int = 2
 
     @property
@@ -112,6 +114,7 @@ class SearchQueryPlan:
             "site": self.site,
             "content_type": self.content_type,
             "date_url": self.date_url,
+            "direct_fetch_extractor": self.direct_fetch_extractor,
             "max_queries": self.max_queries,
         }
 

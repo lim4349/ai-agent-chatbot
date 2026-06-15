@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from src.core.logging import get_logger
 from src.core.time_context import current_date_context
 from src.graph.state import AgentState
-from src.search import EvidenceDateValidator, SearchQueryPlanner
+from src.search import DirectSourceFetcher, EvidenceDateValidator, SearchQueryPlanner
 
 logger = get_logger(__name__)
 
@@ -85,12 +85,14 @@ class ResearchEvidenceCollector:
         retriever=None,
         search_planner: SearchQueryPlanner | None = None,
         evidence_date_validator: EvidenceDateValidator | None = None,
+        direct_fetcher: DirectSourceFetcher | None = None,
     ) -> None:
         self.llm = llm
         self.search_tool = search_tool
         self.retriever = retriever
         self.search_planner = search_planner or SearchQueryPlanner()
         self.evidence_date_validator = evidence_date_validator or EvidenceDateValidator()
+        self.direct_fetcher = direct_fetcher or DirectSourceFetcher()
 
     async def collect(
         self,
@@ -335,23 +337,32 @@ Rules:
     async def run_web_search(self, query: str) -> dict:
         """Run the configured web search adapter."""
         plan = self.search_planner.plan(query)
-        if not self.search_tool:
-            return {
-                "tool": "web_search",
-                "query": plan.primary_query,
-                "queries": list(plan.queries),
-                "original_query": query,
-                "search_plan": plan.as_dict(),
-                "results": "",
-                "error": "web_search tool is not configured",
-            }
-        if hasattr(self.search_tool, "execute_many"):
-            result = await self.search_tool.execute_many(
-                plan.queries,
-                max_queries=plan.max_queries,
-            )
-        else:
-            result = await self.search_tool.execute(plan.primary_query)
+        direct_result = await self.direct_fetcher.fetch(plan)
+
+        result = direct_result.text
+        search_error = None
+        if not result.strip():
+            if not self.search_tool:
+                return {
+                    "tool": "web_search",
+                    "query": plan.primary_query,
+                    "queries": list(plan.queries),
+                    "original_query": query,
+                    "search_plan": plan.as_dict(),
+                    "direct_fetch": direct_result.as_dict(),
+                    "results": "",
+                    "error": "web_search tool is not configured",
+                }
+            if hasattr(self.search_tool, "execute_many"):
+                result = await self.search_tool.execute_many(
+                    plan.queries,
+                    max_queries=plan.max_queries,
+                )
+            else:
+                result = await self.search_tool.execute(plan.primary_query)
+        elif not self.search_tool:
+            search_error = "web_search tool is not configured; direct source fetch used"
+
         date_validation = self.evidence_date_validator.validate_text(str(result), plan)
         return {
             "tool": "web_search",
@@ -359,6 +370,8 @@ Rules:
             "queries": list(plan.queries),
             "original_query": query,
             "search_plan": plan.as_dict(),
+            "direct_fetch": direct_result.as_dict(),
+            "search_error": search_error,
             "date_validation": date_validation.as_dict(),
             "date_warning": date_validation.warning,
             "results": result,
