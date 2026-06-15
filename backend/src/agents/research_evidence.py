@@ -10,7 +10,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.core.logging import get_logger
+from src.core.time_context import current_date_context
 from src.graph.state import AgentState
+from src.search import EvidenceDateValidator, SearchQueryPlanner
 
 logger = get_logger(__name__)
 
@@ -24,8 +26,11 @@ WEB_INTENT_TERMS = (
     "최근",
     "뉴스",
     "검색",
+    "논문",
     "날씨",
     "주가",
+    "paper",
+    "papers",
     "price",
     "news",
 )
@@ -73,10 +78,19 @@ class ResearchEvidence:
 class ResearchEvidenceCollector:
     """Owns research tool decisions, execution, and evidence formatting."""
 
-    def __init__(self, llm, search_tool=None, retriever=None) -> None:
+    def __init__(
+        self,
+        llm,
+        search_tool=None,
+        retriever=None,
+        search_planner: SearchQueryPlanner | None = None,
+        evidence_date_validator: EvidenceDateValidator | None = None,
+    ) -> None:
         self.llm = llm
         self.search_tool = search_tool
         self.retriever = retriever
+        self.search_planner = search_planner or SearchQueryPlanner()
+        self.evidence_date_validator = evidence_date_validator or EvidenceDateValidator()
 
     async def collect(
         self,
@@ -120,7 +134,12 @@ class ResearchEvidenceCollector:
         messages = [
             {
                 "role": "system",
-                "content": """You decide which tools a research agent should use.
+                "content": f"""You decide which tools a research agent should use.
+
+Runtime context:
+- {current_date_context()}
+- For today/current/latest requests, preserve the current date in tool use and reasoning.
+- HF means Hugging Face when the query also mentions papers/논문.
 
 Allowed tools:
 - web_search: current or public web information.
@@ -231,9 +250,14 @@ Rules:
     def detect_intent(self, query: str) -> ResearchIntent:
         """Return evidence intent flags for guardrail routing."""
         lowered = query.lower()
+        search_plan = self.search_planner.plan(query)
         return ResearchIntent(
             document=any(term in lowered for term in DOCUMENT_INTENT_TERMS),
-            web=any(term in lowered for term in WEB_INTENT_TERMS),
+            web=(
+                any(term in lowered for term in WEB_INTENT_TERMS)
+                or bool(search_plan.content_type)
+                or search_plan.freshness_required
+            ),
             report=any(term in lowered for term in REPORT_INTENT_TERMS),
             summary=any(term in lowered for term in SUMMARY_INTENT_TERMS),
         )
@@ -310,15 +334,35 @@ Rules:
 
     async def run_web_search(self, query: str) -> dict:
         """Run the configured web search adapter."""
+        plan = self.search_planner.plan(query)
         if not self.search_tool:
             return {
                 "tool": "web_search",
-                "query": query,
+                "query": plan.primary_query,
+                "queries": list(plan.queries),
+                "original_query": query,
+                "search_plan": plan.as_dict(),
                 "results": "",
                 "error": "web_search tool is not configured",
             }
-        result = await self.search_tool.execute(query)
-        return {"tool": "web_search", "query": query, "results": result}
+        if hasattr(self.search_tool, "execute_many"):
+            result = await self.search_tool.execute_many(
+                plan.queries,
+                max_queries=plan.max_queries,
+            )
+        else:
+            result = await self.search_tool.execute(plan.primary_query)
+        date_validation = self.evidence_date_validator.validate_text(str(result), plan)
+        return {
+            "tool": "web_search",
+            "query": plan.primary_query,
+            "queries": list(plan.queries),
+            "original_query": query,
+            "search_plan": plan.as_dict(),
+            "date_validation": date_validation.as_dict(),
+            "date_warning": date_validation.warning,
+            "results": result,
+        }
 
     async def run_retriever(
         self,
@@ -594,6 +638,8 @@ Rules:
                     warnings.append(
                         "No web evidence was found. For current or news questions, avoid unsupported claims."
                     )
+                elif result.get("date_warning"):
+                    warnings.append(str(result["date_warning"]))
 
         return " ".join(warnings) if warnings else None
 
@@ -624,8 +670,23 @@ Rules:
                 continue
             if tool == "web_search":
                 sources = ", ".join(result.get("sources", [])) or "No parsed sources"
+                plan = result.get("search_plan", {})
+                date_validation = result.get("date_validation", {})
+                plan_summary = ""
+                if isinstance(plan, dict):
+                    temporal = plan.get("temporal", {})
+                    plan_summary = (
+                        f"Search plan: source={plan.get('source_name') or 'general'}, "
+                        f"content_type={plan.get('content_type') or 'general'}, "
+                        f"temporal={temporal.get('scope') if isinstance(temporal, dict) else 'none'}"
+                    )
+                date_summary = ""
+                if isinstance(date_validation, dict) and date_validation.get("warning"):
+                    date_summary = f"Date validation warning: {date_validation['warning']}"
                 parts.append(
                     f"[web_search | confidence={result.get('confidence', 'none')} | sources={sources}]\n"
+                    f"{plan_summary}\n"
+                    f"{date_summary}\n"
                     f"{result.get('results', '')}"
                 )
             elif tool == "retriever":

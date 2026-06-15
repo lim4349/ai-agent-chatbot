@@ -1,5 +1,7 @@
 """Tests for individual agents."""
 
+from datetime import datetime
+
 import pytest
 
 from src.agents.assistant_agent import AssistantAgent
@@ -111,9 +113,71 @@ class TestAssistantAgent:
 
         result = await agent.process(state)
 
-        assert search_tool.calls == ["오늘 AI 뉴스 검색해줘"]
+        assert search_tool.calls
+        assert "오늘 AI 뉴스 검색해줘" in search_tool.calls[0]
         assert result["messages"][-1]["role"] == "assistant"
         assert result["tool_results"][0]["tool"] == "web_search"
+
+    @pytest.mark.asyncio
+    async def test_huggingface_today_papers_request_has_current_date_context(
+        self, mock_memory, monkeypatch
+    ):
+        """Today/current web requests should not rely on the model's stale internal date."""
+
+        class RecordingLLM:
+            config = type("Config", (), {"model": "mock-model"})()
+
+            def __init__(self):
+                self.messages = []
+
+            async def generate_structured(self, messages, output_schema, **kwargs):
+                return {
+                    "tools": ["web_search"],
+                    "response_mode": "answer",
+                    "reasoning": "today papers",
+                }
+
+            async def generate_with_usage(self, messages, **kwargs):
+                self.messages = messages
+                return "검색 결과입니다.", {"input_tokens": 1, "output_tokens": 1}
+
+        class MockSearchTool:
+            def __init__(self):
+                self.calls = []
+
+            async def execute(self, query):
+                self.calls.append(query)
+                return "### [Daily Papers](https://huggingface.co/papers/date/2026-06-14)\n검색 결과"
+
+        monkeypatch.setattr(
+            "src.agents.assistant_agent.current_date_context",
+            lambda: "Current date: 2026-06-15 (Asia/Seoul).",
+        )
+        monkeypatch.setattr(
+            "src.search.temporal.current_datetime",
+            lambda timezone="Asia/Seoul": datetime.fromisoformat("2026-06-15T09:00:00+09:00"),
+        )
+        monkeypatch.setattr(
+            "src.agents.research_evidence.current_date_context",
+            lambda: "Current date: 2026-06-15 (Asia/Seoul).",
+        )
+
+        llm = RecordingLLM()
+        search_tool = MockSearchTool()
+        agent = AssistantAgent(llm=llm, memory=mock_memory, search_tool=search_tool)
+        state = create_initial_state("hf에서 오늘자 논문 검색해줘", "test-session")
+
+        result = await agent.process(state)
+
+        system_prompt = "\n".join(
+            message["content"] for message in llm.messages if message["role"] == "system"
+        )
+        assert "Current date: 2026-06-15 (Asia/Seoul)." in system_prompt
+        assert search_tool.calls == [
+            "site:huggingface.co/papers/date/2026-06-15 Hugging Face Daily Papers"
+        ]
+        assert result["tool_results"][0]["query"] == search_tool.calls[0]
+        assert result["tool_results"][0]["search_plan"]["source_id"] == "huggingface"
 
     @pytest.mark.asyncio
     async def test_fallback_prefers_retriever_for_explicit_rag_query(self, mock_llm, mock_memory):

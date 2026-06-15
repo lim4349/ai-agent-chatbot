@@ -10,6 +10,7 @@ from src.agents.research_evidence import ResearchEvidenceCollector
 from src.core.di_container import DIContainer
 from src.core.logging import get_logger
 from src.core.protocols import LLMProvider, MemoryStore, Summarizer, TopicMemory, UserProfiler
+from src.core.time_context import current_date_context
 from src.graph.state import AgentState
 from src.memory.long_term_memory import LongTermMemory
 from src.observability import record_agent_metrics
@@ -62,7 +63,12 @@ class AssistantAgent(BaseAgent):
     @override
     def system_prompt(self) -> str:
         """System prompt for the assistant."""
-        return """You are a helpful AI assistant for an agentic RAG product.
+        return f"""You are a helpful AI assistant for an agentic RAG product.
+
+Runtime context:
+- {current_date_context()}
+- For today/current/latest requests, use this date context and the collected evidence.
+- If web evidence is older than the requested date, say that today's evidence was not found.
 
 Guidelines:
 - Answer in the user's language.

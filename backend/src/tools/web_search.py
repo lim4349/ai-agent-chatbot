@@ -58,3 +58,27 @@ class WebSearchTool:
         except Exception as e:
             logger.error("web_search_failed", error=str(e))
             raise
+
+    async def execute_many(
+        self,
+        queries: list[str],
+        *,
+        max_queries: int = 2,
+        max_results: int = 5,
+    ) -> str:
+        """Execute planned queries and combine formatted results."""
+        formatted_results = []
+        seen_queries = []
+        for query in queries:
+            normalized = " ".join(query.split())
+            if not normalized or normalized in seen_queries:
+                continue
+            seen_queries.append(normalized)
+            if len(seen_queries) > max_queries:
+                break
+
+            result = await self.execute(normalized, max_results=max_results)
+            if result.strip():
+                formatted_results.append(f"## Search query: {normalized}\n{result}")
+
+        return "\n---\n".join(formatted_results)

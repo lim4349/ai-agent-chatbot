@@ -1,6 +1,11 @@
 """Tests for Research Evidence planning and formatting helpers."""
 
+from datetime import date, datetime
+
+import pytest
+
 from src.agents.research_evidence import ResearchEvidenceCollector, ResearchToolDecision
+from src.search.query_planner import SearchQueryPlanner
 
 
 class FakeLLM:
@@ -55,6 +60,29 @@ def test_report_fallback_uses_both_tools_when_documents_are_available():
 
     assert decision.tools == ["retriever", "web_search"]
     assert decision.response_mode == "report"
+
+
+def test_huggingface_today_papers_query_uses_dated_daily_papers_search(monkeypatch):
+    collector = ResearchEvidenceCollector(llm=FakeLLM())
+    monkeypatch.setattr(
+        "src.search.temporal.current_datetime",
+        lambda timezone="Asia/Seoul": datetime.fromisoformat("2026-06-15T09:00:00+09:00"),
+    )
+
+    decision = collector.fallback_decision(
+        "hf에서 오늘자 논문 검색해줘",
+        available_tools=["web_search"],
+        has_documents=False,
+    )
+    search_plan = collector.search_planner.plan("hf에서 오늘자 논문 검색해줘")
+
+    assert decision.tools == ["web_search"]
+    assert search_plan.source_id == "huggingface"
+    assert search_plan.content_type == "papers"
+    assert search_plan.temporal.exact_date == "2026-06-15"
+    assert search_plan.primary_query == (
+        "site:huggingface.co/papers/date/2026-06-15 Hugging Face Daily Papers"
+    )
 
 
 def test_explicit_guardrail_adds_missing_retriever_choice():
@@ -146,6 +174,39 @@ def test_normalize_web_search_result_extracts_markdown_sources():
     assert normalized["evidence_items"][0]["tool"] == "web_search"
     assert normalized["evidence_items"][0]["source"] == "https://example.com"
     assert normalized["evidence_items"][0]["title"] == "Source"
+
+
+@pytest.mark.asyncio
+async def test_web_search_plan_adds_stale_date_warning_to_evidence():
+    class MockSearchTool:
+        def __init__(self):
+            self.calls = []
+
+        async def execute_many(self, queries, *, max_queries=2):
+            self.calls.append({"queries": queries, "max_queries": max_queries})
+            return (
+                "### [Daily Papers](https://huggingface.co/papers/date/2026-06-12)\n"
+                "Older daily papers result"
+            )
+
+    search_tool = MockSearchTool()
+    collector = ResearchEvidenceCollector(
+        llm=FakeLLM(),
+        search_tool=search_tool,
+        search_planner=SearchQueryPlanner(today_provider=lambda: date(2026, 6, 15)),
+    )
+
+    result = await collector.run_web_search("hf에서 오늘자 논문 검색해줘")
+    normalized = collector.normalize_tool_result(result)
+    warning = collector.build_evidence_warning([normalized])
+
+    assert search_tool.calls[0]["queries"][0] == (
+        "site:huggingface.co/papers/date/2026-06-15 Hugging Face Daily Papers"
+    )
+    assert result["search_plan"]["source_id"] == "huggingface"
+    assert result["date_validation"]["status"] == "stale"
+    assert warning is not None
+    assert "Requested evidence for 2026-06-15" in warning
 
 
 def test_tool_error_result_has_no_evidence_and_error_confidence():
